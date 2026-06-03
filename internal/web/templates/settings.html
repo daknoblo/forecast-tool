@@ -2,10 +2,16 @@
 <h1>Einstellungen</h1>
 
 <section class="card">
+  <p class="hint">
+    Fiskaljahr wählen:
+    <a href="/settings?year={{.PrevYear}}">‹ FY {{.PrevYear}}</a>
+    · <strong>FY {{.ViewYear}}</strong>{{if .IsActive}} (aktiv){{end}}
+    · <a href="/settings?year={{.NextYear}}">FY {{.NextYear}} ›</a>
+  </p>
   <form method="post" action="/settings" class="form-stack">
-    <label>Fiskaljahr (Anker-Jahr)
-      <input type="number" name="year" min="2000" max="2100" value="{{.Settings.Year}}">
-    </label>
+    <input type="hidden" name="year" value="{{.ViewYear}}">
+
+    <h2>Global</h2>
     <label>Fiskaljahr-Startmonat
       <select name="fyStartMonth">
         {{range .Months}}
@@ -13,7 +19,7 @@
         {{end}}
       </select>
     </label>
-    <p class="hint">Aktuelles Fiskaljahr: <strong>{{.FYStart}} – {{.FYEnd}}</strong>. Startmonat Januar = Kalenderjahr.</p>
+    <p class="hint">Aktuelles Fiskaljahr (FY {{.ViewYear}}): <strong>{{.FYStart}} – {{.FYEnd}}</strong>. Startmonat Januar = Kalenderjahr.</p>
     <label>Bundesland (Feiertage)
       <select name="state">
         {{range .States}}
@@ -24,15 +30,29 @@
     <label>Wochensollstunden
       <input type="text" inputmode="decimal" name="weekly" value="{{hours .Settings.WeeklyTargetHours}}">
     </label>
+
+    <h2>Pro Fiskaljahr (FY {{.ViewYear}})</h2>
     <label>Fiskaljahresziel (Stunden gesamt)
-      <input type="text" inputmode="decimal" name="fyTarget" value="{{hours .Settings.FiscalYearTargetHours}}">
+      <input type="text" inputmode="decimal" name="fyTarget" value="{{hours .FY.TargetHours}}">
     </label>
-    <label>Jahresurlaub (Tage à 8 h)
-      <input type="number" name="vacationDays" min="0" max="366" value="{{.Settings.AnnualVacationDays}}">
+    <label>Urlaub 1. Halbjahr ({{.H1Label}}) – Tage à 8 h
+      <input type="number" name="vacationH1" min="0" max="366" value="{{.FY.VacationDaysH1}}">
     </label>
+    <label>Urlaub 2. Halbjahr ({{.H2Label}}) – Tage à 8 h
+      <input type="number" name="vacationH2" min="0" max="366" value="{{.FY.VacationDaysH2}}">
+    </label>
+    <p class="hint">Urlaub wird pro Halbjahr angegeben, da sich das Fiskaljahr über zwei Kalenderjahre erstreckt und der Urlaubsanspruch pro Kalenderjahr zählt.</p>
+    <label>Standard Tasks (Bezeichnung)
+      <input type="text" name="standardTaskLabel" value="{{.FY.StandardTaskLabel}}" placeholder="z. B. Meetings, Admin, Weiterbildung">
+    </label>
+    <label>Standard Tasks (Stunden gesamt fürs FY)
+      <input type="text" inputmode="decimal" name="standardTaskHours" value="{{hours .FY.StandardTaskHours}}">
+    </label>
+    <p class="hint">Standard Tasks werden – wie Feiertage und Urlaub – von den FY-Gesamtstunden abgezogen.</p>
+
     <button type="submit" class="btn primary">Speichern</button>
   </form>
-  <p class="hint">Das Tool speichert Daten für genau ein Fiskaljahr. Beim Wechsel des Jahres bleiben bestehende Stunden erhalten; Feiertage und Wochenberechnung folgen dem neuen Zeitraum.</p>
+  <p class="hint">Globale Werte gelten für alle Fiskaljahre. Ziel, Urlaub und Standard Tasks werden pro Fiskaljahr gespeichert. Beim Speichern wird FY {{.ViewYear}} zum aktiven Fiskaljahr.</p>
 </section>
 
 {{template "footer" .}}

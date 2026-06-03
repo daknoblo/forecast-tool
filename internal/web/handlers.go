@@ -2,6 +2,7 @@ package web
 
 import (
 	"embed"
+	"fmt"
 	"html/template"
 	"io/fs"
 	"log"
@@ -380,14 +381,30 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 	d := s.store.Snapshot()
-	fyStart, fyEnd := forecast.FiscalYear(d.Settings.Year, d.Settings.FiscalYearStartMonth)
+	viewYear := d.Settings.Year
+	if q := trim(r.URL.Query().Get("year")); q != "" {
+		if y, err := strconv.Atoi(q); err == nil && y >= 2000 && y <= 2100 {
+			viewYear = y
+		}
+	}
+	fy := d.FYFor(viewYear)
+	fyStart, fyEnd := forecast.FiscalYear(viewYear, d.Settings.FiscalYearStartMonth)
+	h2Start := fyStart.AddDate(0, 6, 0)
+	h1End := h2Start.AddDate(0, 0, -1)
 	s.render(w, "settings.html", map[string]any{
 		"Active":   "settings",
 		"Settings": d.Settings,
 		"States":   holidays.States,
 		"Months":   monthOptions,
+		"ViewYear": viewYear,
+		"PrevYear": viewYear - 1,
+		"NextYear": viewYear + 1,
+		"IsActive": viewYear == d.Settings.Year,
+		"FY":       fy,
 		"FYStart":  fyStart.Format("02.01.2006"),
 		"FYEnd":    fyEnd.Format("02.01.2006"),
+		"H1Label":  halfLabel(fyStart, h1End),
+		"H2Label":  halfLabel(h2Start, fyEnd),
 	})
 }
 
@@ -399,9 +416,12 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	year, _ := strconv.Atoi(trim(r.FormValue("year")))
 	state := trim(r.FormValue("state"))
 	weekly, _ := strconv.ParseFloat(normalizeNum(r.FormValue("weekly")), 64)
-	fyTarget, fyErr := strconv.ParseFloat(normalizeNum(r.FormValue("fyTarget")), 64)
 	fyStartMonth, fyMonthErr := strconv.Atoi(trim(r.FormValue("fyStartMonth")))
-	vacationDays, vacErr := strconv.Atoi(trim(r.FormValue("vacationDays")))
+	fyTarget, fyErr := strconv.ParseFloat(normalizeNum(r.FormValue("fyTarget")), 64)
+	vacH1, vacH1Err := strconv.Atoi(trim(r.FormValue("vacationH1")))
+	vacH2, vacH2Err := strconv.Atoi(trim(r.FormValue("vacationH2")))
+	stdLabel := trim(r.FormValue("standardTaskLabel"))
+	stdHours, stdErr := strconv.ParseFloat(normalizeNum(r.FormValue("standardTaskHours")), 64)
 	_ = s.store.Update(func(d *models.Data) error {
 		if year >= 2000 && year <= 2100 {
 			d.Settings.Year = year
@@ -412,21 +432,48 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 		if weekly > 0 {
 			d.Settings.WeeklyTargetHours = weekly
 		}
-		if fyErr == nil && fyTarget >= 0 {
-			d.Settings.FiscalYearTargetHours = fyTarget
-		}
 		if fyMonthErr == nil && fyStartMonth >= 1 && fyStartMonth <= 12 {
 			d.Settings.FiscalYearStartMonth = fyStartMonth
 		}
-		if vacErr == nil && vacationDays >= 0 && vacationDays <= 366 {
-			d.Settings.AnnualVacationDays = vacationDays
+		if d.FiscalYears == nil {
+			d.FiscalYears = map[int]models.FiscalYearSettings{}
 		}
+		fy := d.FYFor(d.Settings.Year)
+		if fyErr == nil && fyTarget >= 0 {
+			fy.TargetHours = fyTarget
+		}
+		if vacH1Err == nil && vacH1 >= 0 && vacH1 <= 366 {
+			fy.VacationDaysH1 = vacH1
+		}
+		if vacH2Err == nil && vacH2 >= 0 && vacH2 <= 366 {
+			fy.VacationDaysH2 = vacH2
+		}
+		fy.StandardTaskLabel = stdLabel
+		if stdErr == nil && stdHours >= 0 {
+			fy.StandardTaskHours = stdHours
+		}
+		d.FiscalYears[d.Settings.Year] = fy
 		return nil
 	})
 	http.Redirect(w, r, "/settings", http.StatusSeeOther)
 }
 
 // --- helpers ---
+
+// halfLabel formats a half-year range like "Juli 2026 – Dezember 2026".
+func halfLabel(start, end time.Time) string {
+	return fmt.Sprintf("%s %d – %s %d",
+		monthName(int(start.Month())), start.Year(),
+		monthName(int(end.Month())), end.Year())
+}
+
+// monthName returns the German month name for 1..12.
+func monthName(m int) string {
+	if m < 1 || m > 12 {
+		return ""
+	}
+	return monthOptions[m-1].Name
+}
 
 // monthOption is a selectable month for the fiscal-year start dropdown.
 type monthOption struct {
