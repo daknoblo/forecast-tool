@@ -12,4 +12,13 @@ services:
       FORECAST_ADDR: ":8080"
       FORECAST_DATA_DIR: "/app/appdata"
     volumes:
-      - ./appdata:/app/appdata
+      # Named volume: inherits the correct (non-root) ownership from the image,
+      # so no manual chown is needed. Data lives under Docker's volume storage.
+      - forecast-data:/app/appdata
+      # Prefer a host folder instead? Comment the line above and use:
+      #   - ./appdata:/app/appdata
+      # Then create it once with the right owner:
+      #   mkdir -p appdata && sudo chown -R 65532:65532 appdata
+
+volumes:
+  forecast-data:
