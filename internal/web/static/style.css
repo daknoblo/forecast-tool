@@ -37,7 +37,11 @@ a:hover { text-decoration: underline; }
 .topbar nav { display: flex; gap: 1rem; }
 .topbar nav a { color: var(--muted); padding: 0.25rem 0.25rem; }
 .topbar nav a.active { color: var(--text); font-weight: 600; border-bottom: 2px solid var(--accent); }
-.topbar .year { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+.topbar .year { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: 0.5rem; }
+.topbar .year .fyswitch { display: inline-flex; align-items: center; gap: 0.35rem; margin: 0; }
+.topbar .year .fyswitch label { font-weight: 600; color: var(--text); }
+.topbar .year .fyswitch select { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 0.2rem 0.4rem; font-variant-numeric: tabular-nums; }
+.topbar .year .state { padding-left: 0.25rem; }
 
 main { max-width: 1080px; margin: 1.5rem auto; padding: 0 1.25rem; }
 
@@ -64,6 +68,11 @@ table.grid .num { text-align: right; font-variant-numeric: tabular-nums; }
 table.grid.compact th, table.grid.compact td { padding: 0.35rem 0.75rem; }
 .strong { font-weight: 700; }
 .negative { color: var(--danger); font-weight: 600; }
+
+table.kv { border-collapse: collapse; }
+table.kv td { padding: 0.3rem 0.75rem 0.3rem 0; vertical-align: top; }
+table.kv td:first-child { color: var(--muted); white-space: nowrap; }
+table.kv code { background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 0.1rem 0.35rem; font-size: 0.85rem; }
 
 table.week th.day, table.week td.day { text-align: center; min-width: 76px; }
 table.week .holiday { background: var(--holiday); }

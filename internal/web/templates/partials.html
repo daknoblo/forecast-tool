@@ -16,7 +16,16 @@
     <a href="/goal" class="{{if eq .Active "goal"}}active{{end}}">Ziel</a>
     <a href="/settings" class="{{if eq .Active "settings"}}active{{end}}">Einstellungen</a>
   </nav>
-  <div class="year">{{.Settings.Year}} · {{.Settings.FederalState}}</div>
+  <div class="year">
+    <form method="post" action="/fy" class="fyswitch">
+      <label for="fySelect">FY</label>
+      <select id="fySelect" name="year" onchange="this.form.submit()">
+        {{range .FYYears}}<option value="{{.}}"{{if eq . $.Settings.Year}} selected{{end}}>{{.}}</option>{{end}}
+      </select>
+      <noscript><button type="submit">OK</button></noscript>
+    </form>
+    <span class="state">{{.Settings.FederalState}}</span>
+  </div>
 </header>
 <main>
 {{end}}

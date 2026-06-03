@@ -111,6 +111,17 @@ func (s *Store) Snapshot() models.Data {
 	return d
 }
 
+// Path returns the on-disk path of the data file.
+func (s *Store) Path() string { return s.path }
+
+// FileSize returns the size in bytes of the data file on disk (0 if missing).
+func (s *Store) FileSize() int64 {
+	if fi, err := os.Stat(s.path); err == nil {
+		return fi.Size()
+	}
+	return 0
+}
+
 // Update runs fn against the mutable data under the write lock and persists.
 func (s *Store) Update(fn func(d *models.Data) error) error {
 	s.mu.Lock()

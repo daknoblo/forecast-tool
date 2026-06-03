@@ -55,4 +55,12 @@
   <p class="hint">Globale Werte gelten für alle Fiskaljahre. Ziel, Urlaub und Standard Tasks werden pro Fiskaljahr gespeichert. Beim Speichern wird FY {{.ViewYear}} zum aktiven Fiskaljahr.</p>
 </section>
 
+<section class="card">
+  <h2>Konfigurationsdatei</h2>
+  <table class="kv">
+    <tr><td>Pfad</td><td><code>{{.DataPath}}</code></td></tr>
+    <tr><td>Größe</td><td>{{.DataSize}}</td></tr>
+  </table>
+</section>
+
 {{template "footer" .}}
