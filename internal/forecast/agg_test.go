@@ -93,3 +93,55 @@ func TestMondayOfISOWeek(t *testing.T) {
 		t.Errorf("monday KW3 2026 = %s, want 2026-01-12", got)
 	}
 }
+
+func TestGoalSummaryTotals(t *testing.T) {
+	d := models.Data{
+		Settings: models.Settings{Year: 2026, FederalState: "BY", FiscalYearTargetHours: 1000},
+		Entries: []models.Entry{
+			{Date: "2026-01-12", ProjectID: "p1", Hours: 8, Kind: models.KindActual},
+			{Date: "2026-12-21", ProjectID: "p1", Hours: 5, Kind: models.KindForecast},
+			{Date: "2026-03-02", ProjectID: "p1", Hours: 3}, // legacy entry == forecast
+		},
+	}
+	cal := holidays.New(2026, "BY")
+	gs := BuildGoalSummary(d, cal)
+
+	if !gs.HasTarget {
+		t.Fatal("expected HasTarget = true")
+	}
+	if gs.ActualTotal != 8 {
+		t.Errorf("actual total = %v, want 8", gs.ActualTotal)
+	}
+	if gs.ForecastTotal != 8 {
+		t.Errorf("forecast total = %v, want 8", gs.ForecastTotal)
+	}
+	if gs.WorkingDaysYear < 240 || gs.WorkingDaysYear > 255 {
+		t.Errorf("working days = %d, out of expected 240-255 range", gs.WorkingDaysYear)
+	}
+	wantPerDay := round1(1000 / float64(gs.WorkingDaysYear))
+	if gs.TargetPerDay != wantPerDay {
+		t.Errorf("target per day = %v, want %v", gs.TargetPerDay, wantPerDay)
+	}
+	var qsum float64
+	for _, q := range gs.Quarters {
+		qsum += q.Target
+	}
+	if qsum < 995 || qsum > 1005 {
+		t.Errorf("sum of quarter targets = %v, want ~1000", qsum)
+	}
+	if len(gs.Months) != 12 {
+		t.Errorf("months = %d, want 12", len(gs.Months))
+	}
+}
+
+func TestActualsExcludedFromForecast(t *testing.T) {
+	d := sampleData()
+	// Add an actual entry that must NOT count towards the forecast/budget.
+	d.Entries = append(d.Entries, models.Entry{
+		Date: "2026-01-15", ProjectID: "p1", Hours: 99, Kind: models.KindActual,
+	})
+	ys := BuildYearSummary(d)
+	if ys.TotalHours != 22 {
+		t.Errorf("forecast year total = %v, want 22 (actuals excluded)", ys.TotalHours)
+	}
+}

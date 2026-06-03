@@ -49,6 +49,12 @@ func (s *Store) load() error {
 	if d.Entries == nil {
 		d.Entries = []models.Entry{}
 	}
+	// Backwards compatibility: entries without a kind are planned forecasts.
+	for i := range d.Entries {
+		if d.Entries[i].Kind == "" {
+			d.Entries[i].Kind = models.KindForecast
+		}
+	}
 	if d.Settings.Year == 0 {
 		d.Settings.Year = time.Now().Year()
 	}

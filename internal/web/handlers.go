@@ -41,8 +41,14 @@ func NewServer(store *storage.Store) (*Server, error) {
 		"cellName": func(projectID, date string) string {
 			return "h_" + projectID + "_" + date
 		},
+		"cellNameActual": func(projectID, date string) string {
+			return "a_" + projectID + "_" + date
+		},
 		"cellHours": func(cell forecast.DayCell, projectID string) float64 {
 			return cell.Hours[projectID]
+		},
+		"cellActual": func(cell forecast.DayCell, projectID string) float64 {
+			return cell.Actual[projectID]
 		},
 		"weekTotal": func(totals map[string]float64, projectID string) float64 {
 			return totals[projectID]
@@ -79,6 +85,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /projects", s.handleProjectCreate)
 	mux.HandleFunc("POST /projects/{id}/update", s.handleProjectUpdate)
 	mux.HandleFunc("POST /projects/{id}/delete", s.handleProjectDelete)
+	mux.HandleFunc("GET /goal", s.handleGoal)
 	mux.HandleFunc("GET /settings", s.handleSettings)
 	mux.HandleFunc("POST /settings", s.handleSettingsSave)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -137,11 +144,11 @@ func (s *Server) handleWeek(w http.ResponseWriter, r *http.Request) {
 	wv := forecast.BuildWeek(d, cal, week)
 	projects := forecast.SortedProjects(activeProjects(d.Projects))
 	s.render(w, "week.html", map[string]any{
-		"Active":     "week",
-		"Settings":   d.Settings,
-		"Week":       wv,
-		"Projects":   projects,
-		"MaxWeek":    forecast.WeeksInYear(d.Settings.Year),
+		"Active":      "week",
+		"Settings":    d.Settings,
+		"Week":        wv,
+		"Projects":    projects,
+		"MaxWeek":     forecast.WeeksInYear(d.Settings.Year),
 		"AllProjects": forecast.SortedProjects(d.Projects),
 	})
 }
@@ -163,11 +170,13 @@ func (s *Server) handleWeekSave(w http.ResponseWriter, r *http.Request) {
 
 	type key struct{ date, project string }
 	newHours := map[key]float64{}
+	newActual := map[key]float64{}
 	for name, vals := range r.Form {
-		if len(name) < 3 || name[:2] != "h_" {
+		if len(name) < 3 || (name[:2] != "h_" && name[:2] != "a_") {
 			continue
 		}
-		// h_{projectID}_{YYYY-MM-DD}
+		// h_{projectID}_{YYYY-MM-DD} (forecast) or a_{...} (actual)
+		isActual := name[:2] == "a_"
 		rest := name[2:]
 		if len(rest) < 11 {
 			continue
@@ -181,7 +190,11 @@ func (s *Server) handleWeekSave(w http.ResponseWriter, r *http.Request) {
 		if err != nil || h < 0 {
 			continue
 		}
-		newHours[key{date, projectID}] = h
+		if isActual {
+			newActual[key{date, projectID}] = h
+		} else {
+			newHours[key{date, projectID}] = h
+		}
 	}
 
 	err := s.store.Update(func(data *models.Data) error {
@@ -207,7 +220,24 @@ func (s *Server) handleWeekSave(w http.ResponseWriter, r *http.Request) {
 		for _, k := range keys {
 			if newHours[k] > 0 {
 				data.Entries = append(data.Entries, models.Entry{
-					Date: k.date, ProjectID: k.project, Hours: newHours[k],
+					Date: k.date, ProjectID: k.project, Hours: newHours[k], Kind: models.KindForecast,
+				})
+			}
+		}
+		akeys := make([]key, 0, len(newActual))
+		for k := range newActual {
+			akeys = append(akeys, k)
+		}
+		sort.Slice(akeys, func(i, j int) bool {
+			if akeys[i].date != akeys[j].date {
+				return akeys[i].date < akeys[j].date
+			}
+			return akeys[i].project < akeys[j].project
+		})
+		for _, k := range akeys {
+			if newActual[k] > 0 {
+				data.Entries = append(data.Entries, models.Entry{
+					Date: k.date, ProjectID: k.project, Hours: newActual[k], Kind: models.KindActual,
 				})
 			}
 		}
@@ -260,16 +290,16 @@ func (s *Server) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	budget, _ := strconv.ParseFloat(normalizeNum(r.FormValue("budget")), 64)
-	color := trim(r.FormValue("color"))
-	if color == "" {
-		color = "#2563eb"
-	}
 	_ = s.store.Update(func(d *models.Data) error {
+		used := make([]string, 0, len(d.Projects))
+		for _, p := range d.Projects {
+			used = append(used, p.Color)
+		}
 		d.Projects = append(d.Projects, models.Project{
 			ID:          newID(),
 			Name:        name,
 			BudgetHours: budget,
-			Color:       color,
+			Color:       models.RandomColor(used),
 			Active:      true,
 		})
 		return nil
@@ -330,6 +360,19 @@ func (s *Server) handleProjectDelete(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/projects", http.StatusSeeOther)
 }
 
+// --- Goal (fiscal year target) ---
+
+func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
+	d := s.store.Snapshot()
+	cal := s.calendar(d)
+	gs := forecast.BuildGoalSummary(d, cal)
+	s.render(w, "goal.html", map[string]any{
+		"Active":   "goal",
+		"Settings": d.Settings,
+		"Goal":     gs,
+	})
+}
+
 // --- Settings ---
 
 func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
@@ -349,6 +392,7 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	year, _ := strconv.Atoi(trim(r.FormValue("year")))
 	state := trim(r.FormValue("state"))
 	weekly, _ := strconv.ParseFloat(normalizeNum(r.FormValue("weekly")), 64)
+	fyTarget, fyErr := strconv.ParseFloat(normalizeNum(r.FormValue("fyTarget")), 64)
 	_ = s.store.Update(func(d *models.Data) error {
 		if year >= 2000 && year <= 2100 {
 			d.Settings.Year = year
@@ -358,6 +402,9 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 		}
 		if weekly > 0 {
 			d.Settings.WeeklyTargetHours = weekly
+		}
+		if fyErr == nil && fyTarget >= 0 {
+			d.Settings.FiscalYearTargetHours = fyTarget
 		}
 		return nil
 	})
