@@ -3,9 +3,17 @@
 
 <section class="card">
   <form method="post" action="/settings" class="form-stack">
-    <label>Kalenderjahr
+    <label>Fiskaljahr (Anker-Jahr)
       <input type="number" name="year" min="2000" max="2100" value="{{.Settings.Year}}">
     </label>
+    <label>Fiskaljahr-Startmonat
+      <select name="fyStartMonth">
+        {{range .Months}}
+          <option value="{{.Value}}" {{if eq .Value $.Settings.FiscalYearStartMonth}}selected{{end}}>{{.Name}}</option>
+        {{end}}
+      </select>
+    </label>
+    <p class="hint">Aktuelles Fiskaljahr: <strong>{{.FYStart}} – {{.FYEnd}}</strong>. Startmonat Januar = Kalenderjahr.</p>
     <label>Bundesland (Feiertage)
       <select name="state">
         {{range .States}}
@@ -21,7 +29,7 @@
     </label>
     <button type="submit" class="btn primary">Speichern</button>
   </form>
-  <p class="hint">Das Tool speichert Daten für genau ein Kalenderjahr. Beim Wechsel des Jahres werden bestehende Stunden beibehalten; nur Feiertage und Wochenberechnung folgen dem neuen Jahr.</p>
+  <p class="hint">Das Tool speichert Daten für genau ein Fiskaljahr. Beim Wechsel des Jahres bleiben bestehende Stunden erhalten; Feiertage und Wochenberechnung folgen dem neuen Zeitraum.</p>
 </section>
 
 {{template "footer" .}}

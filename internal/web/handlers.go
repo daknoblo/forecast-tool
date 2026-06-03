@@ -121,12 +121,15 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	d := s.store.Snapshot()
 	ys := forecast.BuildYearSummary(d)
 	projects := forecast.SortedProjects(d.Projects)
+	fyStart, fyEnd := forecast.FiscalYear(d.Settings.Year, d.Settings.FiscalYearStartMonth)
 	s.render(w, "dashboard.html", map[string]any{
 		"Active":      "dashboard",
 		"Settings":    d.Settings,
 		"Summary":     ys,
 		"Projects":    projects,
-		"CurrentWeek": forecast.CurrentWeek(d.Settings.Year),
+		"CurrentWeek": forecast.CurrentFYWeek(d.Settings.Year, d.Settings.FiscalYearStartMonth),
+		"FYStart":     fyStart.Format("02.01.2006"),
+		"FYEnd":       fyEnd.Format("02.01.2006"),
 	})
 }
 
@@ -134,12 +137,12 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleWeekRedirect(w http.ResponseWriter, r *http.Request) {
 	d := s.store.Snapshot()
-	http.Redirect(w, r, "/week/"+strconv.Itoa(forecast.CurrentWeek(d.Settings.Year)), http.StatusFound)
+	http.Redirect(w, r, "/week/"+strconv.Itoa(forecast.CurrentFYWeek(d.Settings.Year, d.Settings.FiscalYearStartMonth)), http.StatusFound)
 }
 
 func (s *Server) handleWeek(w http.ResponseWriter, r *http.Request) {
 	d := s.store.Snapshot()
-	week := clampWeek(r.PathValue("week"), d.Settings.Year)
+	week := clampWeek(r.PathValue("week"), d.Settings)
 	cal := s.calendar(d)
 	wv := forecast.BuildWeek(d, cal, week)
 	projects := forecast.SortedProjects(activeProjects(d.Projects))
@@ -147,8 +150,8 @@ func (s *Server) handleWeek(w http.ResponseWriter, r *http.Request) {
 		"Active":      "week",
 		"Settings":    d.Settings,
 		"Week":        wv,
+		"MaxWeek":     forecast.FYWeeks(d.Settings.Year, d.Settings.FiscalYearStartMonth),
 		"Projects":    projects,
-		"MaxWeek":     forecast.WeeksInYear(d.Settings.Year),
 		"AllProjects": forecast.SortedProjects(d.Projects),
 	})
 }
@@ -159,8 +162,8 @@ func (s *Server) handleWeekSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	d := s.store.Snapshot()
-	week := clampWeek(r.PathValue("week"), d.Settings.Year)
-	monday := forecast.MondayOfISOWeek(d.Settings.Year, week)
+	week := clampWeek(r.PathValue("week"), d.Settings)
+	monday := forecast.FYWeekMonday(d.Settings.Year, d.Settings.FiscalYearStartMonth, week)
 
 	// Collect the set of dates belonging to this week (Mon-Fri).
 	weekDates := map[string]bool{}
@@ -377,10 +380,14 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 	d := s.store.Snapshot()
+	fyStart, fyEnd := forecast.FiscalYear(d.Settings.Year, d.Settings.FiscalYearStartMonth)
 	s.render(w, "settings.html", map[string]any{
 		"Active":   "settings",
 		"Settings": d.Settings,
 		"States":   holidays.States,
+		"Months":   monthOptions,
+		"FYStart":  fyStart.Format("02.01.2006"),
+		"FYEnd":    fyEnd.Format("02.01.2006"),
 	})
 }
 
@@ -393,6 +400,7 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	state := trim(r.FormValue("state"))
 	weekly, _ := strconv.ParseFloat(normalizeNum(r.FormValue("weekly")), 64)
 	fyTarget, fyErr := strconv.ParseFloat(normalizeNum(r.FormValue("fyTarget")), 64)
+	fyStartMonth, fyMonthErr := strconv.Atoi(trim(r.FormValue("fyStartMonth")))
 	_ = s.store.Update(func(d *models.Data) error {
 		if year >= 2000 && year <= 2100 {
 			d.Settings.Year = year
@@ -406,12 +414,27 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 		if fyErr == nil && fyTarget >= 0 {
 			d.Settings.FiscalYearTargetHours = fyTarget
 		}
+		if fyMonthErr == nil && fyStartMonth >= 1 && fyStartMonth <= 12 {
+			d.Settings.FiscalYearStartMonth = fyStartMonth
+		}
 		return nil
 	})
 	http.Redirect(w, r, "/settings", http.StatusSeeOther)
 }
 
 // --- helpers ---
+
+// monthOption is a selectable month for the fiscal-year start dropdown.
+type monthOption struct {
+	Value int
+	Name  string
+}
+
+var monthOptions = []monthOption{
+	{1, "Januar"}, {2, "Februar"}, {3, "März"}, {4, "April"},
+	{5, "Mai"}, {6, "Juni"}, {7, "Juli"}, {8, "August"},
+	{9, "September"}, {10, "Oktober"}, {11, "November"}, {12, "Dezember"},
+}
 
 func activeProjects(ps []models.Project) []models.Project {
 	out := make([]models.Project, 0, len(ps))
@@ -423,12 +446,12 @@ func activeProjects(ps []models.Project) []models.Project {
 	return out
 }
 
-func clampWeek(raw string, year int) int {
+func clampWeek(raw string, st models.Settings) int {
+	max := forecast.FYWeeks(st.Year, st.FiscalYearStartMonth)
 	w, err := strconv.Atoi(raw)
 	if err != nil {
-		return forecast.CurrentWeek(year)
+		return forecast.CurrentFYWeek(st.Year, st.FiscalYearStartMonth)
 	}
-	max := forecast.WeeksInYear(year)
 	if w < 1 {
 		w = 1
 	}

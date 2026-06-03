@@ -11,12 +11,13 @@ const (
 	KindActual   = "actual"
 )
 
-// Settings holds global configuration for a single calendar year.
+// Settings holds global configuration for a single fiscal year.
 type Settings struct {
 	Year                  int     `json:"year"`
 	FederalState          string  `json:"federalState"` // e.g. "BY", "BW", "BE" ...
 	WeeklyTargetHours     float64 `json:"weeklyTargetHours"`
 	FiscalYearTargetHours float64 `json:"fiscalYearTargetHours"` // total target hours for the whole FY
+	FiscalYearStartMonth  int     `json:"fiscalYearStartMonth"`  // 1-12; 7 = July (default). 1 == calendar year
 }
 
 // Project is a thing time is forecasted against, constrained by a budget.
@@ -50,9 +51,10 @@ type Data struct {
 func DefaultData(year int) Data {
 	return Data{
 		Settings: Settings{
-			Year:              year,
-			FederalState:      "BY",
-			WeeklyTargetHours: 40,
+			Year:                 year,
+			FederalState:         "BY",
+			WeeklyTargetHours:    40,
+			FiscalYearStartMonth: 7,
 		},
 		Projects: []Project{},
 		Entries:  []Entry{},

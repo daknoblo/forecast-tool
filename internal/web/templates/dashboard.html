@@ -1,5 +1,6 @@
 {{template "header" .}}
-<h1>Dashboard {{.Settings.Year}}</h1>
+<h1>Dashboard · Fiskaljahr {{.Settings.Year}}</h1>
+<p class="hint">Zeitraum {{.FYStart}} – {{.FYEnd}}</p>
 
 <section class="cards">
   <div class="card kpi">
@@ -11,8 +12,8 @@
     <div class="kpi-label">Projekte</div>
   </div>
   <div class="card kpi">
-    <div class="kpi-value"><a href="/week/{{.CurrentWeek}}">KW {{.CurrentWeek}}</a></div>
-    <div class="kpi-label">Aktuelle Woche</div>
+    <div class="kpi-value"><a href="/week/{{.CurrentWeek}}">W {{.CurrentWeek}}</a></div>
+    <div class="kpi-label">Aktuelle FY-Woche</div>
   </div>
 </section>
 
@@ -20,13 +21,15 @@
 {{if .Summary.Projects}}
 <table class="grid">
   <thead>
-    <tr><th>Projekt</th><th class="num">Budget</th><th class="num">Verbraucht</th><th class="num">Rest</th><th>Auslastung</th></tr>
+    <tr><th>Projekt</th><th class="num">Budget</th><th class="num">Forecast</th><th class="num">Ist</th><th class="num">Verbraucht</th><th class="num">Rest</th><th>Auslastung</th></tr>
   </thead>
   <tbody>
   {{range .Summary.Projects}}
     <tr>
       <td><span class="dot" style="background:{{.Project.Color}}"></span>{{.Project.Name}}{{if not .Project.Active}} <em>(inaktiv)</em>{{end}}</td>
       <td class="num">{{hours .Project.BudgetHours}} h</td>
+      <td class="num">{{hours .Forecast}} h</td>
+      <td class="num ist">{{hours .Actual}} h</td>
       <td class="num">{{hours .Consumed}} h</td>
       <td class="num {{if lt .Remaining 0.0}}negative{{end}}">{{hours .Remaining}} h</td>
       <td>
@@ -41,14 +44,14 @@
 <p class="empty">Noch keine Projekte. Lege im Bereich <a href="/projects">Projekte</a> dein erstes Projekt an.</p>
 {{end}}
 
-<h2>Wochenauslastung</h2>
+<h2>Wochenauslastung (Verbraucht = Ist/Forecast)</h2>
 <table class="grid compact">
   <thead><tr><th>Woche</th><th class="num">Stunden</th><th class="num">Soll</th><th>Auslastung</th></tr></thead>
   <tbody>
   {{range .Summary.WeekTotals}}
     {{if gt .Hours 0.0}}
     <tr>
-      <td><a href="/week/{{.Week}}">KW {{.Week}}</a></td>
+      <td><a href="/week/{{.Week}}">{{.Label}}</a></td>
       <td class="num">{{hours .Hours}} h</td>
       <td class="num">{{hours .TargetHours}} h</td>
       <td>

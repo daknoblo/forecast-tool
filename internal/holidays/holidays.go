@@ -78,14 +78,16 @@ type Calendar struct {
 	byDate map[string]string // YYYY-MM-DD -> holiday name
 }
 
-// New builds a holiday lookup for the given year and state code.
+// New builds a holiday lookup covering the given anchor year and its neighbours
+// (year-1 .. year+1) so a fiscal year spanning two calendar years is fully
+// covered.
 func New(year int, state string) *Calendar {
 	bc := cal.NewBusinessCalendar()
 	bc.AddHoliday(regionHolidays(state)...)
 
 	byDate := make(map[string]string)
-	d := time.Date(year, time.January, 1, 12, 0, 0, 0, time.UTC)
-	end := time.Date(year+1, time.January, 1, 0, 0, 0, 0, time.UTC)
+	d := time.Date(year-1, time.January, 1, 12, 0, 0, 0, time.UTC)
+	end := time.Date(year+2, time.January, 1, 0, 0, 0, 0, time.UTC)
 	for d.Before(end) {
 		if _, _, h := bc.IsHoliday(d); h != nil {
 			byDate[d.Format("2006-01-02")] = h.Name
