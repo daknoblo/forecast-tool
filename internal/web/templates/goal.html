@@ -1,5 +1,6 @@
 {{template "header" .}}
 <h1>Fiskaljahresziel {{.Settings.Year}}</h1>
+{{if .Goal.HasTarget}}<p class="hint">Zeitraum {{.Goal.StartLabel}} – {{.Goal.EndLabel}}</p>{{end}}
 
 {{if not .Goal.HasTarget}}
 <section class="card">
@@ -26,6 +27,10 @@
     <div class="kpi-label">Hochrechnung</div>
   </div>
   <div class="card kpi">
+    <div class="kpi-value">{{hours .Goal.HolidayHours}} h</div>
+    <div class="kpi-label">Feiertage ({{.Goal.HolidayDays}} Tage à 8 h)</div>
+  </div>
+  <div class="card kpi">
     <div class="kpi-value {{if lt .Goal.PctProjected 100.0}}negative{{end}}">{{hours .Goal.PctProjected}} %</div>
     <div class="kpi-label">Zielerreichung (Hochrechnung)</div>
   </div>
@@ -48,13 +53,12 @@
 </section>
 
 <section class="card">
-  <h2>Soll-Tempo</h2>
+  <h2>Soll-Tempo (gleichmäßig aufgeteilt)</h2>
   <table class="grid compact">
     <tbody>
-      <tr><td>Soll pro Tag</td><td class="num">{{hours .Goal.TargetPerDay}} h</td></tr>
-      <tr><td>Soll pro Woche (5 AT)</td><td class="num">{{hours .Goal.TargetPerWeek}} h</td></tr>
-      <tr><td>Soll pro Monat (Ø)</td><td class="num">{{hours .Goal.TargetPerMonth}} h</td></tr>
-      <tr><td>Soll pro Quartal (Ø)</td><td class="num">{{hours .Goal.TargetPerQuarter}} h</td></tr>
+      <tr><td>Soll pro Woche</td><td class="num">{{hours .Goal.TargetPerWeek}} h</td></tr>
+      <tr><td>Soll pro Monat</td><td class="num">{{hours .Goal.TargetPerMonth}} h</td></tr>
+      <tr><td>Soll pro Quartal</td><td class="num">{{hours .Goal.TargetPerQuarter}} h</td></tr>
       <tr><td>Arbeitstage gesamt</td><td class="num">{{.Goal.WorkingDaysYear}}</td></tr>
       <tr><td>Arbeitstage vergangen</td><td class="num">{{.Goal.WorkingDaysDone}}</td></tr>
     </tbody>
@@ -65,7 +69,7 @@
   <h2>Quartale</h2>
   <table class="grid">
     <thead>
-      <tr><th>Quartal</th><th class="num">Soll</th><th class="num">Forecast</th><th class="num">Ist</th><th class="num">Hochrechnung</th><th>Zielerreichung</th></tr>
+      <tr><th>Quartal</th><th class="num">Soll</th><th class="num">Forecast</th><th class="num">Ist</th><th class="num">Feiertage</th><th class="num">Hochrechnung</th><th>Zielerreichung</th></tr>
     </thead>
     <tbody>
     {{range .Goal.Quarters}}
@@ -74,6 +78,7 @@
         <td class="num">{{hours .Target}} h</td>
         <td class="num">{{hours .Forecast}} h</td>
         <td class="num ist">{{hours .Actual}} h</td>
+        <td class="num">{{hours .Holiday}} h</td>
         <td class="num strong">{{hours .Projected}} h</td>
         <td>
           <div class="bar"><span style="width:{{barWidth .PctOfTarget}}%"></span></div>
@@ -90,7 +95,7 @@
     <summary>Monatsübersicht</summary>
     <table class="grid compact">
       <thead>
-        <tr><th>Monat</th><th class="num">Soll</th><th class="num">Forecast</th><th class="num">Ist</th><th class="num">Hochrechnung</th><th>%</th></tr>
+        <tr><th>Monat</th><th class="num">Soll</th><th class="num">Forecast</th><th class="num">Ist</th><th class="num">Feiertage</th><th class="num">Hochrechnung</th><th>%</th></tr>
       </thead>
       <tbody>
       {{range .Goal.Months}}
@@ -99,6 +104,7 @@
           <td class="num">{{hours .Target}} h</td>
           <td class="num">{{hours .Forecast}} h</td>
           <td class="num ist">{{hours .Actual}} h</td>
+          <td class="num">{{hours .Holiday}} h</td>
           <td class="num strong">{{hours .Projected}} h</td>
           <td><small class="{{if lt .PctOfTarget 100.0}}negative{{end}}">{{hours .PctOfTarget}} %</small></td>
         </tr>

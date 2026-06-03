@@ -1,11 +1,12 @@
 {{template "header" .}}
 <div class="week-head">
-  <h1>{{.Week.Label}} / {{.Settings.Year}}</h1>
+  <h1>{{.Week.Label}}</h1>
   <div class="week-nav">
-    {{if ge .Week.PrevWeek 1}}<a href="/week/{{.Week.PrevWeek}}">&laquo; KW {{.Week.PrevWeek}}</a>{{end}}
-    {{if le .Week.NextWeek .MaxWeek}}<a href="/week/{{.Week.NextWeek}}">KW {{.Week.NextWeek}} &raquo;</a>{{end}}
+    {{if ge .Week.PrevWeek 1}}<a href="/week/{{.Week.PrevWeek}}">&laquo; Woche {{.Week.PrevWeek}}</a>{{end}}
+    {{if le .Week.NextWeek .MaxWeek}}<a href="/week/{{.Week.NextWeek}}">Woche {{.Week.NextWeek}} &raquo;</a>{{end}}
   </div>
 </div>
+<p class="hint">Zeitraum {{.Week.RangeLabel}}{{if gt .Week.HolidayHours 0.0}} · Feiertage automatisch {{hours .Week.HolidayHours}} h{{end}}</p>
 
 {{if .Projects}}
 <form method="post" action="/week/{{.Week.Week}}">

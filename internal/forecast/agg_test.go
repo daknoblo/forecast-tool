@@ -9,7 +9,7 @@ import (
 
 func sampleData() models.Data {
 	return models.Data{
-		Settings: models.Settings{Year: 2026, FederalState: "BY", WeeklyTargetHours: 40},
+		Settings: models.Settings{Year: 2026, FederalState: "BY", WeeklyTargetHours: 40, FiscalYearStartMonth: 1},
 		Projects: []models.Project{
 			{ID: "p1", Name: "Alpha", BudgetHours: 100, Active: true},
 			{ID: "p2", Name: "Beta", BudgetHours: 50, Active: true},
@@ -96,7 +96,7 @@ func TestMondayOfISOWeek(t *testing.T) {
 
 func TestGoalSummaryTotals(t *testing.T) {
 	d := models.Data{
-		Settings: models.Settings{Year: 2026, FederalState: "BY", FiscalYearTargetHours: 1000},
+		Settings: models.Settings{Year: 2026, FederalState: "BY", FiscalYearTargetHours: 1000, FiscalYearStartMonth: 1},
 		Entries: []models.Entry{
 			{Date: "2026-01-12", ProjectID: "p1", Hours: 8, Kind: models.KindActual},
 			{Date: "2026-12-21", ProjectID: "p1", Hours: 5, Kind: models.KindForecast},
@@ -118,10 +118,6 @@ func TestGoalSummaryTotals(t *testing.T) {
 	if gs.WorkingDaysYear < 240 || gs.WorkingDaysYear > 255 {
 		t.Errorf("working days = %d, out of expected 240-255 range", gs.WorkingDaysYear)
 	}
-	wantPerDay := round1(1000 / float64(gs.WorkingDaysYear))
-	if gs.TargetPerDay != wantPerDay {
-		t.Errorf("target per day = %v, want %v", gs.TargetPerDay, wantPerDay)
-	}
 	var qsum float64
 	for _, q := range gs.Quarters {
 		qsum += q.Target
@@ -134,14 +130,28 @@ func TestGoalSummaryTotals(t *testing.T) {
 	}
 }
 
-func TestActualsExcludedFromForecast(t *testing.T) {
+func TestEffectiveHoursOverride(t *testing.T) {
 	d := sampleData()
-	// Add an actual entry that must NOT count towards the forecast/budget.
+	// p1 on 2026-01-12 has a forecast of 8h. An actual booking of 6h on the same
+	// day must OVERRIDE the forecast (effective = actual where booked).
 	d.Entries = append(d.Entries, models.Entry{
-		Date: "2026-01-15", ProjectID: "p1", Hours: 99, Kind: models.KindActual,
+		Date: "2026-01-12", ProjectID: "p1", Hours: 6, Kind: models.KindActual,
 	})
 	ys := BuildYearSummary(d)
-	if ys.TotalHours != 22 {
-		t.Errorf("forecast year total = %v, want 22 (actuals excluded)", ys.TotalHours)
+	var alpha ProjectSummary
+	for _, p := range ys.Projects {
+		if p.Project.ID == "p1" {
+			alpha = p
+		}
+	}
+	// p1 effective: 6 (actual overrides 8 forecast on 01-12) + 4 (forecast 01-13) = 10
+	if alpha.Consumed != 10 {
+		t.Errorf("alpha effective consumed = %v, want 10 (actual overrides forecast)", alpha.Consumed)
+	}
+	if alpha.Forecast != 12 {
+		t.Errorf("alpha forecast = %v, want 12", alpha.Forecast)
+	}
+	if alpha.Actual != 6 {
+		t.Errorf("alpha actual = %v, want 6", alpha.Actual)
 	}
 }

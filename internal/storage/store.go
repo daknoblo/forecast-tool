@@ -64,6 +64,9 @@ func (s *Store) load() error {
 	if d.Settings.FederalState == "" {
 		d.Settings.FederalState = "BY"
 	}
+	if d.Settings.FiscalYearStartMonth < 1 || d.Settings.FiscalYearStartMonth > 12 {
+		d.Settings.FiscalYearStartMonth = 7
+	}
 	s.data = d
 	return nil
 }
