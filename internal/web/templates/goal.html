@@ -57,8 +57,10 @@
   <table class="grid compact">
     <tbody>
       <tr><td>FY-Gesamtstunden (Wochentage à 8 h, ohne Wochenende)</td><td class="num">{{hours .Goal.WeekdayHours}} h</td><td class="num">{{.Goal.WeekdayDays}} Tage</td></tr>
-      <tr><td>– Urlaub</td><td class="num">{{hours .Goal.VacationHours}} h</td><td class="num">{{.Goal.VacationDays}} Tage</td></tr>
+      <tr><td>– Urlaub 1. Halbjahr</td><td class="num">{{hours .Goal.VacationHoursH1}} h</td><td class="num">{{.Goal.VacationDaysH1}} Tage</td></tr>
+      <tr><td>– Urlaub 2. Halbjahr</td><td class="num">{{hours .Goal.VacationHoursH2}} h</td><td class="num">{{.Goal.VacationDaysH2}} Tage</td></tr>
       <tr><td>– Feiertage</td><td class="num">{{hours .Goal.HolidayHours}} h</td><td class="num">{{.Goal.HolidayDays}} Tage</td></tr>
+      <tr><td>– {{if .Goal.StandardTaskLabel}}{{.Goal.StandardTaskLabel}}{{else}}Standard Tasks{{end}}</td><td class="num">{{hours .Goal.StandardTaskHours}} h</td><td></td></tr>
       <tr><td><strong>Verfügbare Arbeitsstunden (netto)</strong></td><td class="num"><strong>{{hours .Goal.AvailableHours}} h</strong></td><td></td></tr>
       <tr><td>Jahresziel in % der FY-Gesamtstunden</td><td class="num">{{hours .Goal.PctOfWeekdays}} %</td><td></td></tr>
       <tr><td>Jahresziel in % der verfügbaren Stunden</td><td class="num">{{hours .Goal.PctOfAvailable}} %</td><td></td></tr>
@@ -124,27 +126,25 @@
 </section>
 
 <section class="card">
-  <details>
-    <summary>Monatsübersicht</summary>
-    <table class="grid compact">
-      <thead>
-        <tr><th>Monat</th><th class="num">Soll</th><th class="num">Forecast</th><th class="num">Ist</th><th class="num">Feiertage</th><th class="num">Hochrechnung</th><th>%</th></tr>
-      </thead>
-      <tbody>
-      {{range .Goal.Months}}
-        <tr>
-          <td>{{.Label}}</td>
-          <td class="num">{{hours .Target}} h</td>
-          <td class="num">{{hours .Forecast}} h</td>
-          <td class="num ist">{{hours .Actual}} h</td>
-          <td class="num">{{hours .Holiday}} h</td>
-          <td class="num strong">{{hours .Projected}} h</td>
-          <td><small class="{{if lt .PctOfTarget 100.0}}negative{{end}}">{{hours .PctOfTarget}} %</small></td>
-        </tr>
-      {{end}}
-      </tbody>
-    </table>
-  </details>
+  <h2>Monatsübersicht</h2>
+  <table class="grid compact">
+    <thead>
+      <tr><th>Monat</th><th class="num">Soll</th><th class="num">Forecast</th><th class="num">Ist</th><th class="num">Feiertage</th><th class="num">Hochrechnung</th><th>%</th></tr>
+    </thead>
+    <tbody>
+    {{range .Goal.Months}}
+      <tr>
+        <td>{{.Label}}</td>
+        <td class="num">{{hours .Target}} h</td>
+        <td class="num">{{hours .Forecast}} h</td>
+        <td class="num ist">{{hours .Actual}} h</td>
+        <td class="num">{{hours .Holiday}} h</td>
+        <td class="num strong">{{hours .Projected}} h</td>
+        <td><small class="{{if lt .PctOfTarget 100.0}}negative{{end}}">{{hours .PctOfTarget}} %</small></td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
 </section>
 
 {{end}}

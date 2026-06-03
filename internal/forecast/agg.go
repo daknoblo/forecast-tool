@@ -429,13 +429,19 @@ type GoalSummary struct {
 	Months            []PeriodStat
 
 	// Capacity overview (working time available in the FY).
-	WeekdayHours   float64 // all FY weekdays (Mon-Fri) * 8h, weekends excluded
-	WeekdayDays    int     // number of weekdays in the FY
-	VacationDays   int     // planned vacation days
-	VacationHours  float64 // vacation days * 8h
-	AvailableHours float64 // WeekdayHours - HolidayHours - VacationHours
-	PctOfWeekdays  float64 // target / WeekdayHours * 100
-	PctOfAvailable float64 // target / AvailableHours * 100
+	WeekdayHours      float64 // all FY weekdays (Mon-Fri) * 8h, weekends excluded
+	WeekdayDays       int     // number of weekdays in the FY
+	VacationDays      int     // planned vacation days (H1 + H2)
+	VacationHours     float64 // vacation days * 8h
+	VacationDaysH1    int     // vacation days in the first FY half
+	VacationDaysH2    int     // vacation days in the second FY half
+	VacationHoursH1   float64
+	VacationHoursH2   float64
+	StandardTaskLabel string  // free-text label for recurring standard tasks
+	StandardTaskHours float64 // hours deducted like holidays/vacation
+	AvailableHours    float64 // WeekdayHours - HolidayHours - VacationHours - StandardTaskHours
+	PctOfWeekdays     float64 // target / WeekdayHours * 100
+	PctOfAvailable    float64 // target / AvailableHours * 100
 
 	// Pace needed to still reach the goal from today onwards.
 	RemainingGoal     float64 // target - actual booked (>= 0)
@@ -451,7 +457,8 @@ type GoalSummary struct {
 func BuildGoalSummary(d models.Data, cal *holidays.Calendar) GoalSummary {
 	year := d.Settings.Year
 	startMonth := normMonth(d.Settings.FiscalYearStartMonth)
-	target := d.Settings.FiscalYearTargetHours
+	fy := d.CurrentFY()
+	target := fy.TargetHours
 	fyStart, fyEnd := FiscalYear(year, startMonth)
 
 	now := time.Now().UTC()
@@ -587,12 +594,19 @@ func BuildGoalSummary(d models.Data, cal *holidays.Calendar) GoalSummary {
 		gs.PctActual = 0
 	}
 
-	// Capacity overview: gross weekday hours minus holidays and planned vacation.
+	// Capacity overview: gross weekday hours minus holidays, planned vacation
+	// (per half-year) and recurring standard tasks.
 	gs.WeekdayDays = weekdayDays
 	gs.WeekdayHours = round1(float64(weekdayDays) * HolidayDayHours)
-	gs.VacationDays = d.Settings.AnnualVacationDays
+	gs.VacationDaysH1 = fy.VacationDaysH1
+	gs.VacationDaysH2 = fy.VacationDaysH2
+	gs.VacationDays = fy.VacationDaysH1 + fy.VacationDaysH2
+	gs.VacationHoursH1 = round1(float64(fy.VacationDaysH1) * HolidayDayHours)
+	gs.VacationHoursH2 = round1(float64(fy.VacationDaysH2) * HolidayDayHours)
 	gs.VacationHours = round1(float64(gs.VacationDays) * HolidayDayHours)
-	gs.AvailableHours = round1(gs.WeekdayHours - gs.HolidayHours - gs.VacationHours)
+	gs.StandardTaskLabel = fy.StandardTaskLabel
+	gs.StandardTaskHours = round1(fy.StandardTaskHours)
+	gs.AvailableHours = round1(gs.WeekdayHours - gs.HolidayHours - gs.VacationHours - gs.StandardTaskHours)
 	if gs.WeekdayHours > 0 {
 		gs.PctOfWeekdays = round1(target / gs.WeekdayHours * 100)
 	}

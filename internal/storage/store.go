@@ -67,6 +67,18 @@ func (s *Store) load() error {
 	if d.Settings.FiscalYearStartMonth < 1 || d.Settings.FiscalYearStartMonth > 12 {
 		d.Settings.FiscalYearStartMonth = 7
 	}
+	if d.FiscalYears == nil {
+		d.FiscalYears = map[int]models.FiscalYearSettings{}
+	}
+	// Migrate legacy single-FY settings into the per-FY map on first load.
+	if _, ok := d.FiscalYears[d.Settings.Year]; !ok {
+		if d.Settings.FiscalYearTargetHours > 0 || d.Settings.AnnualVacationDays > 0 {
+			d.FiscalYears[d.Settings.Year] = models.FiscalYearSettings{
+				TargetHours:    d.Settings.FiscalYearTargetHours,
+				VacationDaysH1: d.Settings.AnnualVacationDays,
+			}
+		}
+	}
 	s.data = d
 	return nil
 }
@@ -92,6 +104,10 @@ func (s *Store) Snapshot() models.Data {
 	d := s.data
 	d.Projects = append([]models.Project(nil), s.data.Projects...)
 	d.Entries = append([]models.Entry(nil), s.data.Entries...)
+	d.FiscalYears = make(map[int]models.FiscalYearSettings, len(s.data.FiscalYears))
+	for k, v := range s.data.FiscalYears {
+		d.FiscalYears[k] = v
+	}
 	return d
 }
 
