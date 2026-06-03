@@ -28,7 +28,7 @@
   </div>
   <div class="card kpi">
     <div class="kpi-value">{{hours .Goal.HolidayHours}} h</div>
-    <div class="kpi-label">Feiertage ({{.Goal.HolidayDays}} Tage à 8 h)</div>
+    <div class="kpi-label">Feiertage ({{.Goal.HolidayDays}} Tage à 8 h) – zählt nicht aufs Ziel</div>
   </div>
   <div class="card kpi">
     <div class="kpi-value {{if lt .Goal.PctProjected 100.0}}negative{{end}}">{{hours .Goal.PctProjected}} %</div>
@@ -38,7 +38,7 @@
 
 <section class="card">
   <h2>Status</h2>
-  <p>Hochrechnung = Ist (vergangene Wochen) + Forecast (aktuelle &amp; kommende Wochen).</p>
+  <p>Hochrechnung = Ist (vergangene Wochen) + Forecast (aktuelle &amp; kommende Wochen). Feiertage werden nicht aufs Ziel angerechnet – nur reale und Forecast-Stunden zählen.</p>
   <div class="goalbar">
     <div class="goalbar-track">
       <span class="goalbar-actual" style="width:{{barWidth .Goal.PctActual}}%" title="Ist {{hours .Goal.PctActual}} %"></span>
@@ -50,6 +50,39 @@
       <span>Differenz zum Ziel: <strong class="{{if gt .Goal.Remaining 0.0}}negative{{end}}">{{hours .Goal.Remaining}} h</strong></span>
     </div>
   </div>
+</section>
+
+<section class="card">
+  <h2>FY-Kapazität</h2>
+  <table class="grid compact">
+    <tbody>
+      <tr><td>FY-Gesamtstunden (Wochentage à 8 h, ohne Wochenende)</td><td class="num">{{hours .Goal.WeekdayHours}} h</td><td class="num">{{.Goal.WeekdayDays}} Tage</td></tr>
+      <tr><td>– Urlaub</td><td class="num">{{hours .Goal.VacationHours}} h</td><td class="num">{{.Goal.VacationDays}} Tage</td></tr>
+      <tr><td>– Feiertage</td><td class="num">{{hours .Goal.HolidayHours}} h</td><td class="num">{{.Goal.HolidayDays}} Tage</td></tr>
+      <tr><td><strong>Verfügbare Arbeitsstunden (netto)</strong></td><td class="num"><strong>{{hours .Goal.AvailableHours}} h</strong></td><td></td></tr>
+      <tr><td>Jahresziel in % der FY-Gesamtstunden</td><td class="num">{{hours .Goal.PctOfWeekdays}} %</td><td></td></tr>
+      <tr><td>Jahresziel in % der verfügbaren Stunden</td><td class="num">{{hours .Goal.PctOfAvailable}} %</td><td></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="card">
+  <h2>Resttempo bis FY-Ende</h2>
+  <div class="cards">
+    <div class="card kpi">
+      <div class="kpi-value {{if gt .Goal.RemainingGoal 0.0}}negative{{end}}">{{hours .Goal.RemainingGoal}} h</div>
+      <div class="kpi-label">Restliches Ziel (Ziel − Ist gebucht)</div>
+    </div>
+    <div class="card kpi">
+      <div class="kpi-value">{{.Goal.RemainingWorkdays}}</div>
+      <div class="kpi-label">Verbleibende Arbeitstage</div>
+    </div>
+    <div class="card kpi">
+      <div class="kpi-value">{{hours .Goal.RequiredPerDay}} h</div>
+      <div class="kpi-label">Benötigt pro Arbeitstag</div>
+    </div>
+  </div>
+  <p class="hint">Um das Ziel zu erreichen, müsstest du an den verbleibenden Arbeitstagen je {{hours .Goal.RequiredPerDay}} h real buchen.</p>
 </section>
 
 <section class="card">

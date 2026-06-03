@@ -27,6 +27,9 @@
     <label>Fiskaljahresziel (Stunden gesamt)
       <input type="text" inputmode="decimal" name="fyTarget" value="{{hours .Settings.FiscalYearTargetHours}}">
     </label>
+    <label>Jahresurlaub (Tage à 8 h)
+      <input type="number" name="vacationDays" min="0" max="366" value="{{.Settings.AnnualVacationDays}}">
+    </label>
     <button type="submit" class="btn primary">Speichern</button>
   </form>
   <p class="hint">Das Tool speichert Daten für genau ein Fiskaljahr. Beim Wechsel des Jahres bleiben bestehende Stunden erhalten; Feiertage und Wochenberechnung folgen dem neuen Zeitraum.</p>

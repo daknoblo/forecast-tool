@@ -401,6 +401,7 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	weekly, _ := strconv.ParseFloat(normalizeNum(r.FormValue("weekly")), 64)
 	fyTarget, fyErr := strconv.ParseFloat(normalizeNum(r.FormValue("fyTarget")), 64)
 	fyStartMonth, fyMonthErr := strconv.Atoi(trim(r.FormValue("fyStartMonth")))
+	vacationDays, vacErr := strconv.Atoi(trim(r.FormValue("vacationDays")))
 	_ = s.store.Update(func(d *models.Data) error {
 		if year >= 2000 && year <= 2100 {
 			d.Settings.Year = year
@@ -416,6 +417,9 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 		}
 		if fyMonthErr == nil && fyStartMonth >= 1 && fyStartMonth <= 12 {
 			d.Settings.FiscalYearStartMonth = fyStartMonth
+		}
+		if vacErr == nil && vacationDays >= 0 && vacationDays <= 366 {
+			d.Settings.AnnualVacationDays = vacationDays
 		}
 		return nil
 	})

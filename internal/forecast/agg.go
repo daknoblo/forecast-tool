@@ -398,13 +398,14 @@ type PeriodStat struct {
 	Target      float64 // evenly split target for the period
 	Forecast    float64 // planned project hours in the period
 	Actual      float64 // actually booked project hours in the period
-	Holiday     float64 // auto-booked holiday hours in the period
-	Projected   float64 // effective project (past=actual, future=forecast) + holidays
+	Holiday     float64 // auto-booked holiday hours in the period (informational, not counted)
+	Projected   float64 // effective project hours (past=actual, future=forecast)
 	PctOfTarget float64 // projected / target * 100
 }
 
-// GoalSummary tracks fiscal-year target attainment based on actuals so far plus
-// the remaining forecast and automatically booked public-holiday hours.
+// GoalSummary tracks fiscal-year target attainment. Only real (actual) and
+// forecast project hours count towards the target. Public-holiday hours are
+// reported separately but do NOT contribute to the goal.
 type GoalSummary struct {
 	HasTarget         bool
 	StartLabel        string // FY start, e.g. 01.07.2026
@@ -413,12 +414,12 @@ type GoalSummary struct {
 	ActualTotal       float64 // booked project hours (past)
 	ForecastTotal     float64 // all forecast project hours
 	ForecastRemaining float64 // forecast for the current and future weeks
-	HolidayHours      float64 // all weekday public-holiday hours in the FY (8h each)
+	HolidayHours      float64 // all weekday public-holiday hours in the FY (8h each) - informational
 	HolidayDays       int
-	Projected         float64 // effective project hours + holiday hours
+	Projected         float64 // effective project hours (actual past + forecast future)
 	Remaining         float64 // target - projected
 	PctProjected      float64 // projected / target * 100
-	PctActual         float64 // (actual project + past holidays) / target * 100
+	PctActual         float64 // actual project hours / target * 100
 	WorkingDaysYear   int
 	WorkingDaysDone   int
 	TargetPerWeek     float64 // target / number of FY weeks
@@ -426,6 +427,20 @@ type GoalSummary struct {
 	TargetPerQuarter  float64 // target / 4
 	Quarters          []PeriodStat
 	Months            []PeriodStat
+
+	// Capacity overview (working time available in the FY).
+	WeekdayHours   float64 // all FY weekdays (Mon-Fri) * 8h, weekends excluded
+	WeekdayDays    int     // number of weekdays in the FY
+	VacationDays   int     // planned vacation days
+	VacationHours  float64 // vacation days * 8h
+	AvailableHours float64 // WeekdayHours - HolidayHours - VacationHours
+	PctOfWeekdays  float64 // target / WeekdayHours * 100
+	PctOfAvailable float64 // target / AvailableHours * 100
+
+	// Pace needed to still reach the goal from today onwards.
+	RemainingGoal     float64 // target - actual booked (>= 0)
+	RemainingWorkdays int     // remaining working days (weekdays minus holidays)
+	RequiredPerDay    float64 // RemainingGoal / RemainingWorkdays
 }
 
 // BuildGoalSummary computes fiscal-year goal attainment. Days before the Monday
@@ -468,6 +483,7 @@ func BuildGoalSummary(d models.Data, cal *holidays.Calendar) GoalSummary {
 	}
 	quarters := make([]PeriodStat, 4)
 	months := make([]PeriodStat, 12)
+	weekdayDays := 0
 
 	for day := fyStart; !day.After(fyEnd); day = day.AddDate(0, 0, 1) {
 		iso := day.Format("2006-01-02")
@@ -479,6 +495,9 @@ func BuildGoalSummary(d models.Data, cal *holidays.Calendar) GoalSummary {
 		isHoliday := weekday && cal.IsHoliday(iso)
 		working := weekday && !isHoliday
 		past := day.Before(curMonday)
+		if weekday {
+			weekdayDays++
+		}
 		if working {
 			gs.WorkingDaysYear++
 			if past {
@@ -492,32 +511,31 @@ func BuildGoalSummary(d models.Data, cal *holidays.Calendar) GoalSummary {
 		if past {
 			work = a
 		}
-		holiday := 0.0
 		if isHoliday {
-			holiday = HolidayDayHours
 			gs.HolidayDays++
-			gs.HolidayHours += holiday
+			gs.HolidayHours += HolidayDayHours
 		}
-		eff := work + holiday
 
 		gs.ActualTotal += a
 		gs.ForecastTotal += f
 		if !past {
 			gs.ForecastRemaining += f
 		}
-		gs.Projected += eff
+		gs.Projected += work // holidays do NOT count towards the goal
 		if past {
-			gs.PctActual += a + holiday // accumulate hours, converted to pct later
+			gs.PctActual += a // accumulate hours, converted to pct later
 		}
 
 		quarters[q].Actual += a
 		quarters[q].Forecast += f
-		quarters[q].Holiday += holiday
-		quarters[q].Projected += eff
+		if isHoliday {
+			quarters[q].Holiday += HolidayDayHours
+			months[fyMonth].Holiday += HolidayDayHours
+		}
+		quarters[q].Projected += work
 		months[fyMonth].Actual += a
 		months[fyMonth].Forecast += f
-		months[fyMonth].Holiday += holiday
-		months[fyMonth].Projected += eff
+		months[fyMonth].Projected += work
 	}
 
 	weeks := FYWeeks(year, startMonth)
@@ -555,6 +573,7 @@ func BuildGoalSummary(d models.Data, cal *holidays.Calendar) GoalSummary {
 	}
 
 	pctActualHours := gs.PctActual
+	actualRaw := gs.ActualTotal
 	gs.ActualTotal = round1(gs.ActualTotal)
 	gs.ForecastTotal = round1(gs.ForecastTotal)
 	gs.ForecastRemaining = round1(gs.ForecastRemaining)
@@ -567,6 +586,31 @@ func BuildGoalSummary(d models.Data, cal *holidays.Calendar) GoalSummary {
 	} else {
 		gs.PctActual = 0
 	}
+
+	// Capacity overview: gross weekday hours minus holidays and planned vacation.
+	gs.WeekdayDays = weekdayDays
+	gs.WeekdayHours = round1(float64(weekdayDays) * HolidayDayHours)
+	gs.VacationDays = d.Settings.AnnualVacationDays
+	gs.VacationHours = round1(float64(gs.VacationDays) * HolidayDayHours)
+	gs.AvailableHours = round1(gs.WeekdayHours - gs.HolidayHours - gs.VacationHours)
+	if gs.WeekdayHours > 0 {
+		gs.PctOfWeekdays = round1(target / gs.WeekdayHours * 100)
+	}
+	if gs.AvailableHours > 0 {
+		gs.PctOfAvailable = round1(target / gs.AvailableHours * 100)
+	}
+
+	// Pace required from today on to still reach the goal (real bookings only).
+	gs.RemainingWorkdays = gs.WorkingDaysYear - gs.WorkingDaysDone
+	rg := target - actualRaw
+	if rg < 0 {
+		rg = 0
+	}
+	gs.RemainingGoal = round1(rg)
+	if gs.RemainingWorkdays > 0 {
+		gs.RequiredPerDay = round1(rg / float64(gs.RemainingWorkdays))
+	}
+
 	gs.Quarters = quarters
 	gs.Months = months
 	return gs

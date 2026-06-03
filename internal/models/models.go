@@ -18,6 +18,7 @@ type Settings struct {
 	WeeklyTargetHours     float64 `json:"weeklyTargetHours"`
 	FiscalYearTargetHours float64 `json:"fiscalYearTargetHours"` // total target hours for the whole FY
 	FiscalYearStartMonth  int     `json:"fiscalYearStartMonth"`  // 1-12; 7 = July (default). 1 == calendar year
+	AnnualVacationDays    int     `json:"annualVacationDays"`    // planned vacation days per FY (8h each)
 }
 
 // Project is a thing time is forecasted against, constrained by a budget.

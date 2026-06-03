@@ -130,6 +130,59 @@ func TestGoalSummaryTotals(t *testing.T) {
 	}
 }
 
+func TestGoalHolidaysExcludedAndCapacity(t *testing.T) {
+	d := models.Data{
+		Settings: models.Settings{
+			Year: 2026, FederalState: "BY", FiscalYearTargetHours: 1000,
+			FiscalYearStartMonth: 1, AnnualVacationDays: 10,
+		},
+		Entries: []models.Entry{
+			// One actual booking in the past, one future forecast.
+			{Date: "2026-01-12", ProjectID: "p1", Hours: 8, Kind: models.KindActual},
+			{Date: "2026-12-21", ProjectID: "p1", Hours: 5, Kind: models.KindForecast},
+		},
+	}
+	cal := holidays.New(2026, "BY")
+	gs := BuildGoalSummary(d, cal)
+
+	// Holidays exist but must NOT contribute to the projection.
+	if gs.HolidayHours <= 0 {
+		t.Fatalf("expected some holiday hours, got %v", gs.HolidayHours)
+	}
+	wantProjected := round1(gs.ActualTotal + gs.ForecastRemaining)
+	if gs.Projected != wantProjected {
+		t.Errorf("projected = %v, want %v (actual + forecast remaining, no holidays)", gs.Projected, wantProjected)
+	}
+
+	// Capacity: gross weekday hours, vacation deduction.
+	if gs.WeekdayHours != round1(float64(gs.WeekdayDays)*8) {
+		t.Errorf("weekday hours = %v, want %v", gs.WeekdayHours, float64(gs.WeekdayDays)*8)
+	}
+	if gs.VacationHours != 80 {
+		t.Errorf("vacation hours = %v, want 80", gs.VacationHours)
+	}
+	if gs.AvailableHours != round1(gs.WeekdayHours-gs.HolidayHours-gs.VacationHours) {
+		t.Errorf("available hours = %v, mismatch", gs.AvailableHours)
+	}
+	if gs.PctOfWeekdays != round1(1000/gs.WeekdayHours*100) {
+		t.Errorf("pct of weekdays = %v", gs.PctOfWeekdays)
+	}
+
+	// Pace: remaining goal divided by remaining working days.
+	if gs.RemainingGoal != round1(1000-gs.ActualTotal) {
+		t.Errorf("remaining goal = %v, want %v", gs.RemainingGoal, 1000-gs.ActualTotal)
+	}
+	if gs.RemainingWorkdays != gs.WorkingDaysYear-gs.WorkingDaysDone {
+		t.Errorf("remaining workdays = %d, mismatch", gs.RemainingWorkdays)
+	}
+	if gs.RemainingWorkdays > 0 {
+		want := round1(gs.RemainingGoal / float64(gs.RemainingWorkdays))
+		if gs.RequiredPerDay != want {
+			t.Errorf("required per day = %v, want %v", gs.RequiredPerDay, want)
+		}
+	}
+}
+
 func TestEffectiveHoursOverride(t *testing.T) {
 	d := sampleData()
 	// p1 on 2026-01-12 has a forecast of 8h. An actual booking of 6h on the same
