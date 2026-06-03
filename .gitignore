@@ -1,0 +1,13 @@
+/appdata/data.json
+/appdata/data.json.tmp
+forecast
+/out/
+
+# Go
+*.test
+*.out
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/

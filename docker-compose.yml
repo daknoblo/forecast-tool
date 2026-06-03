@@ -1,0 +1,15 @@
+services:
+  forecast:
+    image: ghcr.io/daknoblo/forecast-tool:latest
+    # To build locally instead of pulling, comment out "image:" above
+    # and uncomment the build block below:
+    # build: .
+    container_name: forecast-tool
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      FORECAST_ADDR: ":8080"
+      FORECAST_DATA_DIR: "/app/appdata"
+    volumes:
+      - ./appdata:/app/appdata
