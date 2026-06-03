@@ -1,0 +1,49 @@
+{{template "header" .}}
+<h1>Projekte</h1>
+
+<section class="card">
+  <h2>Neues Projekt</h2>
+  <form method="post" action="/projects" class="form-row">
+    <label>Name <input type="text" name="name" required></label>
+    <label>Budget (h) <input type="text" inputmode="decimal" name="budget" value="0"></label>
+    <label>Farbe <input type="color" name="color" value="#2563eb"></label>
+    <button type="submit" class="btn primary">Anlegen</button>
+  </form>
+</section>
+
+{{if .Views}}
+{{range .Views}}
+<section class="card project">
+  <div class="project-head">
+    <h2><span class="dot" style="background:{{.Summary.Project.Color}}"></span>{{.Summary.Project.Name}}</h2>
+    <div class="project-kpis">
+      <span>Budget <strong>{{hours .Summary.Project.BudgetHours}} h</strong></span>
+      <span>Verbraucht <strong>{{hours .Summary.Consumed}} h</strong></span>
+      <span class="{{if lt .Summary.Remaining 0.0}}negative{{end}}">Rest <strong>{{hours .Summary.Remaining}} h</strong></span>
+      <span>Auslastung <strong>{{hours .Summary.UtilizationPct}} %</strong></span>
+    </div>
+  </div>
+
+  <div class="burndown-wrap">{{.Burndown}}</div>
+
+  <details>
+    <summary>Bearbeiten</summary>
+    <form method="post" action="/projects/{{.Summary.Project.ID}}/update" class="form-row">
+      <label>Name <input type="text" name="name" value="{{.Summary.Project.Name}}"></label>
+      <label>Budget (h) <input type="text" inputmode="decimal" name="budget" value="{{hours .Summary.Project.BudgetHours}}"></label>
+      <label>Farbe <input type="color" name="color" value="{{.Summary.Project.Color}}"></label>
+      <label class="check"><input type="checkbox" name="active" value="1" {{if .Summary.Project.Active}}checked{{end}}> aktiv</label>
+      <button type="submit" class="btn">Speichern</button>
+    </form>
+    <form method="post" action="/projects/{{.Summary.Project.ID}}/delete"
+          onsubmit="return confirm('Projekt und alle Forecast-Stunden löschen?');">
+      <button type="submit" class="btn danger">Löschen</button>
+    </form>
+  </details>
+</section>
+{{end}}
+{{else}}
+<p class="empty">Noch keine Projekte angelegt.</p>
+{{end}}
+
+{{template "footer" .}}

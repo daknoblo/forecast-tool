@@ -1,0 +1,396 @@
+package web
+
+import (
+	"embed"
+	"html/template"
+	"io/fs"
+	"log"
+	"net/http"
+	"sort"
+	"strconv"
+	"sync"
+	"time"
+
+	"github.com/daknoblo/forecast-tool/internal/forecast"
+	"github.com/daknoblo/forecast-tool/internal/holidays"
+	"github.com/daknoblo/forecast-tool/internal/models"
+	"github.com/daknoblo/forecast-tool/internal/storage"
+)
+
+//go:embed templates/*.html
+var templateFS embed.FS
+
+//go:embed static/*
+var staticFS embed.FS
+
+// Server wires storage, templates and HTTP routing together.
+type Server struct {
+	store *storage.Store
+	tpl   *template.Template
+
+	mu      sync.Mutex
+	calKey  string
+	calData *holidays.Calendar
+}
+
+// NewServer parses templates and returns a ready-to-mount handler.
+func NewServer(store *storage.Store) (*Server, error) {
+	funcs := template.FuncMap{
+		"hours": formatHours,
+		"pct":   func(f float64) string { return formatHours(f) + " %" },
+		"cellName": func(projectID, date string) string {
+			return "h_" + projectID + "_" + date
+		},
+		"cellHours": func(cell forecast.DayCell, projectID string) float64 {
+			return cell.Hours[projectID]
+		},
+		"weekTotal": func(totals map[string]float64, projectID string) float64 {
+			return totals[projectID]
+		},
+		"barWidth": func(pct float64) string {
+			if pct > 100 {
+				pct = 100
+			}
+			if pct < 0 {
+				pct = 0
+			}
+			return formatHours(pct)
+		},
+	}
+	tpl, err := template.New("").Funcs(funcs).ParseFS(templateFS, "templates/*.html")
+	if err != nil {
+		return nil, err
+	}
+	return &Server{store: store, tpl: tpl}, nil
+}
+
+// Handler builds the HTTP routing mux.
+func (s *Server) Handler() http.Handler {
+	mux := http.NewServeMux()
+
+	sub, _ := fs.Sub(staticFS, "static")
+	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(sub))))
+
+	mux.HandleFunc("GET /{$}", s.handleDashboard)
+	mux.HandleFunc("GET /week", s.handleWeekRedirect)
+	mux.HandleFunc("GET /week/{week}", s.handleWeek)
+	mux.HandleFunc("POST /week/{week}", s.handleWeekSave)
+	mux.HandleFunc("GET /projects", s.handleProjects)
+	mux.HandleFunc("POST /projects", s.handleProjectCreate)
+	mux.HandleFunc("POST /projects/{id}/update", s.handleProjectUpdate)
+	mux.HandleFunc("POST /projects/{id}/delete", s.handleProjectDelete)
+	mux.HandleFunc("GET /settings", s.handleSettings)
+	mux.HandleFunc("POST /settings", s.handleSettingsSave)
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	})
+
+	return mux
+}
+
+func (s *Server) calendar(d models.Data) *holidays.Calendar {
+	key := strconv.Itoa(d.Settings.Year) + "|" + d.Settings.FederalState
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.calData == nil || s.calKey != key {
+		s.calData = holidays.New(d.Settings.Year, d.Settings.FederalState)
+		s.calKey = key
+	}
+	return s.calData
+}
+
+func (s *Server) render(w http.ResponseWriter, name string, data any) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := s.tpl.ExecuteTemplate(w, name, data); err != nil {
+		log.Printf("template %s: %v", name, err)
+		http.Error(w, "render error", http.StatusInternalServerError)
+	}
+}
+
+// --- Dashboard ---
+
+func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
+	d := s.store.Snapshot()
+	ys := forecast.BuildYearSummary(d)
+	projects := forecast.SortedProjects(d.Projects)
+	s.render(w, "dashboard.html", map[string]any{
+		"Active":      "dashboard",
+		"Settings":    d.Settings,
+		"Summary":     ys,
+		"Projects":    projects,
+		"CurrentWeek": forecast.CurrentWeek(d.Settings.Year),
+	})
+}
+
+// --- Week views ---
+
+func (s *Server) handleWeekRedirect(w http.ResponseWriter, r *http.Request) {
+	d := s.store.Snapshot()
+	http.Redirect(w, r, "/week/"+strconv.Itoa(forecast.CurrentWeek(d.Settings.Year)), http.StatusFound)
+}
+
+func (s *Server) handleWeek(w http.ResponseWriter, r *http.Request) {
+	d := s.store.Snapshot()
+	week := clampWeek(r.PathValue("week"), d.Settings.Year)
+	cal := s.calendar(d)
+	wv := forecast.BuildWeek(d, cal, week)
+	projects := forecast.SortedProjects(activeProjects(d.Projects))
+	s.render(w, "week.html", map[string]any{
+		"Active":     "week",
+		"Settings":   d.Settings,
+		"Week":       wv,
+		"Projects":   projects,
+		"MaxWeek":    forecast.WeeksInYear(d.Settings.Year),
+		"AllProjects": forecast.SortedProjects(d.Projects),
+	})
+}
+
+func (s *Server) handleWeekSave(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	d := s.store.Snapshot()
+	week := clampWeek(r.PathValue("week"), d.Settings.Year)
+	monday := forecast.MondayOfISOWeek(d.Settings.Year, week)
+
+	// Collect the set of dates belonging to this week (Mon-Fri).
+	weekDates := map[string]bool{}
+	for i := 0; i < 5; i++ {
+		weekDates[monday.AddDate(0, 0, i).Format("2006-01-02")] = true
+	}
+
+	type key struct{ date, project string }
+	newHours := map[key]float64{}
+	for name, vals := range r.Form {
+		if len(name) < 3 || name[:2] != "h_" {
+			continue
+		}
+		// h_{projectID}_{YYYY-MM-DD}
+		rest := name[2:]
+		if len(rest) < 11 {
+			continue
+		}
+		date := rest[len(rest)-10:]
+		projectID := rest[:len(rest)-11]
+		if !weekDates[date] {
+			continue
+		}
+		h, err := strconv.ParseFloat(normalizeNum(vals[0]), 64)
+		if err != nil || h < 0 {
+			continue
+		}
+		newHours[key{date, projectID}] = h
+	}
+
+	err := s.store.Update(func(data *models.Data) error {
+		// Drop existing entries for this week, then re-add the non-zero values.
+		kept := data.Entries[:0]
+		for _, e := range data.Entries {
+			if !weekDates[e.Date] {
+				kept = append(kept, e)
+			}
+		}
+		data.Entries = append([]models.Entry(nil), kept...)
+		// stable order
+		keys := make([]key, 0, len(newHours))
+		for k := range newHours {
+			keys = append(keys, k)
+		}
+		sort.Slice(keys, func(i, j int) bool {
+			if keys[i].date != keys[j].date {
+				return keys[i].date < keys[j].date
+			}
+			return keys[i].project < keys[j].project
+		})
+		for _, k := range keys {
+			if newHours[k] > 0 {
+				data.Entries = append(data.Entries, models.Entry{
+					Date: k.date, ProjectID: k.project, Hours: newHours[k],
+				})
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		http.Error(w, "save failed", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/week/"+strconv.Itoa(week), http.StatusSeeOther)
+}
+
+// --- Projects ---
+
+func (s *Server) handleProjects(w http.ResponseWriter, r *http.Request) {
+	d := s.store.Snapshot()
+	ys := forecast.BuildYearSummary(d)
+
+	type projView struct {
+		Summary  forecast.ProjectSummary
+		Burndown template.HTML
+	}
+	var views []projView
+	for _, ps := range ys.Projects {
+		pts := forecast.BuildBurndown(d, ps.Project.ID, ps.Project.BudgetHours)
+		views = append(views, projView{
+			Summary:  ps,
+			Burndown: burndownSVG(pts, ps.Project.BudgetHours, ps.Project.Color),
+		})
+	}
+	sort.Slice(views, func(i, j int) bool {
+		return views[i].Summary.Project.Name < views[j].Summary.Project.Name
+	})
+
+	s.render(w, "projects.html", map[string]any{
+		"Active":   "projects",
+		"Settings": d.Settings,
+		"Views":    views,
+	})
+}
+
+func (s *Server) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	name := trim(r.FormValue("name"))
+	if name == "" {
+		http.Redirect(w, r, "/projects", http.StatusSeeOther)
+		return
+	}
+	budget, _ := strconv.ParseFloat(normalizeNum(r.FormValue("budget")), 64)
+	color := trim(r.FormValue("color"))
+	if color == "" {
+		color = "#2563eb"
+	}
+	_ = s.store.Update(func(d *models.Data) error {
+		d.Projects = append(d.Projects, models.Project{
+			ID:          newID(),
+			Name:        name,
+			BudgetHours: budget,
+			Color:       color,
+			Active:      true,
+		})
+		return nil
+	})
+	http.Redirect(w, r, "/projects", http.StatusSeeOther)
+}
+
+func (s *Server) handleProjectUpdate(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	id := r.PathValue("id")
+	name := trim(r.FormValue("name"))
+	budget, _ := strconv.ParseFloat(normalizeNum(r.FormValue("budget")), 64)
+	color := trim(r.FormValue("color"))
+	active := r.FormValue("active") != ""
+	_ = s.store.Update(func(d *models.Data) error {
+		for i := range d.Projects {
+			if d.Projects[i].ID == id {
+				if name != "" {
+					d.Projects[i].Name = name
+				}
+				d.Projects[i].BudgetHours = budget
+				if color != "" {
+					d.Projects[i].Color = color
+				}
+				d.Projects[i].Active = active
+			}
+		}
+		return nil
+	})
+	http.Redirect(w, r, "/projects", http.StatusSeeOther)
+}
+
+func (s *Server) handleProjectDelete(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	_ = s.store.Update(func(d *models.Data) error {
+		kept := d.Projects[:0]
+		out := make([]models.Project, 0, len(d.Projects))
+		for _, p := range d.Projects {
+			if p.ID != id {
+				out = append(out, p)
+			}
+		}
+		_ = kept
+		d.Projects = out
+		// also drop entries of that project
+		entries := make([]models.Entry, 0, len(d.Entries))
+		for _, e := range d.Entries {
+			if e.ProjectID != id {
+				entries = append(entries, e)
+			}
+		}
+		d.Entries = entries
+		return nil
+	})
+	http.Redirect(w, r, "/projects", http.StatusSeeOther)
+}
+
+// --- Settings ---
+
+func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
+	d := s.store.Snapshot()
+	s.render(w, "settings.html", map[string]any{
+		"Active":   "settings",
+		"Settings": d.Settings,
+		"States":   holidays.States,
+	})
+}
+
+func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	year, _ := strconv.Atoi(trim(r.FormValue("year")))
+	state := trim(r.FormValue("state"))
+	weekly, _ := strconv.ParseFloat(normalizeNum(r.FormValue("weekly")), 64)
+	_ = s.store.Update(func(d *models.Data) error {
+		if year >= 2000 && year <= 2100 {
+			d.Settings.Year = year
+		}
+		if state != "" {
+			d.Settings.FederalState = state
+		}
+		if weekly > 0 {
+			d.Settings.WeeklyTargetHours = weekly
+		}
+		return nil
+	})
+	http.Redirect(w, r, "/settings", http.StatusSeeOther)
+}
+
+// --- helpers ---
+
+func activeProjects(ps []models.Project) []models.Project {
+	out := make([]models.Project, 0, len(ps))
+	for _, p := range ps {
+		if p.Active {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func clampWeek(raw string, year int) int {
+	w, err := strconv.Atoi(raw)
+	if err != nil {
+		return forecast.CurrentWeek(year)
+	}
+	max := forecast.WeeksInYear(year)
+	if w < 1 {
+		w = 1
+	}
+	if w > max {
+		w = max
+	}
+	return w
+}
+
+func newID() string {
+	return strconv.FormatInt(time.Now().UnixNano(), 36)
+}

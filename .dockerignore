@@ -1,0 +1,9 @@
+.git
+.gitignore
+.github
+appdata
+*.md
+docs
+forecast
+out
+.DS_Store

@@ -1,0 +1,28 @@
+{{define "header"}}<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Forecast Tool</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">📊 Forecast</div>
+  <nav>
+    <a href="/" class="{{if eq .Active "dashboard"}}active{{end}}">Dashboard</a>
+    <a href="/week" class="{{if eq .Active "week"}}active{{end}}">Woche</a>
+    <a href="/projects" class="{{if eq .Active "projects"}}active{{end}}">Projekte</a>
+    <a href="/settings" class="{{if eq .Active "settings"}}active{{end}}">Einstellungen</a>
+  </nav>
+  <div class="year">{{.Settings.Year}} · {{.Settings.FederalState}}</div>
+</header>
+<main>
+{{end}}
+
+{{define "footer"}}
+</main>
+<footer class="foot">Forecast Tool · Kalenderjahr {{.Settings.Year}} · Wochensoll {{hours .Settings.WeeklyTargetHours}} h</footer>
+</body>
+</html>
+{{end}}

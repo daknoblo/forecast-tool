@@ -1,0 +1,68 @@
+{{template "header" .}}
+<div class="week-head">
+  <h1>{{.Week.Label}} / {{.Settings.Year}}</h1>
+  <div class="week-nav">
+    {{if ge .Week.PrevWeek 1}}<a href="/week/{{.Week.PrevWeek}}">&laquo; KW {{.Week.PrevWeek}}</a>{{end}}
+    {{if le .Week.NextWeek .MaxWeek}}<a href="/week/{{.Week.NextWeek}}">KW {{.Week.NextWeek}} &raquo;</a>{{end}}
+  </div>
+</div>
+
+{{if .Projects}}
+<form method="post" action="/week/{{.Week.Week}}">
+<table class="grid week">
+  <thead>
+    <tr>
+      <th>Projekt</th>
+      {{range .Week.Days}}
+        <th class="day {{if .IsHoliday}}holiday{{end}}">
+          {{.WeekdayName}}<br><small>{{slice .Date 8 10}}.{{slice .Date 5 7}}.</small>
+          {{if .IsHoliday}}<br><span class="tag" title="{{.HolidayName}}">Feiertag</span>{{end}}
+        </th>
+      {{end}}
+      <th class="num">Summe</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{$days := .Week.Days}}
+    {{$totals := .Week.ProjectTotals}}
+    {{range $p := .Projects}}
+    <tr>
+      <td><span class="dot" style="background:{{$p.Color}}"></span>{{$p.Name}}</td>
+      {{range $d := $days}}
+        <td class="day {{if $d.IsHoliday}}holiday{{end}}">
+          <input type="text" inputmode="decimal" name="{{cellName $p.ID $d.Date}}"
+                 value="{{with cellHours $d $p.ID}}{{hours .}}{{end}}"
+                 class="hcell" autocomplete="off">
+        </td>
+      {{end}}
+      <td class="num strong">{{hours (weekTotal $totals $p.ID)}}</td>
+    </tr>
+    {{end}}
+  </tbody>
+  <tfoot>
+    <tr>
+      <td>Tagessumme</td>
+      {{range .Week.Days}}
+        <td class="num {{if .IsHoliday}}holiday{{end}}">{{hours .Total}}</td>
+      {{end}}
+      <td class="num strong">{{hours .Week.Total}}</td>
+    </tr>
+    <tr>
+      <td>Auslastung (Soll {{hours .Week.TargetHours}} h)</td>
+      <td colspan="5">
+        <div class="bar"><span style="width:{{barWidth .Week.UtilizationPct}}%"></span></div>
+      </td>
+      <td class="num strong">{{hours .Week.UtilizationPct}} %</td>
+    </tr>
+  </tfoot>
+</table>
+<div class="actions">
+  <button type="submit" class="btn primary">Speichern</button>
+  <span class="hint">Stunden pro Tag eintragen (Komma oder Punkt). Leere Felder = 0.</span>
+</div>
+</form>
+{{else}}
+<p class="empty">Keine aktiven Projekte. Lege zuerst unter <a href="/projects">Projekte</a> ein Projekt an.</p>
+{{end}}
+
+{{template "footer" .}}

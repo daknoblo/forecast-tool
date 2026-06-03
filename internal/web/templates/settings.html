@@ -1,0 +1,24 @@
+{{template "header" .}}
+<h1>Einstellungen</h1>
+
+<section class="card">
+  <form method="post" action="/settings" class="form-stack">
+    <label>Kalenderjahr
+      <input type="number" name="year" min="2000" max="2100" value="{{.Settings.Year}}">
+    </label>
+    <label>Bundesland (Feiertage)
+      <select name="state">
+        {{range .States}}
+          <option value="{{.Code}}" {{if eq .Code $.Settings.FederalState}}selected{{end}}>{{.Name}} ({{.Code}})</option>
+        {{end}}
+      </select>
+    </label>
+    <label>Wochensollstunden
+      <input type="text" inputmode="decimal" name="weekly" value="{{hours .Settings.WeeklyTargetHours}}">
+    </label>
+    <button type="submit" class="btn primary">Speichern</button>
+  </form>
+  <p class="hint">Das Tool speichert Daten für genau ein Kalenderjahr. Beim Wechsel des Jahres werden bestehende Stunden beibehalten; nur Feiertage und Wochenberechnung folgen dem neuen Jahr.</p>
+</section>
+
+{{template "footer" .}}
