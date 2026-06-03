@@ -89,6 +89,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /goal", s.handleGoal)
 	mux.HandleFunc("GET /settings", s.handleSettings)
 	mux.HandleFunc("POST /settings", s.handleSettingsSave)
+	mux.HandleFunc("POST /fy", s.handleSetActiveFY)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
@@ -126,6 +127,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "dashboard.html", map[string]any{
 		"Active":      "dashboard",
 		"Settings":    d.Settings,
+		"FYYears":     fyYears(d),
 		"Summary":     ys,
 		"Projects":    projects,
 		"CurrentWeek": forecast.CurrentFYWeek(d.Settings.Year, d.Settings.FiscalYearStartMonth),
@@ -150,6 +152,7 @@ func (s *Server) handleWeek(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "week.html", map[string]any{
 		"Active":      "week",
 		"Settings":    d.Settings,
+		"FYYears":     fyYears(d),
 		"Week":        wv,
 		"MaxWeek":     forecast.FYWeeks(d.Settings.Year, d.Settings.FiscalYearStartMonth),
 		"Projects":    projects,
@@ -279,6 +282,7 @@ func (s *Server) handleProjects(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "projects.html", map[string]any{
 		"Active":   "projects",
 		"Settings": d.Settings,
+		"FYYears":  fyYears(d),
 		"Views":    views,
 	})
 }
@@ -373,6 +377,7 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "goal.html", map[string]any{
 		"Active":   "goal",
 		"Settings": d.Settings,
+		"FYYears":  fyYears(d),
 		"Goal":     gs,
 	})
 }
@@ -394,8 +399,11 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 	s.render(w, "settings.html", map[string]any{
 		"Active":   "settings",
 		"Settings": d.Settings,
+		"FYYears":  fyYears(d),
 		"States":   holidays.States,
 		"Months":   monthOptions,
+		"DataPath": s.store.Path(),
+		"DataSize": formatBytes(s.store.FileSize()),
 		"ViewYear": viewYear,
 		"PrevYear": viewYear - 1,
 		"NextYear": viewYear + 1,
@@ -458,6 +466,26 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/settings", http.StatusSeeOther)
 }
 
+// handleSetActiveFY switches the globally active fiscal year (used by the
+// dropdown in the header) and returns to the page the user came from.
+func (s *Server) handleSetActiveFY(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	if year, err := strconv.Atoi(trim(r.FormValue("year"))); err == nil && year >= 2000 && year <= 2100 {
+		_ = s.store.Update(func(d *models.Data) error {
+			d.Settings.Year = year
+			return nil
+		})
+	}
+	dest := trim(r.Header.Get("Referer"))
+	if dest == "" {
+		dest = "/"
+	}
+	http.Redirect(w, r, dest, http.StatusSeeOther)
+}
+
 // --- helpers ---
 
 // halfLabel formats a half-year range like "Juli 2026 – Dezember 2026".
@@ -514,4 +542,34 @@ func clampWeek(raw string, st models.Settings) int {
 
 func newID() string {
 	return strconv.FormatInt(time.Now().UnixNano(), 36)
+}
+
+// fyYears returns the sorted list of fiscal years offered in the header
+// dropdown: every configured year plus a small range around the active one.
+func fyYears(d models.Data) []int {
+	set := map[int]bool{}
+	for y := range d.FiscalYears {
+		set[y] = true
+	}
+	for y := d.Settings.Year - 1; y <= d.Settings.Year+2; y++ {
+		set[y] = true
+	}
+	years := make([]int, 0, len(set))
+	for y := range set {
+		years = append(years, y)
+	}
+	sort.Ints(years)
+	return years
+}
+
+// formatBytes renders a byte count as a human-readable string (B/KB/MB).
+func formatBytes(n int64) string {
+	switch {
+	case n < 1024:
+		return strconv.FormatInt(n, 10) + " B"
+	case n < 1024*1024:
+		return fmt.Sprintf("%.1f KB", float64(n)/1024)
+	default:
+		return fmt.Sprintf("%.1f MB", float64(n)/(1024*1024))
+	}
 }
