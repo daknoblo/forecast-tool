@@ -1,0 +1,113 @@
+{{template "header" .}}
+<h1>Fiskaljahresziel {{.Settings.Year}}</h1>
+
+{{if not .Goal.HasTarget}}
+<section class="card">
+  <p class="empty">Es ist noch kein Fiskaljahresziel gesetzt. Lege es unter
+    <a href="/settings">Einstellungen</a> fest (Stunden gesamt fürs FY).</p>
+</section>
+{{else}}
+
+<section class="cards">
+  <div class="card kpi">
+    <div class="kpi-value">{{hours .Goal.TargetHours}} h</div>
+    <div class="kpi-label">FY-Ziel</div>
+  </div>
+  <div class="card kpi">
+    <div class="kpi-value ist">{{hours .Goal.ActualTotal}} h</div>
+    <div class="kpi-label">Ist gebucht</div>
+  </div>
+  <div class="card kpi">
+    <div class="kpi-value">{{hours .Goal.ForecastRemaining}} h</div>
+    <div class="kpi-label">Forecast verbleibend</div>
+  </div>
+  <div class="card kpi">
+    <div class="kpi-value">{{hours .Goal.Projected}} h</div>
+    <div class="kpi-label">Hochrechnung</div>
+  </div>
+  <div class="card kpi">
+    <div class="kpi-value {{if lt .Goal.PctProjected 100.0}}negative{{end}}">{{hours .Goal.PctProjected}} %</div>
+    <div class="kpi-label">Zielerreichung (Hochrechnung)</div>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Status</h2>
+  <p>Hochrechnung = Ist (vergangene Wochen) + Forecast (aktuelle &amp; kommende Wochen).</p>
+  <div class="goalbar">
+    <div class="goalbar-track">
+      <span class="goalbar-actual" style="width:{{barWidth .Goal.PctActual}}%" title="Ist {{hours .Goal.PctActual}} %"></span>
+      <span class="goalbar-proj" style="width:{{barWidth .Goal.PctProjected}}%" title="Hochrechnung {{hours .Goal.PctProjected}} %"></span>
+    </div>
+    <div class="goalbar-legend">
+      <span><i class="sw actual"></i> Ist {{hours .Goal.PctActual}} %</span>
+      <span><i class="sw proj"></i> Hochrechnung {{hours .Goal.PctProjected}} %</span>
+      <span>Differenz zum Ziel: <strong class="{{if gt .Goal.Remaining 0.0}}negative{{end}}">{{hours .Goal.Remaining}} h</strong></span>
+    </div>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Soll-Tempo</h2>
+  <table class="grid compact">
+    <tbody>
+      <tr><td>Soll pro Tag</td><td class="num">{{hours .Goal.TargetPerDay}} h</td></tr>
+      <tr><td>Soll pro Woche (5 AT)</td><td class="num">{{hours .Goal.TargetPerWeek}} h</td></tr>
+      <tr><td>Soll pro Monat (Ø)</td><td class="num">{{hours .Goal.TargetPerMonth}} h</td></tr>
+      <tr><td>Soll pro Quartal (Ø)</td><td class="num">{{hours .Goal.TargetPerQuarter}} h</td></tr>
+      <tr><td>Arbeitstage gesamt</td><td class="num">{{.Goal.WorkingDaysYear}}</td></tr>
+      <tr><td>Arbeitstage vergangen</td><td class="num">{{.Goal.WorkingDaysDone}}</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="card">
+  <h2>Quartale</h2>
+  <table class="grid">
+    <thead>
+      <tr><th>Quartal</th><th class="num">Soll</th><th class="num">Forecast</th><th class="num">Ist</th><th class="num">Hochrechnung</th><th>Zielerreichung</th></tr>
+    </thead>
+    <tbody>
+    {{range .Goal.Quarters}}
+      <tr>
+        <td>{{.Label}}</td>
+        <td class="num">{{hours .Target}} h</td>
+        <td class="num">{{hours .Forecast}} h</td>
+        <td class="num ist">{{hours .Actual}} h</td>
+        <td class="num strong">{{hours .Projected}} h</td>
+        <td>
+          <div class="bar"><span style="width:{{barWidth .PctOfTarget}}%"></span></div>
+          <small class="{{if lt .PctOfTarget 100.0}}negative{{end}}">{{hours .PctOfTarget}} %</small>
+        </td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+</section>
+
+<section class="card">
+  <details>
+    <summary>Monatsübersicht</summary>
+    <table class="grid compact">
+      <thead>
+        <tr><th>Monat</th><th class="num">Soll</th><th class="num">Forecast</th><th class="num">Ist</th><th class="num">Hochrechnung</th><th>%</th></tr>
+      </thead>
+      <tbody>
+      {{range .Goal.Months}}
+        <tr>
+          <td>{{.Label}}</td>
+          <td class="num">{{hours .Target}} h</td>
+          <td class="num">{{hours .Forecast}} h</td>
+          <td class="num ist">{{hours .Actual}} h</td>
+          <td class="num strong">{{hours .Projected}} h</td>
+          <td><small class="{{if lt .PctOfTarget 100.0}}negative{{end}}">{{hours .PctOfTarget}} %</small></td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+  </details>
+</section>
+
+{{end}}
+
+{{template "footer" .}}

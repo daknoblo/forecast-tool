@@ -25,40 +25,57 @@
   <tbody>
     {{$days := .Week.Days}}
     {{$totals := .Week.ProjectTotals}}
+    {{$actuals := .Week.ActualTotals}}
     {{range $p := .Projects}}
     <tr>
       <td><span class="dot" style="background:{{$p.Color}}"></span>{{$p.Name}}</td>
       {{range $d := $days}}
         <td class="day {{if $d.IsHoliday}}holiday{{end}}">
-          <input type="text" inputmode="decimal" name="{{cellName $p.ID $d.Date}}"
-                 value="{{with cellHours $d $p.ID}}{{hours .}}{{end}}"
-                 class="hcell" autocomplete="off">
+          <div class="cellpair">
+            <input type="text" inputmode="decimal" name="{{cellName $p.ID $d.Date}}"
+                   value="{{with cellHours $d $p.ID}}{{hours .}}{{end}}"
+                   class="hcell plan" autocomplete="off" title="Forecast (geplant)" placeholder="Plan">
+            <input type="text" inputmode="decimal" name="{{cellNameActual $p.ID $d.Date}}"
+                   value="{{with cellActual $d $p.ID}}{{hours .}}{{end}}"
+                   class="hcell actual" autocomplete="off" title="Ist (real gebucht)" placeholder="Ist">
+          </div>
         </td>
       {{end}}
-      <td class="num strong">{{hours (weekTotal $totals $p.ID)}}</td>
+      <td class="num strong">
+        {{hours (weekTotal $totals $p.ID)}}
+        <br><small class="ist">{{hours (weekTotal $actuals $p.ID)}} Ist</small>
+      </td>
     </tr>
     {{end}}
   </tbody>
   <tfoot>
     <tr>
-      <td>Tagessumme</td>
+      <td>Forecast / Tag</td>
       {{range .Week.Days}}
         <td class="num {{if .IsHoliday}}holiday{{end}}">{{hours .Total}}</td>
       {{end}}
       <td class="num strong">{{hours .Week.Total}}</td>
     </tr>
     <tr>
+      <td>Ist / Tag</td>
+      {{range .Week.Days}}
+        <td class="num ist {{if .IsHoliday}}holiday{{end}}">{{hours .ActualTotal}}</td>
+      {{end}}
+      <td class="num strong ist">{{hours .Week.ActualTotal}}</td>
+    </tr>
+    <tr>
       <td>Auslastung (Soll {{hours .Week.TargetHours}} h)</td>
       <td colspan="5">
         <div class="bar"><span style="width:{{barWidth .Week.UtilizationPct}}%"></span></div>
+        <div class="bar ist"><span style="width:{{barWidth .Week.ActualUtilizationPct}}%"></span></div>
       </td>
-      <td class="num strong">{{hours .Week.UtilizationPct}} %</td>
+      <td class="num strong">{{hours .Week.UtilizationPct}} %<br><small class="ist">{{hours .Week.ActualUtilizationPct}} % Ist</small></td>
     </tr>
   </tfoot>
 </table>
 <div class="actions">
   <button type="submit" class="btn primary">Speichern</button>
-  <span class="hint">Stunden pro Tag eintragen (Komma oder Punkt). Leere Felder = 0.</span>
+  <span class="hint">Pro Tag oben den <strong>Forecast (Plan)</strong>, unten die <strong>Ist</strong>-Stunden eintragen (Komma oder Punkt). Leere Felder = 0.</span>
 </div>
 </form>
 {{else}}

@@ -16,6 +16,9 @@
     <label>Wochensollstunden
       <input type="text" inputmode="decimal" name="weekly" value="{{hours .Settings.WeeklyTargetHours}}">
     </label>
+    <label>Fiskaljahresziel (Stunden gesamt)
+      <input type="text" inputmode="decimal" name="fyTarget" value="{{hours .Settings.FiscalYearTargetHours}}">
+    </label>
     <button type="submit" class="btn primary">Speichern</button>
   </form>
   <p class="hint">Das Tool speichert Daten für genau ein Kalenderjahr. Beim Wechsel des Jahres werden bestehende Stunden beibehalten; nur Feiertage und Wochenberechnung folgen dem neuen Jahr.</p>

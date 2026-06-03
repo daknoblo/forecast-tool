@@ -6,9 +6,9 @@
   <form method="post" action="/projects" class="form-row">
     <label>Name <input type="text" name="name" required></label>
     <label>Budget (h) <input type="text" inputmode="decimal" name="budget" value="0"></label>
-    <label>Farbe <input type="color" name="color" value="#2563eb"></label>
     <button type="submit" class="btn primary">Anlegen</button>
   </form>
+  <p class="hint">Die Farbe wird automatisch aus einer kontrastreichen Palette vergeben. Du kannst sie unter „Bearbeiten“ jederzeit ändern.</p>
 </section>
 
 {{if .Views}}
