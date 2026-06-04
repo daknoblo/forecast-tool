@@ -95,6 +95,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /data", s.handleData)
 	mux.HandleFunc("POST /data", s.handleDataSave)
 	mux.HandleFunc("POST /data/ai", s.handleDataAI)
+	mux.HandleFunc("POST /data/reset", s.handleDataReset)
 	mux.HandleFunc("POST /fy", s.handleSetActiveFY)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -531,6 +532,23 @@ func (s *Server) handleData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.renderData(w, string(b), "", "", "")
+}
+
+// handleDataReset clears the whole document back to a blank default for the
+// current year, discarding all projects, entries, fiscal-year goals and AI
+// settings. The destructive action is guarded by a confirmation dialog in the
+// browser before the form is submitted.
+func (s *Server) handleDataReset(w http.ResponseWriter, r *http.Request) {
+	if err := s.store.Reset(time.Now().Year()); err != nil {
+		http.Error(w, "reset failed", http.StatusInternalServerError)
+		return
+	}
+	b, err := s.store.Marshal()
+	if err != nil {
+		http.Error(w, "render error", http.StatusInternalServerError)
+		return
+	}
+	s.renderData(w, string(b), "", "", "Alle Daten wurden zurückgesetzt. Es wurde eine leere JSON geschrieben.")
 }
 
 // handleDataSave validates the submitted JSON and replaces the whole document

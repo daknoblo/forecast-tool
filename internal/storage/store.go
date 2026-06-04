@@ -184,6 +184,17 @@ func parseAndValidate(raw []byte) (models.Data, error) {
 	return d, nil
 }
 
+// Reset replaces the whole document with a blank default document for the given
+// year, discarding all projects, entries, fiscal-year settings and AI settings.
+func (s *Store) Reset(year int) error {
+	d := models.DefaultData(year)
+	normalize(&d)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.data = d
+	return s.persist()
+}
+
 // Update runs fn against the mutable data under the write lock and persists.
 func (s *Store) Update(fn func(d *models.Data) error) error {
 	s.mu.Lock()

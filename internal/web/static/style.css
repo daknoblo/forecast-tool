@@ -117,6 +117,7 @@ table.week.span .cellpair { display: flex; flex-direction: column; gap: 2px; ali
 .btn.danger:hover { background: #fecaca; }
 
 .actions { margin-top: 1rem; display: flex; align-items: center; gap: 1rem; }
+.reset-form { margin-top: 0.75rem; border-top: 1px solid var(--line); padding-top: 0.75rem; }
 .hint { color: var(--muted); font-size: 0.85rem; }
 .fy-badge { font-size: 0.7em; vertical-align: middle; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 0.1em 0.6em; color: var(--muted); font-weight: 600; }
 
