@@ -90,6 +90,9 @@ table.week.span th, table.week.span td { text-align: center; }
 table.week.span th.pname, table.week.span td.pname { text-align: left; }
 table.week.span th.day, table.week.span td.day { min-width: 84px; }
 table.week.span td.pname, table.week.span th.pname { position: sticky; left: 0; z-index: 2; background: var(--panel); min-width: 160px; text-align: left; border-right: 2px solid var(--line); }
+table.week.span .budget-left { display: block; margin-top: 2px; font-weight: 400; color: var(--muted); font-size: 0.72rem; }
+table.week.span .budget-left strong { color: var(--text); }
+table.week.span .budget-left.negative, table.week.span .budget-left.negative strong { color: var(--danger); }
 table.week.span thead th.pname { background: #f8fafc; }
 table.week.span tfoot td.pname { background: #f8fafc; }
 table.week.span .weekgroup { text-align: center; border-left: 2px solid var(--line); border-right: 2px solid var(--line); white-space: nowrap; }
