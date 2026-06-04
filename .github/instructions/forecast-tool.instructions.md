@@ -157,6 +157,15 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
   gültiges Beispiel-Dokument –, damit das entfernte Modell Feldnamen, Verschachtelung und
   Werttypen des Forecast-JSON kennt. Bei Schema-Änderungen am Datenmodell den Blueprint
   mitpflegen.
+- **Kompakte Forecast-Direktiven (`forecastPlan`):** Statt hunderte Tageseinträge
+  auszuschreiben (was das Token-Limit sprengt und zu abgeschnittenen Antworten führt),
+  gibt die KI für regelmäßige, über ein ganzes FY gleichmäßig verteilte Forecasts genau
+  **einen** Eintrag pro Projekt in `forecastPlan` aus: `{ projectId, fiscalYear,
+  hoursPerWeek, kind }`. `ai.ExpandPlan` expandiert das **serverseitig** deterministisch
+  in Mo–Fr-Einträge (`hoursPerWeek/5` pro Werktag) für das gesamte FY, dedupliziert gegen
+  vorhandene Einträge und entfernt `forecastPlan` (Cap `maxExpandedEntries`). Die Expansion
+  läuft in `handleDataAI` **vor** der Validierung; `entries` bleibt nur für einzeln genannte
+  Tage. `forecastPlan` ist kein Bestandteil von `data.json` (nur Transportformat).
 - **Die KI-Antwort wird nie automatisch gespeichert**: Sie wird nur eingefügt und sofort
   via `store.ValidateJSON` geprüft. Speichern erfolgt erst beim expliziten „Speichern"
   (durchläuft erneut die volle Validierung).
