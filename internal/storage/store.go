@@ -78,6 +78,11 @@ func normalize(d *models.Data) {
 	if d.Settings.FiscalYearStartMonth < 1 || d.Settings.FiscalYearStartMonth > 12 {
 		d.Settings.FiscalYearStartMonth = 7
 	}
+	// Default the utilization traffic-light for documents created before it
+	// existed (all thresholds zero == unset).
+	if d.Settings.Utilization.MinHours == 0 && d.Settings.Utilization.OptimalHours == 0 && d.Settings.Utilization.OverHours == 0 {
+		d.Settings.Utilization = models.DefaultUtilization()
+	}
 	if d.FiscalYears == nil {
 		d.FiscalYears = map[int]models.FiscalYearSettings{}
 	}

@@ -410,11 +410,14 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 	d := s.store.Snapshot()
 	cal := s.calendar(d)
 	gs := forecast.BuildGoalSummary(d, cal)
+	d.Projects = models.ProjectsForFY(d.Projects, d.Settings.Year)
+	ys := forecast.BuildYearSummary(d)
 	s.render(w, "goal.html", map[string]any{
-		"Active":   "goal",
-		"Settings": d.Settings,
-		"FYYears":  fyYears(d),
-		"Goal":     gs,
+		"Active":     "goal",
+		"Settings":   d.Settings,
+		"FYYears":    fyYears(d),
+		"Goal":       gs,
+		"WeekTotals": ys.WeekTotals,
 	})
 }
 
@@ -471,6 +474,41 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 			// The secret key is provided via FORECAST_AI_API_KEY and must never be
 			// stored in the data file; clear any legacy value on save.
 			d.Settings.AI.APIKey = ""
+			return nil
+		})
+		http.Redirect(w, r, "/settings", http.StatusSeeOther)
+		return
+	}
+	if trim(r.FormValue("section")) == "utilization" {
+		minH, minErr := strconv.ParseFloat(normalizeNum(r.FormValue("utilMin")), 64)
+		optH, optErr := strconv.ParseFloat(normalizeNum(r.FormValue("utilOptimal")), 64)
+		overH, overErr := strconv.ParseFloat(normalizeNum(r.FormValue("utilOver")), 64)
+		minLabel := trim(r.FormValue("utilMinLabel"))
+		optLabel := trim(r.FormValue("utilOptimalLabel"))
+		highLabel := trim(r.FormValue("utilHighLabel"))
+		overLabel := trim(r.FormValue("utilOverLabel"))
+		_ = s.store.Update(func(d *models.Data) error {
+			if minErr == nil && minH >= 0 {
+				d.Settings.Utilization.MinHours = minH
+			}
+			if optErr == nil && optH >= 0 {
+				d.Settings.Utilization.OptimalHours = optH
+			}
+			if overErr == nil && overH >= 0 {
+				d.Settings.Utilization.OverHours = overH
+			}
+			if minLabel != "" {
+				d.Settings.Utilization.MinLabel = minLabel
+			}
+			if optLabel != "" {
+				d.Settings.Utilization.OptimalLabel = optLabel
+			}
+			if highLabel != "" {
+				d.Settings.Utilization.HighLabel = highLabel
+			}
+			if overLabel != "" {
+				d.Settings.Utilization.OverLabel = overLabel
+			}
 			return nil
 		})
 		http.Redirect(w, r, "/settings", http.StatusSeeOther)

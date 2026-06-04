@@ -13,7 +13,11 @@ bearbeiten, exportieren und optional per KI-Prompt aktualisieren.
 ## Features
 - Projekte mit Stundenbudget (CRUD, Farbe, aktiv/inaktiv), pro Fiskaljahr
 - Mehrwochen-Forecast-Ansicht: Projekte × Tage (Mo–Fr) über mehrere Wochen,
-  Eingabe von Plan- und Ist-Stunden pro Tag, automatische Summen
+  Eingabe von Plan- und Ist-Stunden pro Tag, automatische Summen (Summenspalte
+  zentriert), Buttons zum Leeren einzelner Tage oder ganzer Wochen
+- Konfigurierbare **Auslastungs-Ampel**: vier Status (Burnrate Minimum, Optimal,
+  Zu hoch, Überbucht) mit frei wählbaren Schwellen (Std.) und Labels; farbige
+  Punkte in der Forecast-Übersicht sowie in den Wochentabellen von Dashboard und Zielen
 - Fiskaljahr-Logik (frei wählbarer Startmonat) mit zentralem FY-Umschalter im Header
 - Automatische Feiertage (alle 16 Bundesländer wählbar)
 - Konfigurierbare Wochensollstunden, Urlaub (pro Halbjahr), Standard Tasks

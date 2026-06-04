@@ -147,6 +147,31 @@
   </table>
 </section>
 
+<section class="card">
+  <h2>Wochenauslastung</h2>
+  <table class="grid compact">
+    <thead>
+      <tr><th>Woche</th><th class="num">Stunden</th><th class="num">Soll</th><th>Status</th><th>Auslastung</th></tr>
+    </thead>
+    <tbody>
+    {{range .WeekTotals}}
+      {{if gt .Hours 0.0}}
+      <tr>
+        <td><a href="/week/{{.Week}}">{{.Label}}</a></td>
+        <td class="num">{{hours .Hours}} h</td>
+        <td class="num">{{hours .TargetHours}} h</td>
+        <td>{{template "utilstatus" .Status}}</td>
+        <td>
+          <div class="bar"><span style="width:{{barWidth .UtilizationPct}}%"></span></div>
+          <small>{{hours .UtilizationPct}} %</small>
+        </td>
+      </tr>
+      {{end}}
+    {{end}}
+    </tbody>
+  </table>
+</section>
+
 {{end}}
 
 {{template "footer" .}}

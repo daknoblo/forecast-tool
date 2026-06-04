@@ -56,11 +56,16 @@ go.mod
 - **Dashboard**: Jahres-Forecast gesamt, Projektanzahl, aktuelle KW, Budget-Tabelle
   (Budget/Verbraucht/Rest/Auslastung), Wochenauslastung.
 - **Mehrwochen-Forecast**: Tabelle Projekte × Tage über mehrere Wochen, Feiertage markiert,
-  Plan-/Ist-Eingabe pro Tag, Tages-/Wochensummen, Auslastung gegen Wochensoll, Navigation.
+  Plan-/Ist-Eingabe pro Tag, Tages-/Wochensummen (Summenspalte zentriert), Auslastung gegen
+  Wochensoll, Navigation. Buttons zum Leeren einzelner Tage/Wochen, Ampel-Status-Zeile je Woche.
+- **Auslastungs-Ampel**: global konfigurierbare Schwellen (min 26 / optimal 40 / over 60 h) und
+  vier frei editierbare Labels (Burnrate Minimum / Optimal / Zu hoch / Überbucht). Farbige Punkte
+  (blau ↓ / grün OK / orange ↑ / rot ✕) in Forecast, Dashboard- und Ziele-Wochentabellen.
 - **Projekte**: CRUD pro Fiskaljahr, Budget, Farbe, aktiv/inaktiv, Restbudget + Burn-Down-SVG.
 - **Ziel/Kapazität**: FY-Ziel, Urlaub (pro Halbjahr), Standard Tasks, verfügbare Stunden,
   Soll je Woche/Monat/Quartal.
 - **Einstellungen**: FY-Startmonat, Bundesland (Feiertage), Wochensollstunden, pro-FY-Werte,
+  Auslastungs-Ampel (Schwellen + Labels, `section=utilization`),
   KI-Endpoint (Endpoint, Deployment, API-Version; API-Key aus Env). Konfigurationsdatei-
   Übersicht (Pfad/Größe) steht ganz unten.
 - **Layout**: Zentraler App-Name über `web.AppName`/`{{appName}}` (Titel, Header-Brand, Footer).

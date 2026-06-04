@@ -36,10 +36,12 @@ type WeekView struct {
 	ActualTotals         map[string]float64
 	Total                float64
 	ActualTotal          float64
+	EffectiveTotal       float64 // actual where booked, else forecast (basis for the status)
 	HolidayHours         float64
 	TargetHours          float64
 	UtilizationPct       float64
 	ActualUtilizationPct float64
+	Status               models.UtilStatus // booking traffic-light for this week
 	PrevWeek             int
 	NextWeek             int
 }
@@ -196,15 +198,23 @@ func BuildWeek(d models.Data, cal *holidays.Calendar, week int) WeekView {
 			wv.HolidayHours += HolidayDayHours
 		}
 		for _, p := range d.Projects {
-			if h := fidx[iso+"|"+p.ID]; h != 0 {
-				cell.Hours[p.ID] = h
-				cell.Total += h
-				wv.ProjectTotals[p.ID] += h
+			f := fidx[iso+"|"+p.ID]
+			a := aidx[iso+"|"+p.ID]
+			if f != 0 {
+				cell.Hours[p.ID] = f
+				cell.Total += f
+				wv.ProjectTotals[p.ID] += f
 			}
-			if a := aidx[iso+"|"+p.ID]; a != 0 {
+			if a != 0 {
 				cell.Actual[p.ID] = a
 				cell.ActualTotal += a
 				wv.ActualTotals[p.ID] += a
+			}
+			// Effective hours: a booked actual overrides the forecast.
+			if a != 0 {
+				wv.EffectiveTotal += a
+			} else {
+				wv.EffectiveTotal += f
 			}
 		}
 		wv.Total += cell.Total
@@ -212,6 +222,8 @@ func BuildWeek(d models.Data, cal *holidays.Calendar, week int) WeekView {
 		wv.Days = append(wv.Days, cell)
 	}
 
+	wv.EffectiveTotal = round1(wv.EffectiveTotal)
+	wv.Status = d.Settings.ClassifyUtilization(wv.EffectiveTotal)
 	if wv.TargetHours > 0 {
 		wv.UtilizationPct = round1(wv.Total / wv.TargetHours * 100)
 		wv.ActualUtilizationPct = round1(wv.ActualTotal / wv.TargetHours * 100)
@@ -342,6 +354,7 @@ type WeekTotal struct {
 	Hours          float64
 	TargetHours    float64
 	UtilizationPct float64
+	Status         models.UtilStatus // booking traffic-light for this week
 }
 
 // effectiveByKey returns per "date|projectId" the effective hours, where a
@@ -431,13 +444,15 @@ func BuildYearSummary(d models.Data) YearSummary {
 			util = round1(weekSum[w] / d.Settings.WeeklyTargetHours * 100)
 		}
 		_, isoWeek := FYWeekMonday(year, startMonth, w).ISOWeek()
+		hrs := round1(weekSum[w])
 		ys.WeekTotals = append(ys.WeekTotals, WeekTotal{
 			Week:           w,
 			ISOWeek:        isoWeek,
 			Label:          fmt.Sprintf("W%d · KW%02d", w, isoWeek),
-			Hours:          round1(weekSum[w]),
+			Hours:          hrs,
 			TargetHours:    d.Settings.WeeklyTargetHours,
 			UtilizationPct: util,
+			Status:         d.Settings.ClassifyUtilization(hrs),
 		})
 	}
 	return ys

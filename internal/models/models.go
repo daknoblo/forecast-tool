@@ -37,6 +37,10 @@ type Settings struct {
 	// JSON document from a natural-language prompt.
 	AI AISettings `json:"ai"`
 
+	// Utilization configures the booking traffic-light thresholds and labels
+	// (global, shared across all fiscal years).
+	Utilization UtilizationSettings `json:"utilization"`
+
 	// Legacy fields retained only for migrating old documents into FiscalYears.
 	// They are no longer read once a per-FY entry exists. Deprecated.
 	FiscalYearTargetHours float64 `json:"fiscalYearTargetHours,omitempty"`
@@ -53,6 +57,73 @@ type AISettings struct {
 	APIKey     string `json:"apiKey,omitempty"` // deprecated: prefer FORECAST_AI_API_KEY env var
 	Deployment string `json:"deployment"`       // deployment / model-router name
 	APIVersion string `json:"apiVersion"`       // e.g. 2024-10-21
+}
+
+// UtilizationSettings configures the booking traffic-light ("Ampel"). The four
+// tiers are derived from three weekly-hour thresholds; each tier carries a
+// freely editable label shown in the week/overview tables.
+//
+//	hours <= MinHours              -> "min"     (blue, arrow down)
+//	MinHours < hours <= OptimalHours -> "optimal" (green, OK)
+//	OptimalHours < hours < OverHours -> "high"    (orange, arrow up)
+//	hours >= OverHours             -> "over"    (red, X)
+type UtilizationSettings struct {
+	MinHours     float64 `json:"minHours"`     // lower bound (Burnrate Minimum)
+	OptimalHours float64 `json:"optimalHours"` // optimal weekly hours
+	OverHours    float64 `json:"overHours"`    // overbooked threshold
+	MinLabel     string  `json:"minLabel"`
+	OptimalLabel string  `json:"optimalLabel"`
+	HighLabel    string  `json:"highLabel"`
+	OverLabel    string  `json:"overLabel"`
+}
+
+// DefaultUtilization returns the standard traffic-light thresholds and labels.
+func DefaultUtilization() UtilizationSettings {
+	return UtilizationSettings{
+		MinHours:     26,
+		OptimalHours: 40,
+		OverHours:    60,
+		MinLabel:     "Burnrate Minimum",
+		OptimalLabel: "Optimal",
+		HighLabel:    "Zu hoch",
+		OverLabel:    "Überbucht",
+	}
+}
+
+// UtilStatus is the classified booking status for a number of weekly hours.
+// Key is one of "min", "optimal", "high", "over" and drives the dot's color and
+// symbol in the templates.
+type UtilStatus struct {
+	Key   string  // min | optimal | high | over
+	Label string  // user-defined label
+	Hours float64 // the hours that were classified
+}
+
+// ClassifyUtilization maps weekly booked hours to a traffic-light status using
+// the configured thresholds, falling back to the defaults when unset.
+func (s Settings) ClassifyUtilization(hours float64) UtilStatus {
+	u := s.Utilization
+	if u.MinHours == 0 && u.OptimalHours == 0 && u.OverHours == 0 {
+		u = DefaultUtilization()
+	}
+	switch {
+	case hours <= u.MinHours:
+		return UtilStatus{Key: "min", Label: labelOr(u.MinLabel, "Burnrate Minimum"), Hours: hours}
+	case hours <= u.OptimalHours:
+		return UtilStatus{Key: "optimal", Label: labelOr(u.OptimalLabel, "Optimal"), Hours: hours}
+	case hours < u.OverHours:
+		return UtilStatus{Key: "high", Label: labelOr(u.HighLabel, "Zu hoch"), Hours: hours}
+	default:
+		return UtilStatus{Key: "over", Label: labelOr(u.OverLabel, "Überbucht"), Hours: hours}
+	}
+}
+
+// labelOr returns s trimmed, or def if s is blank.
+func labelOr(s, def string) string {
+	if strings.TrimSpace(s) == "" {
+		return def
+	}
+	return s
 }
 
 // FiscalYearSettings holds configuration that changes from one fiscal year to
@@ -116,6 +187,7 @@ func DefaultData(year int) Data {
 			FederalState:         "SN",
 			WeeklyTargetHours:    40,
 			FiscalYearStartMonth: 7,
+			Utilization:          DefaultUtilization(),
 		},
 		FiscalYears: map[int]FiscalYearSettings{},
 		Projects:    []Project{},
@@ -170,6 +242,10 @@ func Validate(d Data) error {
 	}
 	if ep := strings.TrimSpace(d.Settings.AI.Endpoint); ep != "" && !strings.HasPrefix(ep, "http://") && !strings.HasPrefix(ep, "https://") {
 		return fmt.Errorf("settings.ai.endpoint muss mit http:// oder https:// beginnen")
+	}
+	u := d.Settings.Utilization
+	if u.MinHours < 0 || u.OptimalHours < 0 || u.OverHours < 0 {
+		return fmt.Errorf("settings.utilization: Schwellenwerte dürfen nicht negativ sein")
 	}
 
 	ids := make(map[string]bool, len(d.Projects))
