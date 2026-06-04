@@ -225,3 +225,44 @@ small.ist, td.num.ist, .kpi-value.ist { color: #0e7490; }
   color: var(--muted); font-size: 0.7rem; line-height: 1.4; cursor: pointer;
 }
 .clearbtn:hover { color: var(--danger); border-color: var(--danger); }
+
+/* closed (out-of-window) forecast cells */
+.grid td.day.closed { background: repeating-linear-gradient(135deg, #f3f4f6, #f3f4f6 6px, #eceef1 6px, #eceef1 12px); }
+.closedmark { display: inline-block; color: var(--muted); opacity: 0.6; }
+
+/* project booking window + burn rate */
+.project-window {
+  display: flex; flex-wrap: wrap; gap: 0.4rem 1.25rem;
+  margin: 0.4rem 0 0.6rem; color: var(--muted); font-size: 0.85rem;
+}
+.project-window strong { color: var(--text); }
+.project-window .tag {
+  display: inline-block; padding: 0 0.4rem; border-radius: 4px;
+  background: var(--line); color: var(--muted); font-size: 0.72rem;
+}
+.project-window .warn, .warn { color: var(--danger); }
+
+/* per-week sum columns + week / month separators in the forecast grid */
+table.week.span .weeksum { background: #f1f5f9; }
+table.week.span thead th.weeksum, table.week.span tfoot td.weeksum { background: #e9eef5; }
+table.week.span .weekstart { border-left: 3px solid #94a3b8; }
+table.week.span .grandsum { border-left: 3px solid #475569; background: #eef2f7; }
+table.week.span thead th.grandsum, table.week.span tfoot td.grandsum { background: #e2e8f0; }
+/* month boundary: coloured divider on the right edge of the last weekday */
+table.week.span .monthend { border-right: 3px solid #f59e0b; }
+
+/* centred daily totals in the forecast footer (Forecast/Tag, Ist/Tag) */
+table.week tfoot td.center { text-align: center; }
+
+/* burn-rate banner above the forecast grid */
+.burnbanner {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1.25rem;
+  margin: 0 0 1rem; padding: 0.5rem 0.8rem;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+}
+.burnbanner-total { font-size: 0.9rem; }
+.burnbanner-items { display: flex; flex-wrap: wrap; gap: 0.4rem 0.9rem; color: var(--muted); font-size: 0.82rem; }
+.burnchip { display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; }
+.burnchip .dot { width: 10px; height: 10px; }
+
+

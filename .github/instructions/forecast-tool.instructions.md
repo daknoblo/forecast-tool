@@ -23,7 +23,11 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
 
 ## Datenmodell
 
-- `Project`: id, name, budgetHours, active, color.
+- `Project`: id, name, budgetHours, active, color, startDate, endDate.
+  `startDate`/`endDate` (ISO `YYYY-MM-DD`, inklusiv, beide optional/`omitempty`)
+  grenzen den **Buchungszeitraum** ein; leer = ganzes Fiskaljahr. `Project.Bookable(iso)`
+  prüft per lexikografischem String-Vergleich, ob ein Datum im Zeitraum liegt.
+  `Validate` prüft Datumsformat und `startDate <= endDate`.
 - `Entry`: date (YYYY-MM-DD), projectId, hours, kind (`forecast` | `actual`).
   Ist-Stunden überschreiben Forecast pro Tag+Projekt bei der Budget-/Verbrauchsrechnung.
 - `Settings` (global): year (= aktives Fiskaljahr), federalState, weeklyTargetHours,
@@ -101,6 +105,29 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
 - Resttempo bis FY-Ende: Restziel (Ziel − Ist), verbleibende Arbeitstage, benötigte h/Tag.
 - Soll pro Woche/Monat/Quartal = Ziel arithmetisch gleich aufteilen.
 
+## Projekt-Buchungszeitraum & Burnrate
+
+- Jedes Projekt hat einen Buchungszeitraum (`startDate`/`endDate`, inklusiv; leer = FY).
+  `forecast` clampt den Zeitraum aufs FY (`projectWindow(p, fyStart, fyEnd)`).
+- `ProjectSummary` (aus `BuildYearSummary(d, cal)`) trägt zusätzlich:
+  `StartDate`/`EndDate` + `StartLabel`/`EndLabel` (DD.MM.YYYY), `HasCustomWindow`,
+  `WindowWorkdays` (Mo–Fr ohne Feiertage im Zeitraum, `cal`-basiert), `BurnPerWeek`
+  (= Budget / (Arbeitstage/5)), `BurnPerWorkday` (= Budget / Arbeitstage),
+  `RemainingWorkdays` (ab heute bis Zeitraum-Ende), `RequiredPerWorkday`
+  (= Restbudget / Rest-Arbeitstage) und `OutOfWindow` (effektive Stunden, die
+  außerhalb des Zeitraums gebucht wurden – Warnhinweis).
+- **`BuildYearSummary` nimmt jetzt `cal *holidays.Calendar`** (für feiertagsgenaue
+  Arbeitstage). Aufrufer: `handleDashboard`/`handleProjects`/`handleGoal` (alle haben
+  `s.calendar(d)`), Tests übergeben `holidays.New(2026, "BY")`.
+- **Buchungssperre außerhalb des Zeitraums:** Im Forecast-Grid (`week.html`) werden
+  Tageszellen außerhalb des Zeitraums über die Template-Funktion `bookable $p $d.Date`
+  als `td.day.closed` (mit `–`, ohne Inputs) gerendert. `handleWeekSave` erzwingt dies
+  zusätzlich serverseitig (`p.Bookable(date)`-Guard beim Re-Add), sodass auch manuelle
+  POSTs außerhalb des Zeitraums verworfen werden.
+- Projekte-Seite zeigt Zeitraum, Arbeitstage, Burnrate (h/Woche · h/Tag), Resttempo
+  und ggf. die „außerhalb des Zeitraums“-Warnung; Dashboard hat Spalten „Zeitraum“
+  und „Burnrate“.
+
 ## UI-Vorgaben
 
 - **Zentraler App-Name:** Konstante `web.AppName` ("Forecast Tool") wird über die
@@ -129,12 +156,27 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
   mit eigenem Formular (`section=utilization`): drei Schwellen (`utilMin`/`utilOptimal`/
   `utilOver`) und vier Label-Felder (`utilMinLabel`/`utilOptimalLabel`/`utilHighLabel`/
   `utilOverLabel`). Steht zwischen der Pro-FY-Karte und der KI-Endpoint-Karte.
-- **Forecast-Seite (`/week`):** Die letzte Spalte „Summe“ ist **zentriert** (CSS-Klasse
-  `sumcol` auf Header und Summen-Zellen). In den Wochengruppen- und Tages-Kopfzeilen gibt
-  es kleine **Leeren-Buttons** (`.clearbtn`, `type=button`, `data-clear-dates`), die per
-  JS alle `input.hcell` mit passendem `_<datum>`-Suffix leeren (Plan + Ist). Eine
-  zusätzliche **Status-Zeile** im `tfoot` zeigt je Woche (`.Span.Blocks`, `colspan=5`) den
-  Ampel-Punkt (`{{template "utilstatus" .Status}}`) plus effektive Wochenstunden.
+- **Forecast-Seite (`/week`):** Das Grid ist **pro Woche gruppiert** (`.Span.Blocks`):
+  nach den fünf Tagesspalten folgt je Woche eine **Wochensummen-Spalte** (`.weeksum`,
+  Plan + Ist pro Projekt), ganz rechts eine **Gesamt-Spalte** über alle sichtbaren Wochen
+  (`.grandsum`). Wochen sind durch einen dickeren linken Rahmen am ersten Tag (`.weekstart`)
+  abgegrenzt; **Monatsenden** durch einen farbigen rechten Strich (`.monthend`, gesetzt über
+  `DayCell.MonthEnd`: nächster sichtbarer Wochentag liegt in einem neuen Monat). Die
+  `tfoot`-Zeilen „Forecast / Tag“ und „Ist / Tag“ (`.dayfoot`) sind **zentriert**
+  (`td.center`) und haben ebenfalls Wochen-/Gesamtsummen. Header/Tages-/Footer-Zeilen
+  iterieren alle über `.Span.Blocks` → `.Days`, damit Spalten bündig bleiben; die
+  Wochensummen-Header sind `rowspan=2`.
+- **Burnrate-Banner (`/week`):** über der Tabelle (neben dem Zeitraum) zeigt `.burnbanner`
+  die kombinierte Burnrate (`{{.Burn.PerWeek}}` h/Woche · `{{.Burn.PerWorkday}}` h/Tag) plus
+  Pro-Projekt-Chips für alle **aktiven** Projekte, deren Buchungsfenster den sichtbaren
+  Zeitraum überlappt. Quelle: `forecast.BuildSpanBurn(ys.Projects, spanStart, spanEnd)`
+  in `handleWeek` (`ys` = `BuildYearSummary(d, cal)`).
+- **Leeren-Buttons** (`.clearbtn`, `type=button`, `data-clear-dates`) in Wochengruppen- und
+  Tages-Kopfzeilen leeren per JS alle `input.hcell` mit passendem `_<datum>`-Suffix (Plan +
+  Ist). Eine **Status-Zeile** im `tfoot` zeigt je Woche (`colspan=6`: 5 Tage + Summenspalte)
+  den Ampel-Punkt plus effektive Wochenstunden.
+- **Projekte-Seite:** KPI-Zeile zeigt Budget, Verbraucht, Rest, **Burnrate** (h/Woche) und
+  Auslastung; darunter der Zeitraum-/Burnrate-Block (`.project-window`).
 - **Ampel-Punkte** werden über das Template-Partial `{{define "utilstatus"}}` (in
   `partials.html`) gerendert: farbiger Kreis (`.util-dot`) mit weißem Symbol (↓ / OK /
   ↑ / ✕) + Label. Erscheinen in der Forecast-Status-Zeile sowie in der Spalte „Status“

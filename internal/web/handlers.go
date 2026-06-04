@@ -67,6 +67,10 @@ func NewServer(store *storage.Store, logger *slog.Logger) (*Server, error) {
 		"weekTotal": func(totals map[string]float64, projectID string) float64 {
 			return totals[projectID]
 		},
+		"bookable": func(p models.Project, date string) bool {
+			return p.Bookable(date)
+		},
+		"add": func(a, b int) int { return a + b },
 		"barWidth": func(pct float64) string {
 			if pct > 100 {
 				pct = 100
@@ -140,7 +144,7 @@ func (s *Server) render(w http.ResponseWriter, name string, data any) {
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	d := s.store.Snapshot()
 	d.Projects = models.ProjectsForFY(d.Projects, d.Settings.Year)
-	ys := forecast.BuildYearSummary(d)
+	ys := forecast.BuildYearSummary(d, s.calendar(d))
 	projects := forecast.SortedProjects(d.Projects)
 	fyStart, fyEnd := forecast.FiscalYear(d.Settings.Year, d.Settings.FiscalYearStartMonth)
 	s.render(w, "dashboard.html", map[string]any{
@@ -170,12 +174,20 @@ func (s *Server) handleWeek(w http.ResponseWriter, r *http.Request) {
 	cal := s.calendar(d)
 	sv := forecast.BuildSpan(d, cal, start, weeks)
 	projects := forecast.SortedProjects(activeProjects(d.Projects))
+	ys := forecast.BuildYearSummary(d, cal)
+	spanStart, spanEnd := "", ""
+	if len(sv.Days) > 0 {
+		spanStart = sv.Days[0].Date
+		spanEnd = sv.Days[len(sv.Days)-1].Date
+	}
+	burn := forecast.BuildSpanBurn(ys.Projects, spanStart, spanEnd)
 	s.render(w, "week.html", map[string]any{
 		"Active":      "week",
 		"Wide":        true,
 		"Settings":    d.Settings,
 		"FYYears":     fyYears(d),
 		"Span":        sv,
+		"Burn":        burn,
 		"MaxWeek":     sv.MaxWeek,
 		"WeekChoices": []int{1, 2, 3, 4, 6, 8},
 		"Projects":    projects,
@@ -249,6 +261,11 @@ func (s *Server) handleWeekSave(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		data.Entries = append([]models.Entry(nil), kept...)
+		// Project lookup for booking-window enforcement.
+		projByID := make(map[string]models.Project, len(data.Projects))
+		for _, p := range data.Projects {
+			projByID[p.ID] = p
+		}
 		// stable order
 		keys := make([]key, 0, len(newHours))
 		for k := range newHours {
@@ -261,6 +278,9 @@ func (s *Server) handleWeekSave(w http.ResponseWriter, r *http.Request) {
 			return keys[i].project < keys[j].project
 		})
 		for _, k := range keys {
+			if p, ok := projByID[k.project]; ok && !p.Bookable(k.date) {
+				continue // outside the project's booking window
+			}
 			if newHours[k] > 0 {
 				data.Entries = append(data.Entries, models.Entry{
 					Date: k.date, ProjectID: k.project, Hours: newHours[k], Kind: models.KindForecast,
@@ -278,6 +298,9 @@ func (s *Server) handleWeekSave(w http.ResponseWriter, r *http.Request) {
 			return akeys[i].project < akeys[j].project
 		})
 		for _, k := range akeys {
+			if p, ok := projByID[k.project]; ok && !p.Bookable(k.date) {
+				continue // outside the project's booking window
+			}
 			if newActual[k] > 0 {
 				data.Entries = append(data.Entries, models.Entry{
 					Date: k.date, ProjectID: k.project, Hours: newActual[k], Kind: models.KindActual,
@@ -298,7 +321,7 @@ func (s *Server) handleWeekSave(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleProjects(w http.ResponseWriter, r *http.Request) {
 	d := s.store.Snapshot()
 	d.Projects = models.ProjectsForFY(d.Projects, d.Settings.Year)
-	ys := forecast.BuildYearSummary(d)
+	ys := forecast.BuildYearSummary(d, s.calendar(d))
 
 	type projView struct {
 		Summary  forecast.ProjectSummary
@@ -335,6 +358,8 @@ func (s *Server) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	budget, _ := strconv.ParseFloat(normalizeNum(r.FormValue("budget")), 64)
+	startDate := trim(r.FormValue("startDate"))
+	endDate := trim(r.FormValue("endDate"))
 	_ = s.store.Update(func(d *models.Data) error {
 		used := make([]string, 0, len(d.Projects))
 		for _, p := range d.Projects {
@@ -347,6 +372,8 @@ func (s *Server) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 			Color:       models.RandomColor(used),
 			Active:      true,
 			FiscalYear:  d.Settings.Year,
+			StartDate:   startDate,
+			EndDate:     endDate,
 		})
 		return nil
 	})
@@ -363,6 +390,8 @@ func (s *Server) handleProjectUpdate(w http.ResponseWriter, r *http.Request) {
 	budget, _ := strconv.ParseFloat(normalizeNum(r.FormValue("budget")), 64)
 	color := trim(r.FormValue("color"))
 	active := r.FormValue("active") != ""
+	startDate := trim(r.FormValue("startDate"))
+	endDate := trim(r.FormValue("endDate"))
 	_ = s.store.Update(func(d *models.Data) error {
 		for i := range d.Projects {
 			if d.Projects[i].ID == id {
@@ -374,6 +403,8 @@ func (s *Server) handleProjectUpdate(w http.ResponseWriter, r *http.Request) {
 					d.Projects[i].Color = color
 				}
 				d.Projects[i].Active = active
+				d.Projects[i].StartDate = startDate
+				d.Projects[i].EndDate = endDate
 			}
 		}
 		return nil
@@ -411,7 +442,7 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 	cal := s.calendar(d)
 	gs := forecast.BuildGoalSummary(d, cal)
 	d.Projects = models.ProjectsForFY(d.Projects, d.Settings.Year)
-	ys := forecast.BuildYearSummary(d)
+	ys := forecast.BuildYearSummary(d, cal)
 	s.render(w, "goal.html", map[string]any{
 		"Active":     "goal",
 		"Settings":   d.Settings,

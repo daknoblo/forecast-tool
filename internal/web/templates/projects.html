@@ -7,9 +7,11 @@
   <form method="post" action="/projects" class="form-row">
     <label>Name <input type="text" name="name" required></label>
     <label>Budget (h) <input type="text" inputmode="decimal" name="budget" value="0"></label>
+    <label>Start <input type="date" name="startDate"></label>
+    <label>Ende <input type="date" name="endDate"></label>
     <button type="submit" class="btn primary">Anlegen</button>
   </form>
-  <p class="hint">Die Farbe wird automatisch aus einer kontrastreichen Palette vergeben. Du kannst sie unter „Bearbeiten“ jederzeit ändern.</p>
+  <p class="hint">Die Farbe wird automatisch aus einer kontrastreichen Palette vergeben. Du kannst sie unter „Bearbeiten“ jederzeit ändern. Start/Ende grenzen den Buchungszeitraum ein – ohne Angabe gilt das ganze Fiskaljahr.</p>
 </section>
 
 {{if .Views}}
@@ -21,8 +23,21 @@
       <span>Budget <strong>{{hours .Summary.Project.BudgetHours}} h</strong></span>
       <span>Verbraucht <strong>{{hours .Summary.Consumed}} h</strong></span>
       <span class="{{if lt .Summary.Remaining 0.0}}negative{{end}}">Rest <strong>{{hours .Summary.Remaining}} h</strong></span>
+      <span>Burnrate <strong>{{hours .Summary.BurnPerWeek}} h/Woche</strong></span>
       <span>Auslastung <strong>{{hours .Summary.UtilizationPct}} %</strong></span>
     </div>
+  </div>
+
+  <div class="project-window">
+    <span>Zeitraum <strong>{{.Summary.StartLabel}} – {{.Summary.EndLabel}}</strong>{{if .Summary.HasCustomWindow}} <span class="tag">eigener Zeitraum</span>{{end}}</span>
+    <span>Arbeitstage <strong>{{.Summary.WindowWorkdays}}</strong></span>
+    <span>Burnrate <strong>{{hours .Summary.BurnPerWeek}} h/Woche</strong> · {{hours .Summary.BurnPerWorkday}} h/Tag</span>
+    {{if gt .Summary.RemainingWorkdays 0}}
+    <span>Resttempo <strong>{{hours .Summary.RequiredPerWorkday}} h/Tag</strong> <small>({{.Summary.RemainingWorkdays}} Arbeitstage bis Ende)</small></span>
+    {{end}}
+    {{if gt .Summary.OutOfWindow 0.0}}
+    <span class="warn">⚠ {{hours .Summary.OutOfWindow}} h außerhalb des Zeitraums gebucht</span>
+    {{end}}
   </div>
 
   <div class="burndown-wrap">{{.Burndown}}</div>
@@ -32,6 +47,8 @@
     <form method="post" action="/projects/{{.Summary.Project.ID}}/update" class="form-row">
       <label>Name <input type="text" name="name" value="{{.Summary.Project.Name}}"></label>
       <label>Budget (h) <input type="text" inputmode="decimal" name="budget" value="{{hours .Summary.Project.BudgetHours}}"></label>
+      <label>Start <input type="date" name="startDate" value="{{.Summary.Project.StartDate}}"></label>
+      <label>Ende <input type="date" name="endDate" value="{{.Summary.Project.EndDate}}"></label>
       <label>Farbe <input type="color" name="color" value="{{.Summary.Project.Color}}"></label>
       <label class="check"><input type="checkbox" name="active" value="1" {{if .Summary.Project.Active}}checked{{end}}> aktiv</label>
       <button type="submit" class="btn">Speichern</button>

@@ -18,6 +18,7 @@ type DayCell struct {
 	IsHoliday    bool               // public holiday
 	HolidayName  string             // holiday label, if any
 	HolidayHours float64            // auto-booked hours for a weekday holiday (8h)
+	MonthEnd     bool               // the next displayed weekday is in a new month
 	Hours        map[string]float64 // projectID -> forecast hours
 	Actual       map[string]float64 // projectID -> actual (booked) hours
 	Total        float64            // forecast sum over projects
@@ -190,12 +191,20 @@ func BuildWeek(d models.Data, cal *holidays.Calendar, week int) WeekView {
 		day := monday.AddDate(0, 0, i)
 		iso := day.Format("2006-01-02")
 		inYear := !day.Before(fyStart) && !day.After(fyEnd)
+		// Mark a month boundary on the right edge of the last weekday of a month.
+		// On Friday, look ahead to Monday so a month ending on the weekend is
+		// still drawn after Friday.
+		next := day.AddDate(0, 0, 1)
+		if i == 4 {
+			next = day.AddDate(0, 0, 3)
+		}
 		cell := DayCell{
 			Date:        iso,
 			WeekdayName: weekdayNames[i],
 			InYear:      inYear,
 			IsHoliday:   cal.IsHoliday(iso),
 			HolidayName: cal.Name(iso),
+			MonthEnd:    next.Month() != day.Month(),
 			Hours:       map[string]float64{},
 			Actual:      map[string]float64{},
 		}
@@ -335,6 +344,49 @@ func BuildSpan(d models.Data, cal *holidays.Calendar, startWeek, weeks int) Span
 	return sv
 }
 
+// SpanBurn is the combined burn rate of the projects whose booking window
+// overlaps a visible date span (used above the forecast grid).
+type SpanBurn struct {
+	PerWeek    float64
+	PerWorkday float64
+	Items      []SpanBurnItem
+}
+
+// SpanBurnItem is one project's burn rate contributing to a SpanBurn.
+type SpanBurnItem struct {
+	Name       string
+	Color      string
+	PerWeek    float64
+	PerWorkday float64
+}
+
+// BuildSpanBurn sums the per-project burn rates (from a year summary) of the
+// active projects whose booking window overlaps the inclusive [spanStart,
+// spanEnd] date range (ISO YYYY-MM-DD). ISO strings compare lexicographically.
+func BuildSpanBurn(ps []ProjectSummary, spanStart, spanEnd string) SpanBurn {
+	var sb SpanBurn
+	for _, p := range ps {
+		if !p.Project.Active {
+			continue
+		}
+		// no overlap if the window ends before the span or starts after it
+		if p.EndDate < spanStart || p.StartDate > spanEnd {
+			continue
+		}
+		sb.Items = append(sb.Items, SpanBurnItem{
+			Name:       p.Project.Name,
+			Color:      p.Project.Color,
+			PerWeek:    p.BurnPerWeek,
+			PerWorkday: p.BurnPerWorkday,
+		})
+		sb.PerWeek += p.BurnPerWeek
+		sb.PerWorkday += p.BurnPerWorkday
+	}
+	sb.PerWeek = round1(sb.PerWeek)
+	sb.PerWorkday = round1(sb.PerWorkday)
+	return sb
+}
+
 // ProjectSummary describes budget consumption for one project.
 type ProjectSummary struct {
 	Project        models.Project
@@ -343,6 +395,22 @@ type ProjectSummary struct {
 	Consumed       float64 // effective: actual where booked, otherwise forecast
 	Remaining      float64 // budget - consumed (effective)
 	UtilizationPct float64 // consumed / budget * 100
+
+	// Booking window (clamped to the fiscal year). Empty project dates default
+	// to the FY bounds.
+	StartDate       string // effective window start, ISO YYYY-MM-DD
+	EndDate         string // effective window end, ISO YYYY-MM-DD
+	StartLabel      string // DD.MM.YYYY
+	EndLabel        string // DD.MM.YYYY
+	HasCustomWindow bool   // true if the project sets an explicit start or end
+
+	// Burn-rate over the window (holiday-aware working days, Mon-Fri).
+	WindowWorkdays     int     // working days within the window
+	BurnPerWeek        float64 // budget spread evenly per week of the window
+	BurnPerWorkday     float64 // budget spread evenly per working day
+	RemainingWorkdays  int     // working days from today until the window end
+	RequiredPerWorkday float64 // remaining budget / remaining working days
+	OutOfWindow        float64 // effective hours booked outside the window (warning)
 }
 
 // YearSummary aggregates all projects and weekly totals for the fiscal year.
@@ -388,20 +456,66 @@ func effectiveByKey(entries []models.Entry) map[string]float64 {
 	return eff
 }
 
+// projectWindow returns the inclusive [start, end] booking window of a project,
+// clamped to the fiscal year. Empty project dates default to the FY bounds.
+func projectWindow(p models.Project, fyStart, fyEnd time.Time) (time.Time, time.Time) {
+	start, end := fyStart, fyEnd
+	if p.StartDate != "" {
+		if t, err := time.Parse("2006-01-02", p.StartDate); err == nil && t.After(start) {
+			start = t
+		}
+	}
+	if p.EndDate != "" {
+		if t, err := time.Parse("2006-01-02", p.EndDate); err == nil && t.Before(end) {
+			end = t
+		}
+	}
+	return start, end
+}
+
+// countWorkdays returns the number of working days (Mon-Fri, excluding public
+// holidays) in the inclusive range [start, end]. Returns 0 if start is after end.
+func countWorkdays(start, end time.Time, cal *holidays.Calendar) int {
+	n := 0
+	for day := start; !day.After(end); day = day.AddDate(0, 0, 1) {
+		wd := day.Weekday()
+		if wd == time.Saturday || wd == time.Sunday {
+			continue
+		}
+		if cal.IsHoliday(day.Format("2006-01-02")) {
+			continue
+		}
+		n++
+	}
+	return n
+}
+
 // BuildYearSummary computes per-project effective consumption and weekly totals
 // over the fiscal year. Effective means: a project/day uses the booked actual
 // hours where present, otherwise the forecast.
-func BuildYearSummary(d models.Data) YearSummary {
+func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 	year := d.Settings.Year
 	startMonth := d.Settings.FiscalYearStartMonth
+	fyStart, fyEnd := FiscalYear(year, startMonth)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
 	eff := effectiveByKey(d.Entries)
 
 	consumed := map[string]float64{}
 	forecastByP := map[string]float64{}
 	actualByP := map[string]float64{}
+	outByP := map[string]float64{}
+	projByID := map[string]models.Project{}
+	for _, p := range d.Projects {
+		projByID[p.ID] = p
+	}
 	for k, v := range eff {
-		pid := k[strings.IndexByte(k, '|')+1:]
+		sep := strings.IndexByte(k, '|')
+		dateStr := k[:sep]
+		pid := k[sep+1:]
 		consumed[pid] += v
+		if p, ok := projByID[pid]; ok && !p.Bookable(dateStr) {
+			outByP[pid] += v
+		}
 	}
 	for _, e := range d.Entries {
 		if entryKind(e) == models.KindActual {
@@ -419,13 +533,43 @@ func BuildYearSummary(d models.Data) YearSummary {
 		if p.BudgetHours > 0 {
 			util = round1(c / p.BudgetHours * 100)
 		}
+
+		wStart, wEnd := projectWindow(p, fyStart, fyEnd)
+		workdays := countWorkdays(wStart, wEnd, cal)
+		remStart := wStart
+		if today.After(remStart) {
+			remStart = today
+		}
+		remWorkdays := countWorkdays(remStart, wEnd, cal)
+		burnPerWorkday := 0.0
+		burnPerWeek := 0.0
+		if workdays > 0 {
+			burnPerWorkday = round1(p.BudgetHours / float64(workdays))
+			burnPerWeek = round1(p.BudgetHours / (float64(workdays) / 5.0))
+		}
+		requiredPerWorkday := 0.0
+		if remWorkdays > 0 && rem > 0 {
+			requiredPerWorkday = round1(rem / float64(remWorkdays))
+		}
+
 		ys.Projects = append(ys.Projects, ProjectSummary{
-			Project:        p,
-			Forecast:       round1(forecastByP[p.ID]),
-			Actual:         round1(actualByP[p.ID]),
-			Consumed:       round1(c),
-			Remaining:      round1(rem),
-			UtilizationPct: util,
+			Project:            p,
+			Forecast:           round1(forecastByP[p.ID]),
+			Actual:             round1(actualByP[p.ID]),
+			Consumed:           round1(c),
+			Remaining:          round1(rem),
+			UtilizationPct:     util,
+			StartDate:          wStart.Format("2006-01-02"),
+			EndDate:            wEnd.Format("2006-01-02"),
+			StartLabel:         wStart.Format("02.01.2006"),
+			EndLabel:           wEnd.Format("02.01.2006"),
+			HasCustomWindow:    p.StartDate != "" || p.EndDate != "",
+			WindowWorkdays:     workdays,
+			BurnPerWeek:        burnPerWeek,
+			BurnPerWorkday:     burnPerWorkday,
+			RemainingWorkdays:  remWorkdays,
+			RequiredPerWorkday: requiredPerWorkday,
+			OutOfWindow:        round1(outByP[p.ID]),
 		})
 		ys.TotalHours += c
 	}

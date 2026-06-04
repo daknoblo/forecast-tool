@@ -24,7 +24,8 @@ Build via GitHub Actions nach GHCR. Betrieb per `docker compose` auf anderem Hos
 - `FiscalYears` (pro FY): targetHours, vacationDaysH1/H2, standardTaskLabel, standardTaskHours.
   Defaults für neue/unkonfigurierte FY (`models.DefaultFYSettings`): Ziel 1440 h,
   Urlaub H1/H2 je 15 Tage, Standard Tasks 250 h.
-- `Project`: id, name, budgetHours, color, active, fiscalYear
+- `Project`: id, name, budgetHours, color, active, fiscalYear, startDate, endDate
+  (startDate/endDate optional, ISO, inklusiv = Buchungszeitraum; leer = ganzes FY)
 - `Entry`: date (YYYY-MM-DD), projectId, hours, kind (forecast | actual)
 - Feiertage werden zur Laufzeit berechnet (nicht persistiert)
 
@@ -54,14 +55,15 @@ go.mod
 
 ## Funktionsumfang
 - **Dashboard**: Jahres-Forecast gesamt, Projektanzahl, aktuelle KW, Budget-Tabelle
-  (Budget/Verbraucht/Rest/Auslastung), Wochenauslastung.
+  (Budget/Verbraucht/Rest/Zeitraum/Burnrate/Auslastung), Wochenauslastung.
 - **Mehrwochen-Forecast**: Tabelle Projekte × Tage über mehrere Wochen, Feiertage markiert,
   Plan-/Ist-Eingabe pro Tag, Tages-/Wochensummen (Summenspalte zentriert), Auslastung gegen
   Wochensoll, Navigation. Buttons zum Leeren einzelner Tage/Wochen, Ampel-Status-Zeile je Woche.
 - **Auslastungs-Ampel**: global konfigurierbare Schwellen (min 26 / optimal 40 / over 60 h) und
   vier frei editierbare Labels (Burnrate Minimum / Optimal / Zu hoch / Überbucht). Farbige Punkte
   (blau ↓ / grün OK / orange ↑ / rot ✕) in Forecast, Dashboard- und Ziele-Wochentabellen.
-- **Projekte**: CRUD pro Fiskaljahr, Budget, Farbe, aktiv/inaktiv, Restbudget + Burn-Down-SVG.
+- **Projekte**: CRUD pro Fiskaljahr, Budget, Farbe, aktiv/inaktiv, Start-/Enddatum
+  (Buchungszeitraum), Burnrate (h/Woche · h/Tag) + Resttempo, Restbudget + Burn-Down-SVG.
 - **Ziel/Kapazität**: FY-Ziel, Urlaub (pro Halbjahr), Standard Tasks, verfügbare Stunden,
   Soll je Woche/Monat/Quartal.
 - **Einstellungen**: FY-Startmonat, Bundesland (Feiertage), Wochensollstunden, pro-FY-Werte,
