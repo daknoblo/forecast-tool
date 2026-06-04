@@ -28,7 +28,7 @@
       </select>
     </label>
     <label>Wochensollstunden
-      <input type="text" inputmode="decimal" name="weekly" value="{{hours .Settings.WeeklyTargetHours}}">
+      <input type="text" inputmode="decimal" name="weekly" value="{{hours .Settings.WeeklyTargetHours}}" placeholder="40">
     </label>
 
     <h2>Pro Fiskaljahr (FY {{.ViewYear}})</h2>
@@ -53,15 +53,6 @@
 </section>
 
 <section class="card">
-  <h2>Konfigurationsdatei</h2>
-  <table class="kv">
-    <tr><td>Pfad</td><td><code>{{.DataPath}}</code></td></tr>
-    <tr><td>Größe</td><td>{{.DataSize}}</td></tr>
-  </table>
-  <p class="hint">Export und Bearbeitung der Datendatei findest du im <a href="/data">JSON-Editor</a>.</p>
-</section>
-
-<section class="card">
   <h2>KI-Endpoint</h2>
   <p class="hint">Konfiguriere einen entfernten, Azure-OpenAI-kompatiblen Endpoint (z. B. einen Azure&nbsp;AI&nbsp;Foundry Model-Router). Im <a href="/data">JSON-Editor</a> kannst du damit das Dokument per Prompt aktualisieren.</p>
   <form method="post" action="/settings" class="form-stack">
@@ -76,15 +67,22 @@
     <label>API-Version
       <input type="text" name="aiApiVersion" value="{{.Settings.AI.APIVersion}}" placeholder="2024-10-21">
     </label>
+    <label>API-Key
+      {{if .AIKeySet}}<span class="msg ok" style="display:inline-block;padding:0.3rem 0.6rem;margin:0">aus Umgebungsvariable <code>{{.AIKeyEnv}}</code> geladen</span>
+      {{else}}<span class="msg error" style="display:inline-block;padding:0.3rem 0.6rem;margin:0">nicht gesetzt</span>{{end}}
+    </label>
+    <p class="hint">Der API-Key wird <strong>nicht</strong> in der Datendatei gespeichert, sondern über die Umgebungsvariable <code>{{.AIKeyEnv}}</code> bereitgestellt (z. B. als Docker-Secret bzw. <code>environment</code>-Eintrag in <code>docker-compose.yml</code>).{{if .AIKeyInStore}} Es liegt noch ein veralteter Key in der Datendatei – klicke auf „KI-Endpoint speichern“, um ihn zu entfernen, und rotiere den Schlüssel.{{end}}</p>
     <button type="submit" class="btn primary">KI-Endpoint speichern</button>
   </form>
+</section>
+
+<section class="card">
+  <h2>Konfigurationsdatei</h2>
   <table class="kv">
-    <tr><td>API-Key</td><td>
-      {{if .AIKeySet}}<span class="msg ok" style="display:inline-block;padding:0.15rem 0.6rem;margin:0">aus Umgebungsvariable <code>{{.AIKeyEnv}}</code> geladen</span>
-      {{else}}<span class="msg error" style="display:inline-block;padding:0.15rem 0.6rem;margin:0">nicht gesetzt</span>{{end}}
-    </td></tr>
+    <tr><td>Pfad</td><td><code>{{.DataPath}}</code></td></tr>
+    <tr><td>Größe</td><td>{{.DataSize}}</td></tr>
   </table>
-  <p class="hint">Der API-Key wird <strong>nicht</strong> in der Datendatei gespeichert, sondern über die Umgebungsvariable <code>{{.AIKeyEnv}}</code> bereitgestellt (z. B. als Docker-Secret bzw. <code>environment</code>-Eintrag in <code>docker-compose.yml</code>).{{if .AIKeyInStore}} Es liegt noch ein veralteter Key in der Datendatei – klicke auf „KI-Endpoint speichern“, um ihn zu entfernen, und rotiere den Schlüssel.{{end}}</p>
+  <p class="hint">Export und Bearbeitung der Datendatei findest du im <a href="/data">JSON-Editor</a>.</p>
 </section>
 
 {{template "footer" .}}

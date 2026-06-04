@@ -113,7 +113,7 @@ func DefaultData(year int) Data {
 	return Data{
 		Settings: Settings{
 			Year:                 year,
-			FederalState:         "BY",
+			FederalState:         "SN",
 			WeeklyTargetHours:    40,
 			FiscalYearStartMonth: 7,
 		},
@@ -123,17 +123,31 @@ func DefaultData(year int) Data {
 	}
 }
 
+// DefaultFYSettings returns the default per-fiscal-year values used to pre-fill
+// a fiscal year that has not been configured yet.
+func DefaultFYSettings() FiscalYearSettings {
+	return FiscalYearSettings{
+		TargetHours:       1440,
+		VacationDaysH1:    15,
+		VacationDaysH2:    15,
+		StandardTaskHours: 250,
+	}
+}
+
 // FYFor returns the stored settings for the given fiscal-year anchor year. When
-// no per-FY entry exists yet it falls back to the legacy global fields so an
-// unconfigured year starts from a sensible default.
+// no per-FY entry exists yet it falls back to the legacy global fields, or to
+// the standard defaults, so an unconfigured year starts from sensible values.
 func (d Data) FYFor(year int) FiscalYearSettings {
 	if fy, ok := d.FiscalYears[year]; ok {
 		return fy
 	}
-	return FiscalYearSettings{
-		TargetHours:    d.Settings.FiscalYearTargetHours,
-		VacationDaysH1: d.Settings.AnnualVacationDays,
+	if d.Settings.FiscalYearTargetHours > 0 || d.Settings.AnnualVacationDays > 0 {
+		return FiscalYearSettings{
+			TargetHours:    d.Settings.FiscalYearTargetHours,
+			VacationDaysH1: d.Settings.AnnualVacationDays,
+		}
 	}
+	return DefaultFYSettings()
 }
 
 // CurrentFY returns the per-FY settings for the active fiscal year.

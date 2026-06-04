@@ -38,6 +38,15 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
 - Legacy-Felder (`fiscalYearTargetHours`, `annualVacationDays`) nur noch für Migration
   + Fallback (`FYFor`) behalten, `omitempty`.
 
+## Standardwerte (Defaults)
+
+- **Bundesland: `SN` (Sachsen)** – in `models.DefaultData` und `storage.normalize`.
+- **Wochensollstunden: `40`** (auch als grauer `placeholder="40"` im Eingabefeld).
+- Pro Fiskaljahr über `models.DefaultFYSettings()` (greift in `FYFor`, wenn ein FY
+  noch nicht konfiguriert ist): **Ziel 1440 h**, **Urlaub H1 15 / H2 15 Tage**,
+  **Standard Tasks 250 h**. Nicht konfigurierte FY werden damit in den Einstellungen
+  vorbefüllt.
+
 ## Fiskaljahr (FY)
 
 - FY beginnt am 1. des `FiscalYearStartMonth` im Kalenderjahr `Year`
@@ -81,13 +90,28 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
 
 ## UI-Vorgaben
 
+- **Zentraler App-Name:** Konstante `web.AppName` ("Forecast Tool") wird über die
+  Template-Funktion `{{appName}}` ausgegeben – in `<title>`, Header-Brand und Footer.
+  Name nur an dieser einen Stelle ändern.
+- **Navigation (Header)** in dieser Reihenfolge und Beschriftung:
+  Dashboard (`/`) – Projekte (`/projects`) – Forecast (`/week`) – Target (`/goal`) –
+  JSON (`/data`) – Einstellungen (`/settings`). Die Active-Klassen-Schlüssel bleiben
+  technisch `dashboard`/`projects`/`week`/`goal`/`data`/`settings` (nur Anzeige + Reihenfolge).
+- **Footer:** `{{appName}} · Fiskaljahr {{Year}}` links, rechts ein Link auf das
+  GitHub-Profil `https://github.com/daknoblo/` mit Inline-SVG-Icon (kein externes Asset,
+  da `embed`). Kein Wochensoll mehr im Footer.
 - Auf der Ziel-Seite werden **Quartals- und Monatsübersicht immer angezeigt**
   (nicht ausklappbar).
 - **Zentrales FY-Dropdown oben rechts im Header** (dort, wo Jahr/Bundesland stehen):
   schaltet das aktive Fiskaljahr global um, funktioniert von **jeder** Seite und kehrt
   nach dem Wechsel zur Ursprungsseite zurück (Route `POST /fy`, Redirect auf Referer). Sofern man hier das FY wechselt müssen auch auf allen seiten die passenden FY angezeigt werden
 - In den Einstellungen **Pfad und Größe der Konfigurationsdatei** (JSON) anzeigen
-  (Größe als B/KB/MB).
+  (Größe als B/KB/MB). Diese Karte steht **ganz unten** auf der Einstellungsseite
+  (nach der KI-Endpoint-Karte).
+- **KI-Endpoint-Karte (Einstellungen):** Reihenfolge der Elemente von oben nach unten:
+  Eingabefelder (Endpoint/Deployment/API-Version) → `API-Key`-Label mit Statusanzeige
+  (env gesetzt / nicht gesetzt) → Hinweis zur Umgebungsvariable → **Speichern-Button
+  ganz unten**.
 
 ## Arbeitskonventionen (für den Agenten)
 

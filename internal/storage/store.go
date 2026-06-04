@@ -73,7 +73,7 @@ func normalize(d *models.Data) {
 		d.Settings.WeeklyTargetHours = 40
 	}
 	if d.Settings.FederalState == "" {
-		d.Settings.FederalState = "BY"
+		d.Settings.FederalState = "SN"
 	}
 	if d.Settings.FiscalYearStartMonth < 1 || d.Settings.FiscalYearStartMonth > 12 {
 		d.Settings.FiscalYearStartMonth = 7
