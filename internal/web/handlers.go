@@ -449,7 +449,6 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	fyTarget, fyErr := strconv.ParseFloat(normalizeNum(r.FormValue("fyTarget")), 64)
 	vacH1, vacH1Err := strconv.Atoi(trim(r.FormValue("vacationH1")))
 	vacH2, vacH2Err := strconv.Atoi(trim(r.FormValue("vacationH2")))
-	stdLabel := trim(r.FormValue("standardTaskLabel"))
 	stdHours, stdErr := strconv.ParseFloat(normalizeNum(r.FormValue("standardTaskHours")), 64)
 	_ = s.store.Update(func(d *models.Data) error {
 		if models.ValidYear(year) {
@@ -477,7 +476,6 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 		if vacH2Err == nil && vacH2 >= 0 && vacH2 <= 366 {
 			fy.VacationDaysH2 = vacH2
 		}
-		fy.StandardTaskLabel = stdLabel
 		if stdErr == nil && stdHours >= 0 {
 			fy.StandardTaskHours = stdHours
 		}

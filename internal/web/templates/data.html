@@ -10,12 +10,12 @@
 {{if .Success}}<div class="msg ok">{{.Success}}</div>{{end}}
 
 <section class="card">
-  <form method="post" action="/data" class="form-stack">
+  <form method="post" action="/data" class="form-stack json-form">
     <textarea name="json" class="jsoneditor" spellcheck="false" autocomplete="off" wrap="off">{{.JSON}}</textarea>
     <div class="actions">
       <button type="submit" class="btn primary">Speichern</button>
       <a href="/data" class="btn">Zurücksetzen</a>
-      <a href="/export" class="btn" download>Exportieren</a>
+      <a href="/export" class="btn" download>JSON exportieren</a>
     </div>
   </form>
   <p class="hint">
