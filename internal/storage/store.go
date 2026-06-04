@@ -1,8 +1,10 @@
 package storage
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -43,6 +45,15 @@ func (s *Store) load() error {
 	if err := json.Unmarshal(b, &d); err != nil {
 		return err
 	}
+	normalize(&d)
+	s.data = d
+	return nil
+}
+
+// normalize fills in defaults and migrates legacy fields so the in-memory
+// document is always self-consistent, whether loaded from disk or replaced via
+// the JSON editor.
+func normalize(d *models.Data) {
 	if d.Projects == nil {
 		d.Projects = []models.Project{}
 	}
@@ -86,8 +97,6 @@ func (s *Store) load() error {
 			}
 		}
 	}
-	s.data = d
-	return nil
 }
 
 // persist writes the current document atomically (temp file + rename).
@@ -134,6 +143,29 @@ func (s *Store) Marshal() ([]byte, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return json.MarshalIndent(s.data, "", "  ")
+}
+
+// ReplaceJSON parses raw JSON, validates it, normalizes defaults and atomically
+// replaces the whole document. The data is only persisted when it is valid, so
+// a bad payload never corrupts the store.
+func (s *Store) ReplaceJSON(raw []byte) error {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	var d models.Data
+	if err := dec.Decode(&d); err != nil {
+		return fmt.Errorf("ungültiges JSON: %w", err)
+	}
+	if dec.More() {
+		return fmt.Errorf("ungültiges JSON: zusätzliche Daten nach dem JSON-Objekt")
+	}
+	if err := models.Validate(d); err != nil {
+		return err
+	}
+	normalize(&d)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.data = d
+	return s.persist()
 }
 
 // Update runs fn against the mutable data under the write lock and persists.

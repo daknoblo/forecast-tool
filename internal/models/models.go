@@ -1,8 +1,10 @@
 package models
 
 import (
+	"fmt"
 	"math/rand"
 	"strings"
+	"time"
 )
 
 // Entry kinds distinguish forecasted (planned) from actual (booked) hours.
@@ -121,6 +123,75 @@ func (d Data) FYFor(year int) FiscalYearSettings {
 // CurrentFY returns the per-FY settings for the active fiscal year.
 func (d Data) CurrentFY() FiscalYearSettings {
 	return d.FYFor(d.Settings.Year)
+}
+
+// Validate checks a document for structural and referential integrity. It is
+// used before persisting data that was edited directly as JSON, so bad input
+// is rejected instead of corrupting the store.
+func Validate(d Data) error {
+	if !ValidYear(d.Settings.Year) {
+		return fmt.Errorf("settings.year %d liegt außerhalb von %d–%d", d.Settings.Year, MinYear, MaxYear)
+	}
+	if d.Settings.FiscalYearStartMonth != 0 && (d.Settings.FiscalYearStartMonth < 1 || d.Settings.FiscalYearStartMonth > 12) {
+		return fmt.Errorf("settings.fiscalYearStartMonth %d muss zwischen 1 und 12 liegen", d.Settings.FiscalYearStartMonth)
+	}
+	if d.Settings.WeeklyTargetHours < 0 {
+		return fmt.Errorf("settings.weeklyTargetHours darf nicht negativ sein")
+	}
+
+	ids := make(map[string]bool, len(d.Projects))
+	for i, p := range d.Projects {
+		if strings.TrimSpace(p.ID) == "" {
+			return fmt.Errorf("projects[%d]: id darf nicht leer sein", i)
+		}
+		if ids[p.ID] {
+			return fmt.Errorf("projects[%d]: doppelte id %q", i, p.ID)
+		}
+		ids[p.ID] = true
+		if strings.TrimSpace(p.Name) == "" {
+			return fmt.Errorf("projects[%d] (%s): name darf nicht leer sein", i, p.ID)
+		}
+		if p.BudgetHours < 0 {
+			return fmt.Errorf("projects[%d] (%s): budgetHours darf nicht negativ sein", i, p.Name)
+		}
+		if p.FiscalYear != 0 && !ValidYear(p.FiscalYear) {
+			return fmt.Errorf("projects[%d] (%s): fiscalYear %d liegt außerhalb von %d–%d", i, p.Name, p.FiscalYear, MinYear, MaxYear)
+		}
+	}
+
+	for i, e := range d.Entries {
+		if _, err := time.Parse("2006-01-02", e.Date); err != nil {
+			return fmt.Errorf("entries[%d]: date %q ist kein gültiges Datum (YYYY-MM-DD)", i, e.Date)
+		}
+		if strings.TrimSpace(e.ProjectID) == "" {
+			return fmt.Errorf("entries[%d] (%s): projectId darf nicht leer sein", i, e.Date)
+		}
+		if !ids[e.ProjectID] {
+			return fmt.Errorf("entries[%d] (%s): projectId %q verweist auf kein existierendes Projekt", i, e.Date, e.ProjectID)
+		}
+		if e.Hours < 0 {
+			return fmt.Errorf("entries[%d] (%s): hours darf nicht negativ sein", i, e.Date)
+		}
+		if e.Kind != "" && e.Kind != KindForecast && e.Kind != KindActual {
+			return fmt.Errorf("entries[%d] (%s): kind %q muss %q oder %q sein", i, e.Date, e.Kind, KindForecast, KindActual)
+		}
+	}
+
+	for year, fy := range d.FiscalYears {
+		if !ValidYear(year) {
+			return fmt.Errorf("fiscalYears: Schlüssel %d liegt außerhalb von %d–%d", year, MinYear, MaxYear)
+		}
+		if fy.TargetHours < 0 {
+			return fmt.Errorf("fiscalYears[%d]: targetHours darf nicht negativ sein", year)
+		}
+		if fy.VacationDaysH1 < 0 || fy.VacationDaysH1 > 366 || fy.VacationDaysH2 < 0 || fy.VacationDaysH2 > 366 {
+			return fmt.Errorf("fiscalYears[%d]: Urlaubstage müssen zwischen 0 und 366 liegen", year)
+		}
+		if fy.StandardTaskHours < 0 {
+			return fmt.Errorf("fiscalYears[%d]: standardTaskHours darf nicht negativ sein", year)
+		}
+	}
+	return nil
 }
 
 // Palette is a set of high-contrast, visually distinct colors used to

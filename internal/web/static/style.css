@@ -120,6 +120,27 @@ table.week.span .cellpair { display: flex; flex-direction: column; gap: 2px; ali
 .hint { color: var(--muted); font-size: 0.85rem; }
 .fy-badge { font-size: 0.7em; vertical-align: middle; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 0.1em 0.6em; color: var(--muted); font-weight: 600; }
 
+.msg { border-radius: 8px; padding: 0.7rem 1rem; margin: 0 0 1rem; font-size: 0.9rem; border: 1px solid; }
+.msg.error { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+.msg.ok { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
+
+.jsoneditor {
+  width: 100%;
+  min-height: 60vh;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  tab-size: 2;
+  white-space: pre;
+  background: #0f172a;
+  color: #e2e8f0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.9rem 1rem;
+}
+.jsoneditor:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+
 .week-head { display: flex; align-items: center; justify-content: space-between; }
 .week-nav { display: flex; gap: 1rem; }
 
