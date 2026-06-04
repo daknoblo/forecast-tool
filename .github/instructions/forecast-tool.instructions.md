@@ -60,8 +60,10 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
 
 ## Fiskaljahr (FY)
 
-- FY beginnt am 1. des `FiscalYearStartMonth` im Kalenderjahr `Year`
-  (z. B. Start Juli → 01.07.2026–30.06.2027). Startmonat Januar = Kalenderjahr.
+- Das FY ist nach dem Kalenderjahr benannt, in dem es **endet**. Es beginnt am 1. des
+  `FiscalYearStartMonth` im **Vorjahr** von `Year` (z. B. `Year=2027`, Start Juli →
+  **01.07.2026–30.06.2027**). Startmonat Januar = Kalenderjahr (keine Verschiebung).
+  Einzige Quelle der Wahrheit ist `forecast.FiscalYear(year, startMonth)`.
 - **H1 = erste 6 FY-Monate**, **H2 = letzte 6 FY-Monate**.
 - Wochen-/Quartalsansichten sind FY-relativ (Wochen-Index über die Jahresgrenze).
 - Quartale in Reihenfolge ab FY-Start (z. B. Jul–Sep, Okt–Dez, Jan–Mär, Apr–Jun).

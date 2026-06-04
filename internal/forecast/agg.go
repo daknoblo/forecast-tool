@@ -79,11 +79,17 @@ func normMonth(startMonth int) int {
 }
 
 // FiscalYear returns the inclusive [start, end] dates of the fiscal year
-// anchored at the given year and start month. With startMonth==1 it equals the
-// calendar year.
+// labelled by the given year. The fiscal year is named after the calendar year
+// in which it ENDS: with startMonth==7, FY 2027 runs 01.07.2026–30.06.2027.
+// With startMonth==1 it equals the calendar year (no shift).
 func FiscalYear(year, startMonth int) (time.Time, time.Time) {
 	startMonth = normMonth(startMonth)
-	start := time.Date(year, time.Month(startMonth), 1, 0, 0, 0, 0, time.UTC)
+	startYear := year
+	if startMonth > 1 {
+		// The FY ends in `year`, so it starts in the previous calendar year.
+		startYear = year - 1
+	}
+	start := time.Date(startYear, time.Month(startMonth), 1, 0, 0, 0, 0, time.UTC)
 	end := start.AddDate(1, 0, 0).AddDate(0, 0, -1)
 	return start, end
 }
