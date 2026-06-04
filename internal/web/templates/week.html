@@ -30,7 +30,7 @@
 {{if .Projects}}
 <form method="post" action="/week/{{.Span.StartWeek}}?weeks={{.Span.Weeks}}">
 <div class="table-scroll">
-<table class="grid week span" data-day-min="92">
+<table class="grid week span" data-day-min="92" data-target="{{.Span.TargetHours}}">
   <thead>
     <tr class="weekrow">
       <th rowspan="2" class="pname">Projekt</th>
@@ -68,10 +68,12 @@
           <div class="cellpair">
             <input type="text" inputmode="decimal" name="{{cellName $p.ID $d.Date}}"
                    value="{{with cellHours $d $p.ID}}{{hours .}}{{end}}"
-                   class="hcell plan" autocomplete="off" title="Forecast (geplant)" placeholder="Plan">
+                   class="hcell plan" autocomplete="off" title="Forecast (geplant)" placeholder="Plan"
+                   data-project="{{$p.ID}}" data-week="{{$b.Week}}" data-date="{{$d.Date}}">
             <input type="text" inputmode="decimal" name="{{cellNameActual $p.ID $d.Date}}"
                    value="{{with cellActual $d $p.ID}}{{hours .}}{{end}}"
-                   class="hcell actual" autocomplete="off" title="Ist (real gebucht)" placeholder="Ist">
+                   class="hcell actual" autocomplete="off" title="Ist (real gebucht)" placeholder="Ist"
+                   data-project="{{$p.ID}}" data-week="{{$b.Week}}" data-date="{{$d.Date}}">
           </div>
           {{else}}
           <span class="closedmark" title="Außerhalb des Projektzeitraums">–</span>
@@ -79,13 +81,13 @@
         </td>
         {{end}}
         <td class="num strong sumcol weeksum">
-          {{hours (weekTotal $b.ProjectTotals $p.ID)}}
-          <br><small class="ist">{{hours (weekTotal $b.ActualTotals $p.ID)}} Ist</small>
+          <span data-pw-plan="{{$p.ID}}|{{$b.Week}}">{{hours (weekTotal $b.ProjectTotals $p.ID)}}</span>
+          <br><small class="ist"><span data-pw-actual="{{$p.ID}}|{{$b.Week}}">{{hours (weekTotal $b.ActualTotals $p.ID)}}</span> Ist</small>
         </td>
       {{end}}
       <td class="num strong sumcol grandsum">
-        {{hours (weekTotal $totals $p.ID)}}
-        <br><small class="ist">{{hours (weekTotal $actuals $p.ID)}} Ist</small>
+        <span data-pg-plan="{{$p.ID}}">{{hours (weekTotal $totals $p.ID)}}</span>
+        <br><small class="ist"><span data-pg-actual="{{$p.ID}}">{{hours (weekTotal $actuals $p.ID)}}</span> Ist</small>
       </td>
     </tr>
     {{end}}
@@ -95,36 +97,36 @@
       <td class="pname">Forecast / Tag</td>
       {{range $b := .Span.Blocks}}
         {{range $i, $d := $b.Days}}
-          <td class="num center{{if $d.IsHoliday}} holiday{{end}}{{if eq $i 0}} weekstart{{end}}{{if $d.MonthEnd}} monthend{{end}}">{{hours $d.Total}}</td>
+          <td class="num center{{if $d.IsHoliday}} holiday{{end}}{{if eq $i 0}} weekstart{{end}}{{if $d.MonthEnd}} monthend{{end}}" data-day-plan="{{$d.Date}}">{{hours $d.Total}}</td>
         {{end}}
-        <td class="num strong sumcol weeksum">{{hours $b.Total}}</td>
+        <td class="num strong sumcol weeksum" data-week-plan="{{$b.Week}}">{{hours $b.Total}}</td>
       {{end}}
-      <td class="num strong sumcol grandsum">{{hours .Span.Total}}</td>
+      <td class="num strong sumcol grandsum" data-grand-plan>{{hours .Span.Total}}</td>
     </tr>
     <tr class="dayfoot">
       <td class="pname">Ist / Tag</td>
       {{range $b := .Span.Blocks}}
         {{range $i, $d := $b.Days}}
-          <td class="num ist center{{if $d.IsHoliday}} holiday{{end}}{{if eq $i 0}} weekstart{{end}}{{if $d.MonthEnd}} monthend{{end}}">{{hours $d.ActualTotal}}</td>
+          <td class="num ist center{{if $d.IsHoliday}} holiday{{end}}{{if eq $i 0}} weekstart{{end}}{{if $d.MonthEnd}} monthend{{end}}" data-day-actual="{{$d.Date}}">{{hours $d.ActualTotal}}</td>
         {{end}}
-        <td class="num strong ist sumcol weeksum">{{hours $b.ActualTotal}}</td>
+        <td class="num strong ist sumcol weeksum" data-week-actual="{{$b.Week}}">{{hours $b.ActualTotal}}</td>
       {{end}}
-      <td class="num strong ist sumcol grandsum">{{hours .Span.ActualTotal}}</td>
+      <td class="num strong ist sumcol grandsum" data-grand-actual>{{hours .Span.ActualTotal}}</td>
     </tr>
     <tr class="statusrow">
       <td class="pname">Auslastung (gebucht / Woche)</td>
       {{range .Span.Blocks}}
-        <td colspan="6" class="statuscell">{{template "utilstatus" .Status}} <small>{{hours .EffectiveTotal}} h</small></td>
+        <td colspan="6" class="statuscell">{{template "utilstatus" .Status}} <small><span data-eff-week="{{.Week}}">{{hours .EffectiveTotal}}</span> h</small></td>
       {{end}}
       <td class="num sumcol grandsum"></td>
     </tr>
     <tr>
       <td class="pname">Auslastung (Soll {{hours .Span.TargetHours}} h)</td>
       <td colspan="{{add (len .Span.Days) (len .Span.Blocks)}}">
-        <div class="bar"><span style="width:{{barWidth .Span.UtilizationPct}}%"></span></div>
-        <div class="bar ist"><span style="width:{{barWidth .Span.ActualUtilizationPct}}%"></span></div>
+        <div class="bar"><span style="width:{{barWidth .Span.UtilizationPct}}%" data-util-plan-bar></span></div>
+        <div class="bar ist"><span style="width:{{barWidth .Span.ActualUtilizationPct}}%" data-util-actual-bar></span></div>
       </td>
-      <td class="num strong sumcol grandsum">{{hours .Span.UtilizationPct}} %<br><small class="ist">{{hours .Span.ActualUtilizationPct}} % Ist</small></td>
+      <td class="num strong sumcol grandsum"><span data-util-plan>{{hours .Span.UtilizationPct}}</span> %<br><small class="ist"><span data-util-actual>{{hours .Span.ActualUtilizationPct}}</span> % Ist</small></td>
     </tr>
   </tfoot>
 </table>
@@ -150,7 +152,121 @@
           if (inp.name.endsWith('_' + dates[i])) { inp.value = ''; break; }
         }
       });
+      recalc();
     });
+  });
+})();
+(function () {
+  // Live totals: recompute all sums while the user types, without a save round-trip.
+  var table = document.querySelector('table.week.span');
+  if (!table) return;
+  var target = parseFloat(table.getAttribute('data-target')) || 0;
+
+  function num(v) {
+    if (!v) return 0;
+    var n = parseFloat(String(v).replace(',', '.'));
+    return isNaN(n) ? 0 : n;
+  }
+  // Mirror Go's formatHours: whole numbers without decimals, else one decimal.
+  function fmt(n) {
+    n = Math.round(n * 10) / 10;
+    return (n === Math.trunc(n)) ? String(n) : n.toFixed(1);
+  }
+  function setText(sel, val) {
+    document.querySelectorAll(sel).forEach(function (el) { el.textContent = fmt(val); });
+  }
+  function setWidth(sel, pct) {
+    if (pct > 100) pct = 100; if (pct < 0) pct = 0;
+    document.querySelectorAll(sel).forEach(function (el) { el.style.width = fmt(pct) + '%'; });
+  }
+  function cssEsc(s) {
+    return (window.CSS && CSS.escape) ? CSS.escape(s) : String(s).replace(/["\\]/g, '\\$&');
+  }
+
+  window.recalc = function () {
+    var pw = {}, pa = {};            // project|week -> plan / actual
+    var pgPlan = {}, pgActual = {};  // project -> plan / actual
+    var dayPlan = {}, dayActual = {}; // date -> plan / actual
+    var wkPlan = {}, wkActual = {};   // week -> plan / actual
+    var effWeek = {};                 // week -> effective (actual if booked else plan)
+    var grandPlan = 0, grandActual = 0;
+
+    document.querySelectorAll('input.hcell.plan').forEach(function (inp) {
+      var pid = inp.getAttribute('data-project');
+      var wk = inp.getAttribute('data-week');
+      var date = inp.getAttribute('data-date');
+      var v = num(inp.value);
+      var key = pid + '|' + wk;
+      pw[key] = (pw[key] || 0) + v;
+      pgPlan[pid] = (pgPlan[pid] || 0) + v;
+      dayPlan[date] = (dayPlan[date] || 0) + v;
+      wkPlan[wk] = (wkPlan[wk] || 0) + v;
+      grandPlan += v;
+
+      // effective for this project/day: actual if the actual field has a value, else plan
+      var act = document.querySelector('input.hcell.actual[data-project="' + cssEsc(pid) + '"][data-date="' + cssEsc(date) + '"]');
+      var eff = (act && act.value.trim() !== '') ? num(act.value) : v;
+      effWeek[wk] = (effWeek[wk] || 0) + eff;
+    });
+    document.querySelectorAll('input.hcell.actual').forEach(function (inp) {
+      var pid = inp.getAttribute('data-project');
+      var wk = inp.getAttribute('data-week');
+      var date = inp.getAttribute('data-date');
+      var v = num(inp.value);
+      var key = pid + '|' + wk;
+      pa[key] = (pa[key] || 0) + v;
+      pgActual[pid] = (pgActual[pid] || 0) + v;
+      dayActual[date] = (dayActual[date] || 0) + v;
+      wkActual[wk] = (wkActual[wk] || 0) + v;
+      grandActual += v;
+    });
+
+    // per-project per-week sums
+    document.querySelectorAll('[data-pw-plan]').forEach(function (el) {
+      el.textContent = fmt(pw[el.getAttribute('data-pw-plan')] || 0);
+    });
+    document.querySelectorAll('[data-pw-actual]').forEach(function (el) {
+      el.textContent = fmt(pa[el.getAttribute('data-pw-actual')] || 0);
+    });
+    // per-project grand totals
+    document.querySelectorAll('[data-pg-plan]').forEach(function (el) {
+      el.textContent = fmt(pgPlan[el.getAttribute('data-pg-plan')] || 0);
+    });
+    document.querySelectorAll('[data-pg-actual]').forEach(function (el) {
+      el.textContent = fmt(pgActual[el.getAttribute('data-pg-actual')] || 0);
+    });
+    // footer per-day
+    document.querySelectorAll('[data-day-plan]').forEach(function (el) {
+      el.textContent = fmt(dayPlan[el.getAttribute('data-day-plan')] || 0);
+    });
+    document.querySelectorAll('[data-day-actual]').forEach(function (el) {
+      el.textContent = fmt(dayActual[el.getAttribute('data-day-actual')] || 0);
+    });
+    // footer per-week
+    document.querySelectorAll('[data-week-plan]').forEach(function (el) {
+      el.textContent = fmt(wkPlan[el.getAttribute('data-week-plan')] || 0);
+    });
+    document.querySelectorAll('[data-week-actual]').forEach(function (el) {
+      el.textContent = fmt(wkActual[el.getAttribute('data-week-actual')] || 0);
+    });
+    // footer grand totals
+    setText('[data-grand-plan]', grandPlan);
+    setText('[data-grand-actual]', grandActual);
+    // effective per week (status row)
+    document.querySelectorAll('[data-eff-week]').forEach(function (el) {
+      el.textContent = fmt(effWeek[el.getAttribute('data-eff-week')] || 0);
+    });
+    // utilisation over the visible span
+    var utilPlan = target > 0 ? (grandPlan / target * 100) : 0;
+    var utilActual = target > 0 ? (grandActual / target * 100) : 0;
+    setText('[data-util-plan]', utilPlan);
+    setText('[data-util-actual]', utilActual);
+    setWidth('[data-util-plan-bar]', utilPlan);
+    setWidth('[data-util-actual-bar]', utilActual);
+  };
+
+  table.addEventListener('input', function (e) {
+    if (e.target && e.target.classList.contains('hcell')) recalc();
   });
 })();
 (function () {

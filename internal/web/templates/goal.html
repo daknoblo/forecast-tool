@@ -151,14 +151,15 @@
   <h2>Wochenauslastung</h2>
   <table class="grid compact">
     <thead>
-      <tr><th>Woche</th><th class="num">Stunden</th><th class="num">Soll</th><th>Status</th><th>Auslastung</th></tr>
+      <tr><th>Woche</th><th class="num">Forecast</th><th class="num">Ist gebucht</th><th class="num">Soll</th><th>Status</th><th>Auslastung</th></tr>
     </thead>
     <tbody>
     {{range .WeekTotals}}
       {{if gt .Hours 0.0}}
       <tr>
         <td><a href="/week/{{.Week}}">{{.Label}}</a></td>
-        <td class="num">{{hours .Hours}} h</td>
+        <td class="num">{{hours .Forecast}} h</td>
+        <td class="num ist">{{hours .Actual}} h</td>
         <td class="num">{{hours .TargetHours}} h</td>
         <td>{{template "utilstatus" .Status}}</td>
         <td>

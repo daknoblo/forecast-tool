@@ -425,7 +425,9 @@ type WeekTotal struct {
 	Week           int // fiscal-year week index
 	ISOWeek        int
 	Label          string
-	Hours          float64
+	Hours          float64 // effective hours (actual where booked, else forecast)
+	Forecast       float64 // planned hours in this week
+	Actual         float64 // actually booked hours in this week
 	TargetHours    float64
 	UtilizationPct float64
 	Status         models.UtilStatus // booking traffic-light for this week
@@ -578,6 +580,8 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 	// weekly totals over the fiscal year (effective hours)
 	weeks := FYWeeks(year, startMonth)
 	weekSum := make(map[int]float64)
+	weekForecast := make(map[int]float64)
+	weekActual := make(map[int]float64)
 	for k, v := range eff {
 		dateStr := k[:strings.IndexByte(k, '|')]
 		t, err := time.Parse("2006-01-02", dateStr)
@@ -586,6 +590,21 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 		}
 		if w := FYWeekIndexOf(year, startMonth, t); w >= 1 {
 			weekSum[w] += v
+		}
+	}
+	for _, e := range d.Entries {
+		t, err := time.Parse("2006-01-02", e.Date)
+		if err != nil {
+			continue
+		}
+		w := FYWeekIndexOf(year, startMonth, t)
+		if w < 1 {
+			continue
+		}
+		if entryKind(e) == models.KindActual {
+			weekActual[w] += e.Hours
+		} else {
+			weekForecast[w] += e.Hours
 		}
 	}
 	for w := 1; w <= weeks; w++ {
@@ -600,6 +619,8 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 			ISOWeek:        isoWeek,
 			Label:          fmt.Sprintf("W%d · KW%02d", w, isoWeek),
 			Hours:          hrs,
+			Forecast:       round1(weekForecast[w]),
+			Actual:         round1(weekActual[w]),
 			TargetHours:    d.Settings.WeeklyTargetHours,
 			UtilizationPct: util,
 			Status:         d.Settings.ClassifyUtilization(hrs),

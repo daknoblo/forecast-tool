@@ -21,7 +21,8 @@
     <h2><span class="dot" style="background:{{.Summary.Project.Color}}"></span>{{.Summary.Project.Name}}</h2>
     <div class="project-kpis">
       <span>Budget <strong>{{hours .Summary.Project.BudgetHours}} h</strong></span>
-      <span>Verbraucht <strong>{{hours .Summary.Consumed}} h</strong></span>
+      <span>Forecast <strong>{{hours .Summary.Forecast}} h</strong></span>
+      <span>Ist gebucht <strong>{{hours .Summary.Actual}} h</strong></span>
       <span class="{{if lt .Summary.Remaining 0.0}}negative{{end}}">Rest <strong>{{hours .Summary.Remaining}} h</strong></span>
       <span>Burnrate <strong>{{hours .Summary.BurnPerWeek}} h/Woche</strong></span>
       <span>Auslastung <strong>{{hours .Summary.UtilizationPct}} %</strong></span>
