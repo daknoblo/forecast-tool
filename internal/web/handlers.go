@@ -329,7 +329,7 @@ func (s *Server) handleProjects(w http.ResponseWriter, r *http.Request) {
 	}
 	var views []projView
 	for _, ps := range ys.Projects {
-		pts := forecast.BuildBurndown(d, ps.Project.ID, ps.Project.BudgetHours)
+		pts := forecast.BuildBurndown(d, ps.Project.ID, ps.StartDate, ps.EndDate, ps.Project.BudgetHours)
 		views = append(views, projView{
 			Summary:  ps,
 			Burndown: burndownSVG(pts, ps.Project.BudgetHours, ps.Project.Color),

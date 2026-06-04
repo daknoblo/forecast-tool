@@ -610,37 +610,64 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 
 // BurnPoint is a single data point of a project burn-down curve.
 type BurnPoint struct {
-	Week      int
+	ISOWeek   int // ISO calendar week of the point's Monday
+	Month     int // 1-12, month of the point's Monday (for axis labels)
+	Year      int // calendar year of the point's Monday
 	Remaining float64
 }
 
-// BuildBurndown returns the remaining-budget curve for one project over the
-// fiscal year, using effective hours (actual where booked, else forecast).
-func BuildBurndown(d models.Data, projectID string, budget float64) []BurnPoint {
-	year := d.Settings.Year
-	startMonth := d.Settings.FiscalYearStartMonth
-	weeks := FYWeeks(year, startMonth)
+// BuildBurndown returns the remaining-budget curve for one project over its
+// effective booking window, padded by one month before the start and one month
+// after the end. Hours are effective (actual where booked, else forecast).
+func BuildBurndown(d models.Data, projectID, startISO, endISO string, budget float64) []BurnPoint {
+	start, errS := time.Parse("2006-01-02", startISO)
+	end, errE := time.Parse("2006-01-02", endISO)
+	if errS != nil || errE != nil || end.Before(start) {
+		// Fallback: span the whole fiscal year.
+		start, end = FiscalYear(d.Settings.Year, d.Settings.FiscalYearStartMonth)
+	}
+
+	// Pad the window by one month on each side and align to whole weeks.
+	winStart := mondayOf(start.AddDate(0, -1, 0))
+	winEnd := end.AddDate(0, 1, 0)
+
+	// Effective hours per project per day.
 	eff := effectiveByKey(d.Entries)
-	weekSum := make(map[int]float64)
+	daySum := make(map[string]float64)
+	hoursBefore := 0.0
 	for k, v := range eff {
 		sep := strings.IndexByte(k, '|')
 		if k[sep+1:] != projectID {
 			continue
 		}
-		t, err := time.Parse("2006-01-02", k[:sep])
-		if err != nil {
+		ds := k[:sep]
+		if t, err := time.Parse("2006-01-02", ds); err == nil && t.Before(winStart) {
+			hoursBefore += v
 			continue
 		}
-		if w := FYWeekIndexOf(year, startMonth, t); w >= 1 {
-			weekSum[w] += v
-		}
+		daySum[ds] += v
 	}
-	points := make([]BurnPoint, 0, weeks+1)
-	points = append(points, BurnPoint{Week: 0, Remaining: round1(budget)})
-	cum := 0.0
-	for w := 1; w <= weeks; w++ {
-		cum += weekSum[w]
-		points = append(points, BurnPoint{Week: w, Remaining: round1(budget - cum)})
+
+	var points []BurnPoint
+	cum := hoursBefore
+	for m := winStart; !m.After(winEnd); m = m.AddDate(0, 0, 7) {
+		weekEnd := m.AddDate(0, 0, 6)
+		for ds, v := range daySum {
+			t, err := time.Parse("2006-01-02", ds)
+			if err != nil {
+				continue
+			}
+			if !t.Before(m) && !t.After(weekEnd) {
+				cum += v
+			}
+		}
+		yr, wk := m.ISOWeek()
+		points = append(points, BurnPoint{
+			ISOWeek:   wk,
+			Month:     int(m.Month()),
+			Year:      yr,
+			Remaining: round1(budget - cum),
+		})
 	}
 	return points
 }
