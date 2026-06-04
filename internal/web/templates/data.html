@@ -1,0 +1,30 @@
+{{template "header" .}}
+<h1>JSON-Editor</h1>
+<p class="hint">
+  Hier kannst du die komplette Datendatei direkt als JSON bearbeiten und speichern – z. B. mit
+  JSON, das du dir von einer KI generieren lässt. Vor dem Speichern werden die Daten geprüft;
+  ungültiges JSON wird nicht übernommen.
+</p>
+
+{{if .Error}}<div class="msg error"><strong>Nicht gespeichert:</strong> {{.Error}}</div>{{end}}
+{{if .Success}}<div class="msg ok">{{.Success}}</div>{{end}}
+
+<section class="card">
+  <form method="post" action="/data" class="form-stack">
+    <textarea name="json" class="jsoneditor" spellcheck="false" autocomplete="off" wrap="off">{{.JSON}}</textarea>
+    <div class="actions">
+      <button type="submit" class="btn primary">Speichern</button>
+      <a href="/data" class="btn">Zurücksetzen</a>
+      <a href="/export" class="btn" download>Exportieren</a>
+    </div>
+  </form>
+  <p class="hint">
+    Struktur: <code>settings</code> (year, federalState, weeklyTargetHours, fiscalYearStartMonth),
+    <code>fiscalYears</code> (pro FY: targetHours, vacationDaysH1/H2, standardTaskLabel, standardTaskHours),
+    <code>projects</code> (id, name, budgetHours, color, active, fiscalYear) und
+    <code>entries</code> (date YYYY-MM-DD, projectId, hours, kind = forecast|actual).
+    Jede <code>entries.projectId</code> muss zu einer existierenden <code>projects.id</code> passen.
+  </p>
+</section>
+
+{{template "footer" .}}
