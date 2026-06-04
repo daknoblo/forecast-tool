@@ -614,6 +614,17 @@ func (s *Server) handleDataAI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Expand any compact forecastPlan directives into concrete weekday entries
+	// before validating, so the model never has to enumerate hundreds of days.
+	startMonth := s.store.Snapshot().Settings.FiscalYearStartMonth
+	expanded, exErr := ai.ExpandPlan([]byte(result), startMonth)
+	if exErr != nil {
+		s.logger.Warn("ai forecastPlan expansion failed", "error", exErr)
+		s.renderData(w, result, prompt, "KI-Antwort konnte nicht verarbeitet werden: "+exErr.Error(), "")
+		return
+	}
+	result = string(expanded)
+
 	// Validate the AI output but keep it in the editor regardless, so the user
 	// can review and fix it before saving.
 	if vErr := s.store.ValidateJSON([]byte(result)); vErr != nil {

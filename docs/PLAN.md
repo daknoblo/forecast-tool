@@ -35,6 +35,7 @@ internal/models/models.go           # Settings, AISettings, Project, Entry, Data
 internal/storage/store.go           # JSON load/save, RWMutex, atomic write, ReplaceJSON/ValidateJSON
 internal/holidays/holidays.go       # Wrapper um rickar/cal (DE-Regionen)
 internal/ai/client.go               # Azure-OpenAI-kompatibler KI-Client (JSON-Update per Prompt, Blueprint)
+internal/ai/expand.go               # Expansion kompakter forecastPlan-Direktiven in Mo–Fr-Einträge
 internal/logging/logging.go         # slog-Logger: stdout + rotierende Datei (10 MB) in appdata
 internal/forecast/agg.go            # Wochen-/Jahres-Aggregation, Burn-Down
 internal/forecast/agg_test.go       # Unit-Tests der Aggregation

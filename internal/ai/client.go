@@ -44,6 +44,9 @@ const Blueprint = `{
   "entries": [
     { "date": "2026-07-01", "projectId": "proj-a", "hours": 8, "kind": "forecast" },
     { "date": "2026-07-02", "projectId": "proj-a", "hours": 8, "kind": "actual" }
+  ],
+  "forecastPlan": [
+    { "projectId": "proj-a", "fiscalYear": 2027, "hoursPerWeek": 20, "kind": "forecast" }
   ]
 }`
 
@@ -57,17 +60,20 @@ Schema:
 - fiscalYears: Objekt mit Jahr-Schlüsseln, je { targetHours, vacationDaysH1, vacationDaysH2, standardTaskLabel, standardTaskHours }.
 - projects: Liste von { id, name, budgetHours, color, active, fiscalYear }. id = kurze eindeutige Kennung; color = Hex (#rrggbb); fiscalYear = das Anker-Jahr (FY 27 => 2027).
 - entries: Liste von { date (YYYY-MM-DD), projectId, hours, kind } mit kind "forecast" (Plan) oder "actual" (Ist). Jede projectId MUSS zu einer projects.id passen.
+- forecastPlan (OPTIONAL): kompakte Liste von { projectId, fiscalYear, hoursPerWeek, kind } für regelmäßige, über ein ganzes Fiskaljahr gleichmäßig verteilte Forecasts.
+
+WICHTIG zur Vermeidung zu langer Antworten:
+- Für „X Stunden pro Woche, gleichmäßig über das Fiskaljahr verteilt" NIEMALS die einzelnen Tageseinträge ausschreiben. Stattdessen GENAU EINEN Eintrag pro Projekt in "forecastPlan" anlegen: { projectId, fiscalYear, hoursPerWeek: X, kind: "forecast" }. Der Server expandiert das automatisch in Mo–Fr-Einträge (X/5 Stunden pro Werktag) für das gesamte Fiskaljahr.
+- "entries" NUR für einzelne, konkret genannte Tage verwenden (z. B. „am 3. Juli 6 Stunden").
 
 So sieht ein vollständiges, gültiges Dokument aus (Blueprint, exakt dieses Format und diese Feldnamen verwenden):
 ` + Blueprint + `
 
 Regeln:
 - Behalte alle bestehenden Daten bei, sofern die Anweisung nichts anderes verlangt. Ändere settings und andere Projekte nicht ohne Auftrag.
-- Die Schlüssel in fiscalYears sind Strings (z. B. "2027"); fiscalYear in projects ist eine Zahl (z. B. 2027).
+- Die Schlüssel in fiscalYears sind Strings (z. B. "2027"); fiscalYear in projects/forecastPlan ist eine Zahl (z. B. 2027).
 - "FY 27" bzw. "Fiskaljahr 27" bedeutet fiscalYear 2027. Das FY beginnt am fiscalYearStartMonth (Standard Juli) des Anker-Jahres.
-- "X Stunden pro Woche, gleichmäßig verteilt" bedeutet Forecast-Einträge nur an Wochentagen (Mo–Fr): X/5 Stunden pro Werktag, kind "forecast", für alle Wochen des betreffenden Fiskaljahres.
 - budgetHours ist das Gesamtbudget des Projekts; verwechsle es nicht mit standardTaskHours.
-- Schreibe die entries möglichst kompakt (ein Objekt pro Zeile).
 Gib keinen erklärenden Text, keine Markdown-Codeblöcke und keine Kommentare aus – nur das reine JSON-Objekt.`
 
 // Generate sends the prompt and current JSON to the configured endpoint and

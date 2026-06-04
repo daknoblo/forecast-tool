@@ -94,6 +94,12 @@ den Editor eingefügt und geprüft. Gespeichert wird erst nach explizitem Klick 
 *Speichern*. Dem Modell wird zusätzlich ein **Blueprint** (vollständiges
 Beispiel-Dokument) mitgesendet, damit es das exakte JSON-Format kennt.
 
+Für regelmäßige, über ein ganzes Fiskaljahr gleichmäßig verteilte Forecasts gibt die
+KI keine hunderten Tageseinträge aus (das würde das Token-Limit sprengen), sondern
+eine kompakte Direktive `forecastPlan` (`projectId`, `fiscalYear`, `hoursPerWeek`,
+`kind`). Der Server expandiert diese automatisch in Mo–Fr-Einträge
+(`hoursPerWeek/5` pro Werktag) für das gesamte Fiskaljahr.
+
 ## Logging
 Die Anwendung schreibt Logs **gleichzeitig** in den Container-Output (`docker logs`)
 und in eine Datei `appdata/forecast.log`. Die Datei rotiert automatisch bei **10 MB**
