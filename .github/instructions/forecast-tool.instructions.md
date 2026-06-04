@@ -89,3 +89,7 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
   (`appdata` entfernen, `appdata/.gitkeep` wiederherstellen).
 - Keine separaten Markdown-Doku-Dateien anlegen, außer ausdrücklich gewünscht.
 - Templates/Static liegen unter `internal/web/` (per `embed`), nicht im Repo-Root.
+
+## Export
+
+- es soll die möglichkeit die aktuelle JSON aus der Anwendung heraus zu exportieren bzw. herunterzuladen

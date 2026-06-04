@@ -29,6 +29,8 @@ Konfiguration über Umgebungsvariablen:
 |----------------------|-------------|---------------------------------------|
 | `FORECAST_ADDR`      | `:8080`     | Listen-Adresse                        |
 | `FORECAST_DATA_DIR`  | `appdata`   | Verzeichnis für `data.json`           |
+| `PORT`               | `8080`      | Port (Alias, falls `FORECAST_ADDR` nicht gesetzt) |
+| `DATA_DIR`           | `appdata`   | Daten-Verzeichnis (Alias für `FORECAST_DATA_DIR`) |
 
 ## Mit Docker bauen und starten
 ```bash

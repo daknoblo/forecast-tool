@@ -70,6 +70,13 @@ func (s *Store) load() error {
 	if d.FiscalYears == nil {
 		d.FiscalYears = map[int]models.FiscalYearSettings{}
 	}
+	// Migrate legacy projects without a fiscal year to the active FY so they
+	// remain visible after projects became fiscal-year scoped.
+	for i := range d.Projects {
+		if d.Projects[i].FiscalYear == 0 {
+			d.Projects[i].FiscalYear = d.Settings.Year
+		}
+	}
 	// Migrate legacy single-FY settings into the per-FY map on first load.
 	if _, ok := d.FiscalYears[d.Settings.Year]; !ok {
 		if d.Settings.FiscalYearTargetHours > 0 || d.Settings.AnnualVacationDays > 0 {
@@ -120,6 +127,13 @@ func (s *Store) FileSize() int64 {
 		return fi.Size()
 	}
 	return 0
+}
+
+// Marshal returns the current document as indented JSON for export/download.
+func (s *Store) Marshal() ([]byte, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return json.MarshalIndent(s.data, "", "  ")
 }
 
 // Update runs fn against the mutable data under the write lock and persists.

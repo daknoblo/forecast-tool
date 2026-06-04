@@ -630,16 +630,6 @@ func BuildGoalSummary(d models.Data, cal *holidays.Calendar) GoalSummary {
 	return gs
 }
 
-// CurrentWeek returns the ISO week for today's date clamped to the year.
-func CurrentWeek(year int) int {
-	now := time.Now()
-	if now.Year() != year {
-		return 1
-	}
-	_, w := now.ISOWeek()
-	return w
-}
-
 // SortedProjects returns projects sorted by name for stable display.
 func SortedProjects(ps []models.Project) []models.Project {
 	out := append([]models.Project(nil), ps...)

@@ -79,7 +79,7 @@ type Calendar struct {
 }
 
 // New builds a holiday lookup covering the given anchor year and its neighbours
-// (year-1 .. year+1) so a fiscal year spanning two calendar years is fully
+// (year-1 .. year+2) so a fiscal year spanning two calendar years is fully
 // covered.
 func New(year int, state string) *Calendar {
 	bc := cal.NewBusinessCalendar()
@@ -87,7 +87,7 @@ func New(year int, state string) *Calendar {
 
 	byDate := make(map[string]string)
 	d := time.Date(year-1, time.January, 1, 12, 0, 0, 0, time.UTC)
-	end := time.Date(year+2, time.January, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(year+3, time.January, 1, 0, 0, 0, 0, time.UTC)
 	for d.Before(end) {
 		if _, _, h := bc.IsHoliday(d); h != nil {
 			byDate[d.Format("2006-01-02")] = h.Name

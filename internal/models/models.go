@@ -11,6 +11,17 @@ const (
 	KindActual   = "actual"
 )
 
+// MinYear and MaxYear bound any fiscal-year anchor accepted from user input.
+const (
+	MinYear = 2000
+	MaxYear = 2100
+)
+
+// ValidYear reports whether y is a plausible fiscal-year anchor year.
+func ValidYear(y int) bool {
+	return y >= MinYear && y <= MaxYear
+}
+
 // Settings holds global configuration that is shared across all fiscal years.
 // Per-fiscal-year values (target hours, vacation, standard tasks) live in
 // Data.FiscalYears instead, keyed by the FY anchor year.
@@ -38,12 +49,26 @@ type FiscalYearSettings struct {
 }
 
 // Project is a thing time is forecasted against, constrained by a budget.
+// Projects belong to exactly one fiscal year (FiscalYear holds the FY anchor
+// year); a project running across two fiscal years is created anew per FY.
 type Project struct {
 	ID          string  `json:"id"`
 	Name        string  `json:"name"`
 	BudgetHours float64 `json:"budgetHours"`
 	Color       string  `json:"color"`
 	Active      bool    `json:"active"`
+	FiscalYear  int     `json:"fiscalYear"`
+}
+
+// ProjectsForFY returns the projects belonging to the given fiscal-year anchor.
+func ProjectsForFY(ps []Project, year int) []Project {
+	out := make([]Project, 0, len(ps))
+	for _, p := range ps {
+		if p.FiscalYear == year {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // Entry is the number of hours for a project on a specific day.
