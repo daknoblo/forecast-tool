@@ -27,14 +27,17 @@
     <tr class="weekrow">
       <th rowspan="2" class="pname">Projekt</th>
       {{range .Span.Blocks}}
-        <th colspan="5" class="weekgroup">W{{.Week}} · KW{{printf "%02d" .ISOWeek}}<br><small>{{.RangeLabel}}</small></th>
+        <th colspan="5" class="weekgroup">W{{.Week}} · KW{{printf "%02d" .ISOWeek}}
+          <button type="button" class="clearbtn" data-clear-dates="{{range .Days}}{{.Date}},{{end}}" title="Woche leeren">✕</button>
+          <br><small>{{.RangeLabel}}</small></th>
       {{end}}
-      <th rowspan="2" class="num">Summe</th>
+      <th rowspan="2" class="num sumcol">Summe</th>
     </tr>
     <tr>
       {{range .Span.Days}}
         <th class="day{{if .IsHoliday}} holiday{{end}}{{if not .InYear}} outyear{{end}}">
           {{.WeekdayName}}<br><small>{{slice .Date 8 10}}.{{slice .Date 5 7}}.</small>
+          <button type="button" class="clearbtn" data-clear-dates="{{.Date}}" title="Tag leeren">✕</button>
           {{if .IsHoliday}}<br><span class="tag" title="{{.HolidayName}}">Feiertag</span>{{end}}
         </th>
       {{end}}
@@ -59,7 +62,7 @@
           </div>
         </td>
       {{end}}
-      <td class="num strong">
+      <td class="num strong sumcol">
         {{hours (weekTotal $totals $p.ID)}}
         <br><small class="ist">{{hours (weekTotal $actuals $p.ID)}} Ist</small>
       </td>
@@ -72,14 +75,21 @@
       {{range .Span.Days}}
         <td class="num{{if .IsHoliday}} holiday{{end}}">{{hours .Total}}</td>
       {{end}}
-      <td class="num strong">{{hours .Span.Total}}</td>
+      <td class="num strong sumcol">{{hours .Span.Total}}</td>
     </tr>
     <tr>
       <td class="pname">Ist / Tag</td>
       {{range .Span.Days}}
         <td class="num ist{{if .IsHoliday}} holiday{{end}}">{{hours .ActualTotal}}</td>
       {{end}}
-      <td class="num strong ist">{{hours .Span.ActualTotal}}</td>
+      <td class="num strong ist sumcol">{{hours .Span.ActualTotal}}</td>
+    </tr>
+    <tr class="statusrow">
+      <td class="pname">Auslastung (gebucht / Woche)</td>
+      {{range .Span.Blocks}}
+        <td colspan="5" class="statuscell">{{template "utilstatus" .Status}} <small>{{hours .EffectiveTotal}} h</small></td>
+      {{end}}
+      <td class="num sumcol"></td>
     </tr>
     <tr>
       <td class="pname">Auslastung (Soll {{hours .Span.TargetHours}} h)</td>
@@ -87,7 +97,7 @@
         <div class="bar"><span style="width:{{barWidth .Span.UtilizationPct}}%"></span></div>
         <div class="bar ist"><span style="width:{{barWidth .Span.ActualUtilizationPct}}%"></span></div>
       </td>
-      <td class="num strong">{{hours .Span.UtilizationPct}} %<br><small class="ist">{{hours .Span.ActualUtilizationPct}} % Ist</small></td>
+      <td class="num strong sumcol">{{hours .Span.UtilizationPct}} %<br><small class="ist">{{hours .Span.ActualUtilizationPct}} % Ist</small></td>
     </tr>
   </tfoot>
 </table>
@@ -102,6 +112,20 @@
 {{end}}
 
 <script>
+(function () {
+  // Clear buttons: empty all forecast/actual inputs for the given date(s).
+  document.querySelectorAll('.clearbtn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var dates = (btn.getAttribute('data-clear-dates') || '').split(',').filter(Boolean);
+      if (!dates.length) return;
+      document.querySelectorAll('input.hcell').forEach(function (inp) {
+        for (var i = 0; i < dates.length; i++) {
+          if (inp.name.endsWith('_' + dates[i])) { inp.value = ''; break; }
+        }
+      });
+    });
+  });
+})();
 (function () {
   var url = new URL(window.location.href);
   // Respect an explicit week count; only auto-fit when no ?weeks= is set.

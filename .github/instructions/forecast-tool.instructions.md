@@ -27,7 +27,15 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
 - `Entry`: date (YYYY-MM-DD), projectId, hours, kind (`forecast` | `actual`).
   Ist-Stunden überschreiben Forecast pro Tag+Projekt bei der Budget-/Verbrauchsrechnung.
 - `Settings` (global): year (= aktives Fiskaljahr), federalState, weeklyTargetHours,
-  fiscalYearStartMonth, `ai` (AISettings).
+  fiscalYearStartMonth, `ai` (AISettings), `utilization` (UtilizationSettings).
+- `UtilizationSettings` (global, in `Settings.Utilization`): die Auslastungs-Ampel.
+  Drei Schwellen (`minHours` 26, `optimalHours` 40, `overHours` 60) und vier frei
+  editierbare Labels (`minLabel` „Burnrate Minimum“, `optimalLabel` „Optimal“,
+  `highLabel` „Zu hoch“, `overLabel` „Überbucht“). `Settings.ClassifyUtilization(h)`
+  ordnet Wochenstunden einem `UtilStatus{Key,Label,Hours}` zu: `h<=min`→`min`
+  (blau, Pfeil runter) · `min<h<=optimal`→`optimal` (grün, OK) ·
+  `optimal<h<over`→`high` (orange, Pfeil hoch) · `h>=over`→`over` (rot, ✕).
+  Basis ist die **effektive** Wochenbuchung (Ist überschreibt Forecast).
 - `AISettings` (in `Settings.AI`): endpoint, deployment, apiVersion. Konfiguriert
   einen entfernten, Azure-OpenAI-kompatiblen Chat-Completions-Endpoint (z. B. Azure AI
   Foundry Model-Router). Der **API-Key wird NICHT in der JSON gespeichert**, sondern
@@ -42,6 +50,9 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
 
 - **Bundesland: `SN` (Sachsen)** – in `models.DefaultData` und `storage.normalize`.
 - **Wochensollstunden: `40`** (auch als grauer `placeholder="40"` im Eingabefeld).
+- **Auslastungs-Ampel** über `models.DefaultUtilization()` (greift in `DefaultData`
+  und in `storage.normalize`, wenn alle drei Schwellen `0` sind → Altdaten):
+  **min 26 / optimal 40 / over 60 h** mit Default-Labels (s. o.).
 - Pro Fiskaljahr über `models.DefaultFYSettings()` (greift in `FYFor`, wenn ein FY
   noch nicht konfiguriert ist): **Ziel 1440 h**, **Urlaub H1 15 / H2 15 Tage**,
   **Standard Tasks 250 h**. Nicht konfigurierte FY werden damit in den Einstellungen
@@ -112,6 +123,21 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
   Eingabefelder (Endpoint/Deployment/API-Version) → `API-Key`-Label mit Statusanzeige
   (env gesetzt / nicht gesetzt) → Hinweis zur Umgebungsvariable → **Speichern-Button
   ganz unten**.
+- **Auslastungs-Ampel-Karte (Einstellungen):** eigene Karte „Auslastungs-Ampel (global)“
+  mit eigenem Formular (`section=utilization`): drei Schwellen (`utilMin`/`utilOptimal`/
+  `utilOver`) und vier Label-Felder (`utilMinLabel`/`utilOptimalLabel`/`utilHighLabel`/
+  `utilOverLabel`). Steht zwischen der Pro-FY-Karte und der KI-Endpoint-Karte.
+- **Forecast-Seite (`/week`):** Die letzte Spalte „Summe“ ist **zentriert** (CSS-Klasse
+  `sumcol` auf Header und Summen-Zellen). In den Wochengruppen- und Tages-Kopfzeilen gibt
+  es kleine **Leeren-Buttons** (`.clearbtn`, `type=button`, `data-clear-dates`), die per
+  JS alle `input.hcell` mit passendem `_<datum>`-Suffix leeren (Plan + Ist). Eine
+  zusätzliche **Status-Zeile** im `tfoot` zeigt je Woche (`.Span.Blocks`, `colspan=5`) den
+  Ampel-Punkt (`{{template "utilstatus" .Status}}`) plus effektive Wochenstunden.
+- **Ampel-Punkte** werden über das Template-Partial `{{define "utilstatus"}}` (in
+  `partials.html`) gerendert: farbiger Kreis (`.util-dot`) mit weißem Symbol (↓ / OK /
+  ↑ / ✕) + Label. Erscheinen in der Forecast-Status-Zeile sowie in der Spalte „Status“
+  der Wochentabellen von Dashboard (`.Summary.WeekTotals`) und Zielen (`.WeekTotals`,
+  von `handleGoal` per FY-gefiltertem `BuildYearSummary` übergeben).
 
 ## Arbeitskonventionen (für den Agenten)
 

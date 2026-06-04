@@ -53,6 +53,38 @@
 </section>
 
 <section class="card">
+  <h2>Auslastungs-Ampel (global)</h2>
+  <p class="hint">Definiert, ab welcher Wochenbuchung welcher Status angezeigt wird. Die Punkte erscheinen in der Forecast-Übersicht sowie in den Wochentabellen von Dashboard und Zielen.</p>
+  <form method="post" action="/settings" class="form-stack">
+    <input type="hidden" name="year" value="{{.ViewYear}}">
+    <input type="hidden" name="section" value="utilization">
+    <label><span class="util util-min"><span class="util-dot">↓</span></span> Burnrate Minimum – Stunden (≤)
+      <input type="text" inputmode="decimal" name="utilMin" value="{{hours .Settings.Utilization.MinHours}}" placeholder="26">
+    </label>
+    <label>Label „Minimum“
+      <input type="text" name="utilMinLabel" value="{{.Settings.Utilization.MinLabel}}" placeholder="Burnrate Minimum">
+    </label>
+    <label><span class="util util-optimal"><span class="util-dot">OK</span></span> Optimal – Stunden (≤)
+      <input type="text" inputmode="decimal" name="utilOptimal" value="{{hours .Settings.Utilization.OptimalHours}}" placeholder="40">
+    </label>
+    <label>Label „Optimal“
+      <input type="text" name="utilOptimalLabel" value="{{.Settings.Utilization.OptimalLabel}}" placeholder="Optimal">
+    </label>
+    <label>Label „Zu hoch“ <span class="util util-high"><span class="util-dot">↑</span></span> (zwischen Optimal und Überbucht)
+      <input type="text" name="utilHighLabel" value="{{.Settings.Utilization.HighLabel}}" placeholder="Zu hoch">
+    </label>
+    <label><span class="util util-over"><span class="util-dot">✕</span></span> Überbucht – Stunden (≥)
+      <input type="text" inputmode="decimal" name="utilOver" value="{{hours .Settings.Utilization.OverHours}}" placeholder="60">
+    </label>
+    <label>Label „Überbucht“
+      <input type="text" name="utilOverLabel" value="{{.Settings.Utilization.OverLabel}}" placeholder="Überbucht">
+    </label>
+    <p class="hint">Klassifizierung: ≤ {{hours .Settings.Utilization.MinHours}} h → Minimum (blau) · ≤ {{hours .Settings.Utilization.OptimalHours}} h → Optimal (grün) · &lt; {{hours .Settings.Utilization.OverHours}} h → Zu hoch (orange) · ≥ {{hours .Settings.Utilization.OverHours}} h → Überbucht (rot).</p>
+    <button type="submit" class="btn primary">Ampel speichern</button>
+  </form>
+</section>
+
+<section class="card">
   <h2>KI-Endpoint</h2>
   <p class="hint">Konfiguriere einen entfernten, Azure-OpenAI-kompatiblen Endpoint (z. B. einen Azure&nbsp;AI&nbsp;Foundry Model-Router). Im <a href="/data">JSON-Editor</a> kannst du damit das Dokument per Prompt aktualisieren.</p>
   <form method="post" action="/settings" class="form-stack">

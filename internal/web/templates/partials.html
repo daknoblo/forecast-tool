@@ -43,3 +43,7 @@
 </body>
 </html>
 {{end}}
+
+{{define "utilstatus"}}<span class="util util-{{.Key}}" title="{{.Label}} · {{hours .Hours}} h"><span class="util-dot">{{if eq .Key "min"}}↓{{else if eq .Key "optimal"}}OK{{else if eq .Key "high"}}↑{{else}}✕{{end}}</span><span class="util-label">{{.Label}}</span></span>{{end}}
+
+{{define "utildot"}}<span class="util util-{{.Key}}" title="{{.Label}} · {{hours .Hours}} h"><span class="util-dot">{{if eq .Key "min"}}↓{{else if eq .Key "optimal"}}OK{{else if eq .Key "high"}}↑{{else}}✕{{end}}</span></span>{{end}}

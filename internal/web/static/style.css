@@ -200,3 +200,28 @@ small.ist, td.num.ist, .kpi-value.ist { color: #0e7490; }
 .goalbar-legend i.sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: middle; margin-right: 0.35rem; }
 .goalbar-legend i.sw.actual { background: #0891b2; }
 .goalbar-legend i.sw.proj { background: rgba(37, 99, 235, 0.45); }
+
+/* utilization traffic-light ("Ampel") */
+.util { display: inline-flex; align-items: center; gap: 0.4rem; white-space: nowrap; }
+.util-dot {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 50%;
+  color: #fff; font-size: 0.62rem; font-weight: 700; line-height: 1; flex: 0 0 auto;
+}
+.util-label { font-size: 0.85rem; }
+.util-min .util-dot { background: #2563eb; }   /* blau, Pfeil nach unten */
+.util-optimal .util-dot { background: #16a34a; } /* grün, OK */
+.util-high .util-dot { background: #f59e0b; }    /* orange, Pfeil nach oben */
+.util-over .util-dot { background: #dc2626; }    /* rot, X */
+
+/* centered sum column in the forecast grid */
+.grid .sumcol { text-align: center; }
+
+/* per-week status row + clear buttons in the forecast grid */
+.statusrow .statuscell { text-align: center; color: var(--muted); }
+.clearbtn {
+  display: inline-block; margin-left: 4px; padding: 0 5px;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--panel);
+  color: var(--muted); font-size: 0.7rem; line-height: 1.4; cursor: pointer;
+}
+.clearbtn:hover { color: var(--danger); border-color: var(--danger); }
