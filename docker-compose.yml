@@ -9,8 +9,20 @@ services:
     ports:
       - "8080:8080"
     environment:
-      FORECAST_ADDR: ":8080"
-      FORECAST_DATA_DIR: "/app/appdata"
+      # Port (:8080) und Datenpfad (/app/appdata) sind bereits im Image als
+      # Defaults gesetzt und müssen hier nicht angegeben werden. Hinter einem
+      # Reverse Proxy genügt der Standardport.
+      #
+      # Secret API key for the AI endpoint. It is NOT stored in data.json.
+      # Provide it via the host environment or a local .env file (see below),
+      # e.g. by running:  FORECAST_AI_API_KEY=xxxx docker compose up -d
+      FORECAST_AI_API_KEY: "${FORECAST_AI_API_KEY:-}"
+    # Alternatively keep the secret out of your shell history in a .env file
+    # (same directory as this compose file, git-ignored):
+    #   FORECAST_AI_API_KEY=your-key-here
+    # Compose loads .env automatically; you can also be explicit:
+    # env_file:
+    #   - .env
     volumes:
       # Named volume: inherits the correct (non-root) ownership from the image,
       # so no manual chown is needed. Data lives under Docker's volume storage.

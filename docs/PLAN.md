@@ -19,7 +19,8 @@ Build via GitHub Actions nach GHCR. Betrieb per `docker compose` auf anderem Hos
 
 ## Datenmodell (`data.json`)
 - `Settings` (global): year (aktives Fiskaljahr), federalState (z. B. "BY"),
-  weeklyTargetHours, fiscalYearStartMonth, `ai` (endpoint, apiKey, deployment, apiVersion)
+  weeklyTargetHours, fiscalYearStartMonth, `ai{ endpoint, deployment, apiVersion }`
+  (API-Key NICHT in der Datei – via Env `FORECAST_AI_API_KEY`)
 - `FiscalYears` (pro FY): targetHours, vacationDaysH1/H2, standardTaskLabel, standardTaskHours
 - `Project`: id, name, budgetHours, color, active, fiscalYear
 - `Entry`: date (YYYY-MM-DD), projectId, hours, kind (forecast | actual)

@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"sync"
@@ -420,22 +421,25 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 	h2Start := fyStart.AddDate(0, 6, 0)
 	h1End := h2Start.AddDate(0, 0, -1)
 	s.render(w, "settings.html", map[string]any{
-		"Active":   "settings",
-		"Settings": d.Settings,
-		"FYYears":  fyYears(d),
-		"States":   holidays.States,
-		"Months":   monthOptions,
-		"DataPath": s.store.Path(),
-		"DataSize": formatBytes(s.store.FileSize()),
-		"ViewYear": viewYear,
-		"PrevYear": viewYear - 1,
-		"NextYear": viewYear + 1,
-		"IsActive": viewYear == d.Settings.Year,
-		"FY":       fy,
-		"FYStart":  fyStart.Format("02.01.2006"),
-		"FYEnd":    fyEnd.Format("02.01.2006"),
-		"H1Label":  halfLabel(fyStart, h1End),
-		"H2Label":  halfLabel(h2Start, fyEnd),
+		"Active":       "settings",
+		"Settings":     d.Settings,
+		"FYYears":      fyYears(d),
+		"States":       holidays.States,
+		"Months":       monthOptions,
+		"DataPath":     s.store.Path(),
+		"DataSize":     formatBytes(s.store.FileSize()),
+		"ViewYear":     viewYear,
+		"PrevYear":     viewYear - 1,
+		"NextYear":     viewYear + 1,
+		"IsActive":     viewYear == d.Settings.Year,
+		"FY":           fy,
+		"FYStart":      fyStart.Format("02.01.2006"),
+		"FYEnd":        fyEnd.Format("02.01.2006"),
+		"H1Label":      halfLabel(fyStart, h1End),
+		"H2Label":      halfLabel(h2Start, fyEnd),
+		"AIKeyEnv":     aiAPIKeyEnv,
+		"AIKeySet":     trim(os.Getenv(aiAPIKeyEnv)) != "",
+		"AIKeyInStore": trim(d.Settings.AI.APIKey) != "",
 	})
 }
 
@@ -448,14 +452,13 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 		endpoint := trim(r.FormValue("aiEndpoint"))
 		deployment := trim(r.FormValue("aiDeployment"))
 		apiVersion := trim(r.FormValue("aiApiVersion"))
-		apiKey := trim(r.FormValue("aiApiKey"))
 		_ = s.store.Update(func(d *models.Data) error {
 			d.Settings.AI.Endpoint = endpoint
 			d.Settings.AI.Deployment = deployment
 			d.Settings.AI.APIVersion = apiVersion
-			if apiKey != "" {
-				d.Settings.AI.APIKey = apiKey
-			}
+			// The secret key is provided via FORECAST_AI_API_KEY and must never be
+			// stored in the data file; clear any legacy value on save.
+			d.Settings.AI.APIKey = ""
 			return nil
 		})
 		http.Redirect(w, r, "/settings", http.StatusSeeOther)
@@ -572,7 +575,7 @@ func (s *Server) handleDataAI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cfg := s.store.Snapshot().Settings.AI
+	cfg := effectiveAI(s.store.Snapshot().Settings.AI)
 	result, err := ai.Generate(r.Context(), cfg, prompt, currentJSON)
 	if err != nil {
 		s.renderData(w, currentJSON, prompt, err.Error(), "")
@@ -597,7 +600,7 @@ func (s *Server) renderData(w http.ResponseWriter, jsonText, prompt, errMsg, okM
 		"FYYears":      fyYears(d),
 		"JSON":         jsonText,
 		"Prompt":       prompt,
-		"AIConfigured": aiConfigured(d.Settings.AI),
+		"AIConfigured": aiConfigured(effectiveAI(d.Settings.AI)),
 		"Error":        errMsg,
 		"Success":      okMsg,
 	})
@@ -606,6 +609,18 @@ func (s *Server) renderData(w http.ResponseWriter, jsonText, prompt, errMsg, okM
 // aiConfigured reports whether the minimum AI endpoint settings are present.
 func aiConfigured(a models.AISettings) bool {
 	return trim(a.Endpoint) != "" && trim(a.Deployment) != "" && trim(a.APIKey) != ""
+}
+
+// aiAPIKeyEnv is the environment variable that supplies the secret AI API key.
+const aiAPIKeyEnv = "FORECAST_AI_API_KEY"
+
+// effectiveAI overlays the API key from the environment so the secret never has
+// to live in the data file. A stored (legacy) key is used only as a fallback.
+func effectiveAI(a models.AISettings) models.AISettings {
+	if k := trim(os.Getenv(aiAPIKeyEnv)); k != "" {
+		a.APIKey = k
+	}
+	return a
 }
 
 // handleSetActiveFY switches the globally active fiscal year (used by the

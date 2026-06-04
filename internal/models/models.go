@@ -45,11 +45,14 @@ type Settings struct {
 
 // AISettings configures the remote AI endpoint (e.g. an Azure AI Foundry
 // model-router exposing an Azure OpenAI-compatible chat-completions API).
+// The secret API key is provided via the FORECAST_AI_API_KEY environment
+// variable, not stored here. APIKey is retained only for backward-compatible
+// reading of old documents and is no longer written.
 type AISettings struct {
-	Endpoint   string `json:"endpoint"`   // base URL, e.g. https://my-resource.openai.azure.com
-	APIKey     string `json:"apiKey"`     // secret api key sent as the "api-key" header
-	Deployment string `json:"deployment"` // deployment / model-router name
-	APIVersion string `json:"apiVersion"` // e.g. 2024-10-21
+	Endpoint   string `json:"endpoint"`         // base URL, e.g. https://my-resource.openai.azure.com
+	APIKey     string `json:"apiKey,omitempty"` // deprecated: prefer FORECAST_AI_API_KEY env var
+	Deployment string `json:"deployment"`       // deployment / model-router name
+	APIVersion string `json:"apiVersion"`       // e.g. 2024-10-21
 }
 
 // FiscalYearSettings holds configuration that changes from one fiscal year to
