@@ -41,6 +41,7 @@ Konfiguration über Umgebungsvariablen:
 | `FORECAST_DATA_DIR`  | `appdata`   | Verzeichnis für `data.json`           |
 | `PORT`               | `8080`      | Port (Alias, falls `FORECAST_ADDR` nicht gesetzt) |
 | `DATA_DIR`           | `appdata`   | Daten-Verzeichnis (Alias für `FORECAST_DATA_DIR`) |
+| `FORECAST_AI_API_KEY`| –           | Secret-API-Key für den KI-Endpoint (nicht in `data.json` gespeichert) |
 
 ## JSON-Editor & KI-Aktualisierung
 Unter dem Menüpunkt **JSON** (`/data`) lässt sich die komplette Datendatei direkt
@@ -58,12 +59,27 @@ ein Projekt namens ABC im Fiskaljahr 2027"). Dazu in den **Einstellungen** unter
 | Endpoint-URL | `https://mein-resource.openai.azure.com`  |
 | Deployment   | `model-router`                            |
 | API-Version  | `2024-10-21`                              |
-| API-Key      | *(Secret)*                                |
+
+Der **API-Key** wird **nicht** in `data.json` gespeichert, sondern über die
+Umgebungsvariable `FORECAST_AI_API_KEY` bereitgestellt – z. B. als Docker-Secret
+bzw. `environment`-Eintrag in `docker-compose.yml`. Lokal genügt:
+
+```bash
+FORECAST_AI_API_KEY=dein-key go run ./cmd/server
+```
+
+Für Docker Compose lege eine `.env` neben `docker-compose.yml` an (Vorlage:
+`.env.example`, git-ignored):
+
+```bash
+cp .env.example .env
+# .env editieren und FORECAST_AI_API_KEY=... setzen
+docker compose up -d
+```
 
 Prompt und aktuelles JSON werden an den Endpoint gesendet; das Ergebnis wird in
 den Editor eingefügt und geprüft. Gespeichert wird erst nach explizitem Klick auf
-*Speichern*. Hinweis: Der API-Key wird in `data.json` abgelegt und ist damit auch
-im Export enthalten.
+*Speichern*.
 
 ## Mit Docker bauen und starten
 ```bash

@@ -28,9 +28,11 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
   Ist-Stunden überschreiben Forecast pro Tag+Projekt bei der Budget-/Verbrauchsrechnung.
 - `Settings` (global): year (= aktives Fiskaljahr), federalState, weeklyTargetHours,
   fiscalYearStartMonth, `ai` (AISettings).
-- `AISettings` (in `Settings.AI`): endpoint, apiKey, deployment, apiVersion. Konfiguriert
+- `AISettings` (in `Settings.AI`): endpoint, deployment, apiVersion. Konfiguriert
   einen entfernten, Azure-OpenAI-kompatiblen Chat-Completions-Endpoint (z. B. Azure AI
-  Foundry Model-Router).
+  Foundry Model-Router). Der **API-Key wird NICHT in der JSON gespeichert**, sondern
+  ausschließlich über die Umgebungsvariable `FORECAST_AI_API_KEY` bereitgestellt
+  (`AISettings.APIKey` ist `omitempty` und nur noch Legacy-Fallback beim Lesen).
 - `FiscalYearSettings` (pro FY, in `Data.FiscalYears map[int]...`): targetHours,
   vacationDaysH1, vacationDaysH2, standardTaskLabel, standardTaskHours.
 - Legacy-Felder (`fiscalYearTargetHours`, `annualVacationDays`) nur noch für Migration
@@ -116,8 +118,10 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
 ## KI-Aktualisierung der JSON
 
 - KI-Endpoint wird in den **Einstellungen** konfiguriert (eigenes Formular, `section=ai`):
-  Endpoint-URL, Deployment/Model-Router-Name, API-Version, API-Key (Secret). API-Key leer
-  lassen = gespeicherten Key behalten.
+  Endpoint-URL, Deployment/Model-Router-Name, API-Version. Der **API-Key** kommt aus der
+  Umgebungsvariable `FORECAST_AI_API_KEY` (Docker-Secret/`environment`), nicht aus der UI.
+  Beim Speichern wird ein evtl. vorhandener Legacy-Key aus der Datendatei entfernt.
+  Effektive Settings via `effectiveAI()` (env überlagert Store).
 - Im JSON-Editor gibt es ein **Prompt-Feld**; `POST /data/ai` schickt Prompt **und den
   aktuellen (ggf. bearbeiteten) Editor-Inhalt** an den Endpoint und schreibt das Ergebnis
   zurück in das Textfeld. Ohne konfigurierten Endpoint erscheint stattdessen ein Hinweis.
@@ -128,5 +132,5 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
 - **Die KI-Antwort wird nie automatisch gespeichert**: Sie wird nur eingefügt und sofort
   via `store.ValidateJSON` geprüft. Speichern erfolgt erst beim expliziten „Speichern"
   (durchläuft erneut die volle Validierung).
-- Hinweis: Der API-Key liegt in `data.json` und ist damit auch im Export enthalten –
-  in der UI darauf hinweisen.
+- Abgeschnittene KI-Antworten (`finish_reason: length`) werden erkannt und mit
+  deutscher Meldung gemeldet; der Client setzt `max_completion_tokens`.

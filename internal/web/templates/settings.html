@@ -76,12 +76,15 @@
     <label>API-Version
       <input type="text" name="aiApiVersion" value="{{.Settings.AI.APIVersion}}" placeholder="2024-10-21">
     </label>
-    <label>API-Key (Secret)
-      <input type="password" name="aiApiKey" value="{{.Settings.AI.APIKey}}" autocomplete="off" placeholder="{{if .Settings.AI.APIKey}}unverändert lassen oder neu eingeben{{else}}API-Key{{end}}">
-    </label>
-    <p class="hint">Der API-Key wird in der Datendatei gespeichert und ist damit auch im JSON-Export enthalten. Lass das Feld leer, um den gespeicherten Key beizubehalten.</p>
     <button type="submit" class="btn primary">KI-Endpoint speichern</button>
   </form>
+  <table class="kv">
+    <tr><td>API-Key</td><td>
+      {{if .AIKeySet}}<span class="msg ok" style="display:inline-block;padding:0.15rem 0.6rem;margin:0">aus Umgebungsvariable <code>{{.AIKeyEnv}}</code> geladen</span>
+      {{else}}<span class="msg error" style="display:inline-block;padding:0.15rem 0.6rem;margin:0">nicht gesetzt</span>{{end}}
+    </td></tr>
+  </table>
+  <p class="hint">Der API-Key wird <strong>nicht</strong> in der Datendatei gespeichert, sondern über die Umgebungsvariable <code>{{.AIKeyEnv}}</code> bereitgestellt (z. B. als Docker-Secret bzw. <code>environment</code>-Eintrag in <code>docker-compose.yml</code>).{{if .AIKeyInStore}} Es liegt noch ein veralteter Key in der Datendatei – klicke auf „KI-Endpoint speichern“, um ihn zu entfernen, und rotiere den Schlüssel.{{end}}</p>
 </section>
 
 {{template "footer" .}}
