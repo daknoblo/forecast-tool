@@ -21,7 +21,7 @@
 {{if .Summary.Projects}}
 <table class="grid">
   <thead>
-    <tr><th>Projekt</th><th class="num">Budget</th><th class="num">Forecast</th><th class="num">Ist</th><th class="num">Verbraucht</th><th class="num">Rest</th><th>Auslastung</th></tr>
+    <tr><th>Projekt</th><th class="num">Budget</th><th class="num">Forecast</th><th class="num">Ist</th><th class="num">Verbraucht</th><th class="num">Rest</th><th>Zeitraum</th><th class="num">Burnrate</th><th>Auslastung</th></tr>
   </thead>
   <tbody>
   {{range .Summary.Projects}}
@@ -32,6 +32,8 @@
       <td class="num ist">{{hours .Actual}} h</td>
       <td class="num">{{hours .Consumed}} h</td>
       <td class="num {{if lt .Remaining 0.0}}negative{{end}}">{{hours .Remaining}} h</td>
+      <td><small>{{.StartLabel}} – {{.EndLabel}}{{if gt .OutOfWindow 0.0}} <span class="warn" title="außerhalb des Zeitraums gebucht">⚠ {{hours .OutOfWindow}} h</span>{{end}}</small></td>
+      <td class="num"><small>{{hours .BurnPerWeek}} h/Wo{{if gt .RemainingWorkdays 0}}<br>Soll {{hours .RequiredPerWorkday}} h/Tag{{end}}</small></td>
       <td>
         <div class="bar"><span style="width:{{barWidth .UtilizationPct}}%;background:{{.Project.Color}}"></span></div>
         <small>{{hours .UtilizationPct}} %</small>

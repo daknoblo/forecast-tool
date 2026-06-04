@@ -10,6 +10,14 @@
   </div>
 </div>
 <p class="hint">Zeitraum {{.Span.RangeLabel}}{{if gt .Span.HolidayHours 0.0}} · Feiertage automatisch {{hours .Span.HolidayHours}} h{{end}}</p>
+{{if .Burn.Items}}
+<div class="burnbanner">
+  <span class="burnbanner-total">Burnrate Zeitraum <strong>{{hours .Burn.PerWeek}} h/Woche</strong> · {{hours .Burn.PerWorkday}} h/Tag</span>
+  <span class="burnbanner-items">
+    {{range .Burn.Items}}<span class="burnchip"><span class="dot" style="background:{{.Color}}"></span>{{.Name}}: <strong>{{hours .PerWeek}}</strong> h/Wo</span>{{end}}
+  </span>
+</div>
+{{end}}
 
 <div class="span-ctl">
   <span class="span-ctl-label">Sichtbare Wochen:</span>
@@ -30,28 +38,33 @@
         <th colspan="5" class="weekgroup">W{{.Week}} · KW{{printf "%02d" .ISOWeek}}
           <button type="button" class="clearbtn" data-clear-dates="{{range .Days}}{{.Date}},{{end}}" title="Woche leeren">✕</button>
           <br><small>{{.RangeLabel}}</small></th>
+        <th rowspan="2" class="num sumcol weeksum">Summe<br><small>W{{.Week}}</small></th>
       {{end}}
-      <th rowspan="2" class="num sumcol">Summe</th>
+      <th rowspan="2" class="num sumcol grandsum">Gesamt</th>
     </tr>
     <tr>
-      {{range .Span.Days}}
-        <th class="day{{if .IsHoliday}} holiday{{end}}{{if not .InYear}} outyear{{end}}">
-          {{.WeekdayName}}<br><small>{{slice .Date 8 10}}.{{slice .Date 5 7}}.</small>
-          <button type="button" class="clearbtn" data-clear-dates="{{.Date}}" title="Tag leeren">✕</button>
-          {{if .IsHoliday}}<br><span class="tag" title="{{.HolidayName}}">Feiertag</span>{{end}}
+      {{range $b := .Span.Blocks}}
+        {{range $i, $d := $b.Days}}
+        <th class="day{{if $d.IsHoliday}} holiday{{end}}{{if not $d.InYear}} outyear{{end}}{{if eq $i 0}} weekstart{{end}}{{if $d.MonthEnd}} monthend{{end}}">
+          {{$d.WeekdayName}}<br><small>{{slice $d.Date 8 10}}.{{slice $d.Date 5 7}}.</small>
+          <button type="button" class="clearbtn" data-clear-dates="{{$d.Date}}" title="Tag leeren">✕</button>
+          {{if $d.IsHoliday}}<br><span class="tag" title="{{$d.HolidayName}}">Feiertag</span>{{end}}
         </th>
+        {{end}}
       {{end}}
     </tr>
   </thead>
   <tbody>
-    {{$days := .Span.Days}}
+    {{$blocks := .Span.Blocks}}
     {{$totals := .Span.ProjectTotals}}
     {{$actuals := .Span.ActualTotals}}
     {{range $p := .Projects}}
     <tr>
       <td class="pname"><span class="dot" style="background:{{$p.Color}}"></span>{{$p.Name}}</td>
-      {{range $d := $days}}
-        <td class="day{{if $d.IsHoliday}} holiday{{end}}{{if not $d.InYear}} outyear{{end}}">
+      {{range $b := $blocks}}
+        {{range $i, $d := $b.Days}}
+        <td class="day{{if $d.IsHoliday}} holiday{{end}}{{if not $d.InYear}} outyear{{end}}{{if not (bookable $p $d.Date)}} closed{{end}}{{if eq $i 0}} weekstart{{end}}{{if $d.MonthEnd}} monthend{{end}}">
+          {{if bookable $p $d.Date}}
           <div class="cellpair">
             <input type="text" inputmode="decimal" name="{{cellName $p.ID $d.Date}}"
                    value="{{with cellHours $d $p.ID}}{{hours .}}{{end}}"
@@ -60,9 +73,17 @@
                    value="{{with cellActual $d $p.ID}}{{hours .}}{{end}}"
                    class="hcell actual" autocomplete="off" title="Ist (real gebucht)" placeholder="Ist">
           </div>
+          {{else}}
+          <span class="closedmark" title="Außerhalb des Projektzeitraums">–</span>
+          {{end}}
+        </td>
+        {{end}}
+        <td class="num strong sumcol weeksum">
+          {{hours (weekTotal $b.ProjectTotals $p.ID)}}
+          <br><small class="ist">{{hours (weekTotal $b.ActualTotals $p.ID)}} Ist</small>
         </td>
       {{end}}
-      <td class="num strong sumcol">
+      <td class="num strong sumcol grandsum">
         {{hours (weekTotal $totals $p.ID)}}
         <br><small class="ist">{{hours (weekTotal $actuals $p.ID)}} Ist</small>
       </td>
@@ -70,34 +91,40 @@
     {{end}}
   </tbody>
   <tfoot>
-    <tr>
+    <tr class="dayfoot">
       <td class="pname">Forecast / Tag</td>
-      {{range .Span.Days}}
-        <td class="num{{if .IsHoliday}} holiday{{end}}">{{hours .Total}}</td>
+      {{range $b := .Span.Blocks}}
+        {{range $i, $d := $b.Days}}
+          <td class="num center{{if $d.IsHoliday}} holiday{{end}}{{if eq $i 0}} weekstart{{end}}{{if $d.MonthEnd}} monthend{{end}}">{{hours $d.Total}}</td>
+        {{end}}
+        <td class="num strong sumcol weeksum">{{hours $b.Total}}</td>
       {{end}}
-      <td class="num strong sumcol">{{hours .Span.Total}}</td>
+      <td class="num strong sumcol grandsum">{{hours .Span.Total}}</td>
     </tr>
-    <tr>
+    <tr class="dayfoot">
       <td class="pname">Ist / Tag</td>
-      {{range .Span.Days}}
-        <td class="num ist{{if .IsHoliday}} holiday{{end}}">{{hours .ActualTotal}}</td>
+      {{range $b := .Span.Blocks}}
+        {{range $i, $d := $b.Days}}
+          <td class="num ist center{{if $d.IsHoliday}} holiday{{end}}{{if eq $i 0}} weekstart{{end}}{{if $d.MonthEnd}} monthend{{end}}">{{hours $d.ActualTotal}}</td>
+        {{end}}
+        <td class="num strong ist sumcol weeksum">{{hours $b.ActualTotal}}</td>
       {{end}}
-      <td class="num strong ist sumcol">{{hours .Span.ActualTotal}}</td>
+      <td class="num strong ist sumcol grandsum">{{hours .Span.ActualTotal}}</td>
     </tr>
     <tr class="statusrow">
       <td class="pname">Auslastung (gebucht / Woche)</td>
       {{range .Span.Blocks}}
-        <td colspan="5" class="statuscell">{{template "utilstatus" .Status}} <small>{{hours .EffectiveTotal}} h</small></td>
+        <td colspan="6" class="statuscell">{{template "utilstatus" .Status}} <small>{{hours .EffectiveTotal}} h</small></td>
       {{end}}
-      <td class="num sumcol"></td>
+      <td class="num sumcol grandsum"></td>
     </tr>
     <tr>
       <td class="pname">Auslastung (Soll {{hours .Span.TargetHours}} h)</td>
-      <td colspan="{{len .Span.Days}}">
+      <td colspan="{{add (len .Span.Days) (len .Span.Blocks)}}">
         <div class="bar"><span style="width:{{barWidth .Span.UtilizationPct}}%"></span></div>
         <div class="bar ist"><span style="width:{{barWidth .Span.ActualUtilizationPct}}%"></span></div>
       </td>
-      <td class="num strong sumcol">{{hours .Span.UtilizationPct}} %<br><small class="ist">{{hours .Span.ActualUtilizationPct}} % Ist</small></td>
+      <td class="num strong sumcol grandsum">{{hours .Span.UtilizationPct}} %<br><small class="ist">{{hours .Span.ActualUtilizationPct}} % Ist</small></td>
     </tr>
   </tfoot>
 </table>

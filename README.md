@@ -12,6 +12,10 @@ bearbeiten, exportieren und optional per KI-Prompt aktualisieren.
 
 ## Features
 - Projekte mit Stundenbudget (CRUD, Farbe, aktiv/inaktiv), pro Fiskaljahr
+- **Buchungszeitraum je Projekt** (Start-/Enddatum, optional): Stunden lassen sich nur
+  innerhalb des Zeitraums buchen – Tageszellen außerhalb sind im Forecast gesperrt.
+  Daraus abgeleitet werden **Burnrate** (h/Woche bzw. h/Arbeitstag), Resttempo und ein
+  Warnhinweis, falls außerhalb des Zeitraums gebucht wurde
 - Mehrwochen-Forecast-Ansicht: Projekte × Tage (Mo–Fr) über mehrere Wochen,
   Eingabe von Plan- und Ist-Stunden pro Tag, automatische Summen (Summenspalte
   zentriert), Buttons zum Leeren einzelner Tage oder ganzer Wochen

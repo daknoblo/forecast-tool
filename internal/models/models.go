@@ -140,6 +140,10 @@ type FiscalYearSettings struct {
 // Project is a thing time is forecasted against, constrained by a budget.
 // Projects belong to exactly one fiscal year (FiscalYear holds the FY anchor
 // year); a project running across two fiscal years is created anew per FY.
+//
+// StartDate and EndDate (inclusive, ISO YYYY-MM-DD) bound the booking window:
+// hours may only be planned/booked between them. An empty value defaults to the
+// fiscal-year start/end respectively, so an unbounded project spans the whole FY.
 type Project struct {
 	ID          string  `json:"id"`
 	Name        string  `json:"name"`
@@ -147,6 +151,21 @@ type Project struct {
 	Color       string  `json:"color"`
 	Active      bool    `json:"active"`
 	FiscalYear  int     `json:"fiscalYear"`
+	StartDate   string  `json:"startDate,omitempty"` // inclusive, empty = FY start
+	EndDate     string  `json:"endDate,omitempty"`   // inclusive, empty = FY end
+}
+
+// Bookable reports whether the given ISO date lies within the project's booking
+// window. Empty window bounds are treated as open (FY start/end). ISO date
+// strings compare lexicographically, so no parsing is required.
+func (p Project) Bookable(isoDate string) bool {
+	if p.StartDate != "" && isoDate < p.StartDate {
+		return false
+	}
+	if p.EndDate != "" && isoDate > p.EndDate {
+		return false
+	}
+	return true
 }
 
 // ProjectsForFY returns the projects belonging to the given fiscal-year anchor.
@@ -265,6 +284,24 @@ func Validate(d Data) error {
 		}
 		if p.FiscalYear != 0 && !ValidYear(p.FiscalYear) {
 			return fmt.Errorf("projects[%d] (%s): fiscalYear %d liegt außerhalb von %d–%d", i, p.Name, p.FiscalYear, MinYear, MaxYear)
+		}
+		var ps, pe time.Time
+		if strings.TrimSpace(p.StartDate) != "" {
+			t, err := time.Parse("2006-01-02", p.StartDate)
+			if err != nil {
+				return fmt.Errorf("projects[%d] (%s): startDate %q ist kein gültiges Datum (YYYY-MM-DD)", i, p.Name, p.StartDate)
+			}
+			ps = t
+		}
+		if strings.TrimSpace(p.EndDate) != "" {
+			t, err := time.Parse("2006-01-02", p.EndDate)
+			if err != nil {
+				return fmt.Errorf("projects[%d] (%s): endDate %q ist kein gültiges Datum (YYYY-MM-DD)", i, p.Name, p.EndDate)
+			}
+			pe = t
+		}
+		if !ps.IsZero() && !pe.IsZero() && pe.Before(ps) {
+			return fmt.Errorf("projects[%d] (%s): endDate %q liegt vor startDate %q", i, p.Name, p.EndDate, p.StartDate)
 		}
 	}
 

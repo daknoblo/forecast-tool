@@ -51,7 +51,7 @@ func TestBuildWeekTotals(t *testing.T) {
 
 func TestYearSummaryRemaining(t *testing.T) {
 	d := sampleData()
-	ys := BuildYearSummary(d)
+	ys := BuildYearSummary(d, holidays.New(2026, "BY"))
 	if ys.TotalHours != 22 {
 		t.Fatalf("year total = %v, want 22", ys.TotalHours)
 	}
@@ -190,7 +190,7 @@ func TestEffectiveHoursOverride(t *testing.T) {
 	d.Entries = append(d.Entries, models.Entry{
 		Date: "2026-01-12", ProjectID: "p1", Hours: 6, Kind: models.KindActual,
 	})
-	ys := BuildYearSummary(d)
+	ys := BuildYearSummary(d, holidays.New(2026, "BY"))
 	var alpha ProjectSummary
 	for _, p := range ys.Projects {
 		if p.Project.ID == "p1" {
@@ -233,5 +233,66 @@ func TestFiscalYearBoundaries(t *testing.T) {
 		if got := end.Format("2006-01-02"); got != c.wantEnd {
 			t.Errorf("%s: end = %s, want %s", c.name, got, c.wantEnd)
 		}
+	}
+}
+
+func TestProjectBookable(t *testing.T) {
+	p := models.Project{StartDate: "2026-03-01", EndDate: "2026-03-31"}
+	cases := []struct {
+		date string
+		want bool
+	}{
+		{"2026-02-28", false},
+		{"2026-03-01", true}, // inclusive start
+		{"2026-03-15", true},
+		{"2026-03-31", true}, // inclusive end
+		{"2026-04-01", false},
+	}
+	for _, c := range cases {
+		if got := p.Bookable(c.date); got != c.want {
+			t.Errorf("Bookable(%s) = %v, want %v", c.date, got, c.want)
+		}
+	}
+	// Open window: everything is bookable.
+	open := models.Project{}
+	if !open.Bookable("2026-01-01") || !open.Bookable("2026-12-31") {
+		t.Errorf("open window must accept any date")
+	}
+}
+
+func TestProjectWindowBurnrate(t *testing.T) {
+	d := sampleData()
+	d.Projects = []models.Project{
+		{ID: "p1", Name: "Alpha", BudgetHours: 100, Active: true,
+			StartDate: "2026-03-02", EndDate: "2026-03-06"}, // a full Mon-Fri week, no BY holidays
+	}
+	d.Entries = []models.Entry{
+		{Date: "2026-03-03", ProjectID: "p1", Hours: 5}, // inside window
+		{Date: "2026-03-10", ProjectID: "p1", Hours: 7}, // outside window
+	}
+	ys := BuildYearSummary(d, holidays.New(2026, "BY"))
+	var p ProjectSummary
+	for _, ps := range ys.Projects {
+		if ps.Project.ID == "p1" {
+			p = ps
+		}
+	}
+	if !p.HasCustomWindow {
+		t.Errorf("HasCustomWindow = false, want true")
+	}
+	if p.StartDate != "2026-03-02" || p.EndDate != "2026-03-06" {
+		t.Errorf("window = %s..%s, want 2026-03-02..2026-03-06", p.StartDate, p.EndDate)
+	}
+	if p.WindowWorkdays != 5 {
+		t.Errorf("WindowWorkdays = %d, want 5", p.WindowWorkdays)
+	}
+	if p.BurnPerWorkday != 20 { // 100 / 5
+		t.Errorf("BurnPerWorkday = %v, want 20", p.BurnPerWorkday)
+	}
+	if p.BurnPerWeek != 100 { // 100 / (5/5)
+		t.Errorf("BurnPerWeek = %v, want 100", p.BurnPerWeek)
+	}
+	if p.OutOfWindow != 7 {
+		t.Errorf("OutOfWindow = %v, want 7", p.OutOfWindow)
 	}
 }
