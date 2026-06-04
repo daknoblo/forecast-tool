@@ -146,6 +146,7 @@ table.week.span .cellpair { display: flex; flex-direction: column; gap: 2px; ali
 
 .form-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 1rem; }
 .form-stack { display: flex; flex-direction: column; gap: 1rem; max-width: 420px; }
+.form-stack.json-form { max-width: none; }
 .form-row label, .form-stack label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; color: var(--muted); }
 .form-row input, .form-stack input, .form-stack select {
   padding: 0.45rem 0.6rem; border: 1px solid var(--line); border-radius: 8px; font-size: 0.95rem; color: var(--text);

@@ -42,9 +42,6 @@
       <input type="number" name="vacationH2" min="0" max="366" value="{{.FY.VacationDaysH2}}">
     </label>
     <p class="hint">Urlaub wird pro Halbjahr angegeben, da sich das Fiskaljahr über zwei Kalenderjahre erstreckt und der Urlaubsanspruch pro Kalenderjahr zählt.</p>
-    <label>Standard Tasks (Bezeichnung)
-      <input type="text" name="standardTaskLabel" value="{{.FY.StandardTaskLabel}}" placeholder="z. B. Meetings, Admin, Weiterbildung">
-    </label>
     <label>Standard Tasks (Stunden gesamt fürs FY)
       <input type="text" inputmode="decimal" name="standardTaskHours" value="{{hours .FY.StandardTaskHours}}">
     </label>
@@ -61,8 +58,7 @@
     <tr><td>Pfad</td><td><code>{{.DataPath}}</code></td></tr>
     <tr><td>Größe</td><td>{{.DataSize}}</td></tr>
   </table>
-  <p class="actions"><a href="/export" class="btn primary" download>JSON exportieren</a></p>
-  <p class="hint">Lädt die vollständige Datendatei (Projekte, Einträge, Einstellungen) als JSON herunter.</p>
+  <p class="hint">Export und Bearbeitung der Datendatei findest du im <a href="/data">JSON-Editor</a>.</p>
 </section>
 
 {{template "footer" .}}
