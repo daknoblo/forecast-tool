@@ -27,7 +27,10 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
 - `Entry`: date (YYYY-MM-DD), projectId, hours, kind (`forecast` | `actual`).
   Ist-Stunden überschreiben Forecast pro Tag+Projekt bei der Budget-/Verbrauchsrechnung.
 - `Settings` (global): year (= aktives Fiskaljahr), federalState, weeklyTargetHours,
-  fiscalYearStartMonth.
+  fiscalYearStartMonth, `ai` (AISettings).
+- `AISettings` (in `Settings.AI`): endpoint, apiKey, deployment, apiVersion. Konfiguriert
+  einen entfernten, Azure-OpenAI-kompatiblen Chat-Completions-Endpoint (z. B. Azure AI
+  Foundry Model-Router).
 - `FiscalYearSettings` (pro FY, in `Data.FiscalYears map[int]...`): targetHours,
   vacationDaysH1, vacationDaysH2, standardTaskLabel, standardTaskHours.
 - Legacy-Felder (`fiscalYearTargetHours`, `annualVacationDays`) nur noch für Migration
@@ -59,7 +62,9 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
 
 ## Standard Tasks
 
-- Freies Feld mit der Bezeichnung "Standard Tasks" in das man eine stundenanzahl für das gesamte FY angeben kann
+- Stundenanzahl für Standard Tasks für das gesamte FY (ein Eingabefeld in den
+  Einstellungen). Das Label (`standardTaskLabel`) bleibt im Datenmodell erhalten,
+  wird aber nicht mehr über die Einstellungen gepflegt.
 - Werden **wie Feiertage und Urlaub von den FY-Gesamtstunden abgezogen**.
 
 ## Zielrechnung & Kapazität
@@ -93,3 +98,35 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
 ## Export
 
 - es soll die möglichkeit die aktuelle JSON aus der Anwendung heraus zu exportieren bzw. herunterzuladen
+- Download-Route `GET /export` (Content-Disposition attachment, Dateiname mit Datum).
+  Der Export-Button liegt im JSON-Editor (`/data`), nicht mehr in den Einstellungen.
+
+## JSON-Editor (`/data`)
+
+- Eigene Seite „JSON" in der Navigation: großes, breites Textfeld (volle Kartenbreite)
+  zum direkten Bearbeiten der **gesamten** Datendatei im Browser – u. a. um KI-generiertes
+  JSON einzufügen.
+- **Validierung vor dem Speichern** (`store.ReplaceJSON` → `models.Validate`): striktes
+  Parsen (`DisallowUnknownFields`, keine Trailing-Daten), referentielle Prüfungen
+  (z. B. jede `entries.projectId` muss existieren). Ungültige Eingaben werden mit
+  deutscher Fehlermeldung abgelehnt, **die Eingabe bleibt erhalten**, der Store wird
+  nie überschrieben. Erfolgreiches Speichern zeigt die kanonische (normalisierte) Form.
+- Persistenz weiterhin atomar (temp + rename).
+
+## KI-Aktualisierung der JSON
+
+- KI-Endpoint wird in den **Einstellungen** konfiguriert (eigenes Formular, `section=ai`):
+  Endpoint-URL, Deployment/Model-Router-Name, API-Version, API-Key (Secret). API-Key leer
+  lassen = gespeicherten Key behalten.
+- Im JSON-Editor gibt es ein **Prompt-Feld**; `POST /data/ai` schickt Prompt **und den
+  aktuellen (ggf. bearbeiteten) Editor-Inhalt** an den Endpoint und schreibt das Ergebnis
+  zurück in das Textfeld. Ohne konfigurierten Endpoint erscheint stattdessen ein Hinweis.
+- KI-Client liegt in `internal/ai` (nur stdlib): Azure-OpenAI-kompatible URL
+  `{endpoint}/openai/deployments/{deployment}/chat/completions?api-version=...`, Auth via
+  `api-key`-Header, `response_format: json_object`, `temperature: 0`, Timeout, entfernt
+  Markdown-Fences. Deutsche Fehlermeldungen.
+- **Die KI-Antwort wird nie automatisch gespeichert**: Sie wird nur eingefügt und sofort
+  via `store.ValidateJSON` geprüft. Speichern erfolgt erst beim expliziten „Speichern"
+  (durchläuft erneut die volle Validierung).
+- Hinweis: Der API-Key liegt in `data.json` und ist damit auch im Export enthalten –
+  in der UI darauf hinweisen.

@@ -3,18 +3,28 @@
 Ein leichtgewichtiges Single-User **Forecast-Tool** in Go mit Web-Oberfläche.
 Lege Projekte mit Stundenbudget an, forecaste tageweise (Mo–Fr) Stunden pro
 Projekt und behalte Wochen-/Jahressummen, Auslastung und Restbudget im Blick.
+Die Planung erfolgt **fiskaljahr-basiert** (frei wählbarer Startmonat).
 Feiertage werden je nach Bundesland automatisch berücksichtigt.
 
-Daten werden für **ein Kalenderjahr** in einer einfachen JSON-Datei unter
-`appdata/data.json` gespeichert – keine Datenbank nötig.
+Die Daten werden in einer einfachen JSON-Datei unter `appdata/data.json`
+gespeichert – keine Datenbank nötig. Die Datei lässt sich im Browser direkt
+bearbeiten, exportieren und optional per KI-Prompt aktualisieren.
 
 ## Features
-- Projekte mit Stundenbudget (CRUD, Farbe, aktiv/inaktiv)
-- Wochenansicht: Projekte × Mo–Fr, Eingabe pro Tag, automatische Wochensummen
+- Projekte mit Stundenbudget (CRUD, Farbe, aktiv/inaktiv), pro Fiskaljahr
+- Mehrwochen-Forecast-Ansicht: Projekte × Tage (Mo–Fr) über mehrere Wochen,
+  Eingabe von Plan- und Ist-Stunden pro Tag, automatische Summen
+- Fiskaljahr-Logik (frei wählbarer Startmonat) mit zentralem FY-Umschalter im Header
 - Automatische Feiertage (alle 16 Bundesländer wählbar)
-- Konfigurierbare Wochensollstunden, Auslastung in %
+- Konfigurierbare Wochensollstunden, Urlaub (pro Halbjahr), Standard Tasks
+- Ziel-/Kapazitätsrechnung: verfügbare Stunden, Auslastung in %, Soll je Woche/Monat/Quartal
 - Restbudget je Projekt + Burn-Down-Diagramm (server-seitiges SVG)
 - Dashboard mit Jahresübersicht und Wochenauslastung
+- **JSON-Editor** im Browser: gesamte Datendatei bearbeiten, exportieren und mit
+  serverseitiger Validierung speichern
+- **KI-Aktualisierung**: per Prompt das JSON über einen konfigurierbaren, Azure-OpenAI-
+  kompatiblen Endpoint (z. B. Azure AI Foundry Model-Router) aktualisieren lassen –
+  das Ergebnis wird vor dem Speichern geprüft
 - Daten als JSON im Volume, läuft als schlanker Container
 
 ## Schnellstart (lokal mit Go)
@@ -31,6 +41,29 @@ Konfiguration über Umgebungsvariablen:
 | `FORECAST_DATA_DIR`  | `appdata`   | Verzeichnis für `data.json`           |
 | `PORT`               | `8080`      | Port (Alias, falls `FORECAST_ADDR` nicht gesetzt) |
 | `DATA_DIR`           | `appdata`   | Daten-Verzeichnis (Alias für `FORECAST_DATA_DIR`) |
+
+## JSON-Editor & KI-Aktualisierung
+Unter dem Menüpunkt **JSON** (`/data`) lässt sich die komplette Datendatei direkt
+im Browser bearbeiten. Beim Speichern wird der Inhalt streng validiert (gültiges
+JSON, bekannte Felder, vorhandene Projekt-Referenzen usw.); ungültige Eingaben
+werden abgelehnt, ohne die gespeicherten Daten zu verändern. Über denselben
+Bereich kann die Datei als JSON exportiert/heruntergeladen werden.
+
+Optional kann das Dokument per **KI-Prompt** aktualisiert werden (z. B. „Erstelle
+ein Projekt namens ABC im Fiskaljahr 2027"). Dazu in den **Einstellungen** unter
+*KI-Endpoint* einen Azure-OpenAI-kompatiblen Endpoint hinterlegen:
+
+| Feld         | Beispiel                                  |
+|--------------|-------------------------------------------|
+| Endpoint-URL | `https://mein-resource.openai.azure.com`  |
+| Deployment   | `model-router`                            |
+| API-Version  | `2024-10-21`                              |
+| API-Key      | *(Secret)*                                |
+
+Prompt und aktuelles JSON werden an den Endpoint gesendet; das Ergebnis wird in
+den Editor eingefügt und geprüft. Gespeichert wird erst nach explizitem Klick auf
+*Speichern*. Hinweis: Der API-Key wird in `data.json` abgelegt und ist damit auch
+im Export enthalten.
 
 ## Mit Docker bauen und starten
 ```bash
