@@ -18,23 +18,26 @@ Build via GitHub Actions nach GHCR. Betrieb per `docker compose` auf anderem Hos
 - Deployment: `docker-compose.yml`, Daten unter `appdata`-Volume
 
 ## Datenmodell (`data.json`)
-- `Settings`: year, federalState (z. B. "BY"), weeklyTargetHours
-- `Project`: id, name, budgetHours, color, active
-- `Entry`: date (YYYY-MM-DD), projectId, hours
+- `Settings` (global): year (aktives Fiskaljahr), federalState (z. B. "BY"),
+  weeklyTargetHours, fiscalYearStartMonth, `ai` (endpoint, apiKey, deployment, apiVersion)
+- `FiscalYears` (pro FY): targetHours, vacationDaysH1/H2, standardTaskLabel, standardTaskHours
+- `Project`: id, name, budgetHours, color, active, fiscalYear
+- `Entry`: date (YYYY-MM-DD), projectId, hours, kind (forecast | actual)
 - Feiertage werden zur Laufzeit berechnet (nicht persistiert)
 
 ## Projektstruktur
 ```
 cmd/server/main.go                  # Bootstrap, HTTP-Server, Graceful Shutdown
-internal/models/models.go           # Settings, Project, Entry, Data
-internal/storage/store.go           # JSON load/save, RWMutex, atomic write
+internal/models/models.go           # Settings, AISettings, Project, Entry, Data, Validate
+internal/storage/store.go           # JSON load/save, RWMutex, atomic write, ReplaceJSON/ValidateJSON
 internal/holidays/holidays.go       # Wrapper um rickar/cal (DE-Regionen)
+internal/ai/client.go               # Azure-OpenAI-kompatibler KI-Client (JSON-Update per Prompt)
 internal/forecast/agg.go            # Wochen-/Jahres-Aggregation, Burn-Down
 internal/forecast/agg_test.go       # Unit-Tests der Aggregation
 internal/web/handlers.go            # HTTP-Handler + Routing
 internal/web/svg.go                 # Burn-Down-SVG-Generator
 internal/web/util.go                # Formatierungs-Helfer
-internal/web/templates/*.html       # Layout, Dashboard, Woche, Projekte, Settings
+internal/web/templates/*.html       # Layout, Dashboard, Woche, Projekte, Settings, JSON-Editor
 internal/web/static/style.css       # Styles
 appdata/.gitkeep                    # data.json zur Laufzeit (git-ignored)
 docs/PLAN.md                        # dieser Plan
@@ -47,10 +50,15 @@ go.mod
 ## Funktionsumfang
 - **Dashboard**: Jahres-Forecast gesamt, Projektanzahl, aktuelle KW, Budget-Tabelle
   (Budget/Verbraucht/Rest/Auslastung), Wochenauslastung.
-- **Wochenansicht**: Tabelle Projekte × Mo–Fr, Feiertage markiert, Eingabe pro Tag,
-  Tages-/Wochensummen, Auslastung gegen Wochensoll, Wochennavigation.
-- **Projekte**: CRUD, Budget, Farbe, aktiv/inaktiv, Restbudget + Burn-Down-SVG.
-- **Einstellungen**: Jahr, Bundesland (Feiertage), Wochensollstunden.
+- **Mehrwochen-Forecast**: Tabelle Projekte × Tage über mehrere Wochen, Feiertage markiert,
+  Plan-/Ist-Eingabe pro Tag, Tages-/Wochensummen, Auslastung gegen Wochensoll, Navigation.
+- **Projekte**: CRUD pro Fiskaljahr, Budget, Farbe, aktiv/inaktiv, Restbudget + Burn-Down-SVG.
+- **Ziel/Kapazität**: FY-Ziel, Urlaub (pro Halbjahr), Standard Tasks, verfügbare Stunden,
+  Soll je Woche/Monat/Quartal.
+- **Einstellungen**: FY-Startmonat, Bundesland (Feiertage), Wochensollstunden, pro-FY-Werte,
+  KI-Endpoint (Endpoint, Deployment, API-Version, API-Key).
+- **JSON-Editor** (`/data`): gesamte Datendatei im Browser bearbeiten, exportieren (`/export`)
+  und mit serverseitiger Validierung speichern; optional per KI-Prompt aktualisieren (`/data/ai`).
 
 ## Verifikation
 - `go vet ./...` und `go test ./...` ohne Fehler
