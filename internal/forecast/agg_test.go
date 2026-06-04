@@ -208,3 +208,30 @@ func TestEffectiveHoursOverride(t *testing.T) {
 		t.Errorf("alpha actual = %v, want 6", alpha.Actual)
 	}
 }
+
+func TestFiscalYearBoundaries(t *testing.T) {
+	// FY is named after the calendar year in which it ENDS.
+	cases := []struct {
+		name             string
+		year, startMonth int
+		wantStart        string
+		wantEnd          string
+	}{
+		// July start: FY 2027 runs 01.07.2026–30.06.2027.
+		{"july-fy27", 2027, 7, "2026-07-01", "2027-06-30"},
+		{"july-fy26", 2026, 7, "2025-07-01", "2026-06-30"},
+		// January start equals the calendar year (no shift).
+		{"jan-fy27", 2027, 1, "2027-01-01", "2027-12-31"},
+		// April start: FY 2027 runs 01.04.2026–31.03.2027.
+		{"april-fy27", 2027, 4, "2026-04-01", "2027-03-31"},
+	}
+	for _, c := range cases {
+		start, end := FiscalYear(c.year, c.startMonth)
+		if got := start.Format("2006-01-02"); got != c.wantStart {
+			t.Errorf("%s: start = %s, want %s", c.name, got, c.wantStart)
+		}
+		if got := end.Format("2006-01-02"); got != c.wantEnd {
+			t.Errorf("%s: end = %s, want %s", c.name, got, c.wantEnd)
+		}
+	}
+}
