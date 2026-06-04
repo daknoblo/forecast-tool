@@ -16,8 +16,15 @@ import (
 )
 
 func main() {
-	addr := envOr("FORECAST_ADDR", ":8080")
-	dataDir := envOr("FORECAST_DATA_DIR", "appdata")
+	addr := envOr("FORECAST_ADDR", "")
+	if addr == "" {
+		if port := os.Getenv("PORT"); port != "" {
+			addr = ":" + port
+		} else {
+			addr = ":8080"
+		}
+	}
+	dataDir := envOr("FORECAST_DATA_DIR", envOr("DATA_DIR", "appdata"))
 	dataPath := filepath.Join(dataDir, "data.json")
 
 	store, err := storage.New(dataPath)

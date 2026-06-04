@@ -12,12 +12,12 @@ import (
 // The X axis is the ISO week, the Y axis is the remaining budget in hours.
 func burndownSVG(points []forecast.BurnPoint, budget float64, color string) template.HTML {
 	const (
-		w        = 720.0
-		h        = 240.0
-		padL     = 44.0
-		padR     = 16.0
-		padT     = 16.0
-		padB     = 28.0
+		w    = 720.0
+		h    = 240.0
+		padL = 44.0
+		padR = 16.0
+		padT = 16.0
+		padB = 28.0
 	)
 	if color == "" {
 		color = "#2563eb"

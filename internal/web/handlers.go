@@ -89,6 +89,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /goal", s.handleGoal)
 	mux.HandleFunc("GET /settings", s.handleSettings)
 	mux.HandleFunc("POST /settings", s.handleSettingsSave)
+	mux.HandleFunc("GET /export", s.handleExport)
 	mux.HandleFunc("POST /fy", s.handleSetActiveFY)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -121,6 +122,7 @@ func (s *Server) render(w http.ResponseWriter, name string, data any) {
 
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	d := s.store.Snapshot()
+	d.Projects = models.ProjectsForFY(d.Projects, d.Settings.Year)
 	ys := forecast.BuildYearSummary(d)
 	projects := forecast.SortedProjects(d.Projects)
 	fyStart, fyEnd := forecast.FiscalYear(d.Settings.Year, d.Settings.FiscalYearStartMonth)
@@ -145,6 +147,7 @@ func (s *Server) handleWeekRedirect(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleWeek(w http.ResponseWriter, r *http.Request) {
 	d := s.store.Snapshot()
+	d.Projects = models.ProjectsForFY(d.Projects, d.Settings.Year)
 	week := clampWeek(r.PathValue("week"), d.Settings)
 	cal := s.calendar(d)
 	wv := forecast.BuildWeek(d, cal, week)
@@ -261,6 +264,7 @@ func (s *Server) handleWeekSave(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleProjects(w http.ResponseWriter, r *http.Request) {
 	d := s.store.Snapshot()
+	d.Projects = models.ProjectsForFY(d.Projects, d.Settings.Year)
 	ys := forecast.BuildYearSummary(d)
 
 	type projView struct {
@@ -309,6 +313,7 @@ func (s *Server) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 			BudgetHours: budget,
 			Color:       models.RandomColor(used),
 			Active:      true,
+			FiscalYear:  d.Settings.Year,
 		})
 		return nil
 	})
@@ -346,14 +351,12 @@ func (s *Server) handleProjectUpdate(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleProjectDelete(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	_ = s.store.Update(func(d *models.Data) error {
-		kept := d.Projects[:0]
 		out := make([]models.Project, 0, len(d.Projects))
 		for _, p := range d.Projects {
 			if p.ID != id {
 				out = append(out, p)
 			}
 		}
-		_ = kept
 		d.Projects = out
 		// also drop entries of that project
 		entries := make([]models.Entry, 0, len(d.Entries))
@@ -388,7 +391,7 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 	d := s.store.Snapshot()
 	viewYear := d.Settings.Year
 	if q := trim(r.URL.Query().Get("year")); q != "" {
-		if y, err := strconv.Atoi(q); err == nil && y >= 2000 && y <= 2100 {
+		if y, err := strconv.Atoi(q); err == nil && models.ValidYear(y) {
 			viewYear = y
 		}
 	}
@@ -431,7 +434,7 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	stdLabel := trim(r.FormValue("standardTaskLabel"))
 	stdHours, stdErr := strconv.ParseFloat(normalizeNum(r.FormValue("standardTaskHours")), 64)
 	_ = s.store.Update(func(d *models.Data) error {
-		if year >= 2000 && year <= 2100 {
+		if models.ValidYear(year) {
 			d.Settings.Year = year
 		}
 		if state != "" {
@@ -466,6 +469,21 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/settings", http.StatusSeeOther)
 }
 
+// handleExport streams the current data document as a JSON file download so the
+// user can back up or move their data out of the application.
+func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
+	b, err := s.store.Marshal()
+	if err != nil {
+		http.Error(w, "export failed", http.StatusInternalServerError)
+		return
+	}
+	filename := "forecast-export-" + time.Now().Format("2006-01-02") + ".json"
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
+	w.Header().Set("Content-Length", strconv.Itoa(len(b)))
+	_, _ = w.Write(b)
+}
+
 // handleSetActiveFY switches the globally active fiscal year (used by the
 // dropdown in the header) and returns to the page the user came from.
 func (s *Server) handleSetActiveFY(w http.ResponseWriter, r *http.Request) {
@@ -473,7 +491,7 @@ func (s *Server) handleSetActiveFY(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad form", http.StatusBadRequest)
 		return
 	}
-	if year, err := strconv.Atoi(trim(r.FormValue("year"))); err == nil && year >= 2000 && year <= 2100 {
+	if year, err := strconv.Atoi(trim(r.FormValue("year"))); err == nil && models.ValidYear(year) {
 		_ = s.store.Update(func(d *models.Data) error {
 			d.Settings.Year = year
 			return nil
