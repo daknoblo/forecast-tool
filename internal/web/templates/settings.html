@@ -61,4 +61,27 @@
   <p class="hint">Export und Bearbeitung der Datendatei findest du im <a href="/data">JSON-Editor</a>.</p>
 </section>
 
+<section class="card">
+  <h2>KI-Endpoint</h2>
+  <p class="hint">Konfiguriere einen entfernten, Azure-OpenAI-kompatiblen Endpoint (z. B. einen Azure&nbsp;AI&nbsp;Foundry Model-Router). Im <a href="/data">JSON-Editor</a> kannst du damit das Dokument per Prompt aktualisieren.</p>
+  <form method="post" action="/settings" class="form-stack">
+    <input type="hidden" name="year" value="{{.ViewYear}}">
+    <input type="hidden" name="section" value="ai">
+    <label>Endpoint-URL
+      <input type="url" name="aiEndpoint" value="{{.Settings.AI.Endpoint}}" placeholder="https://mein-resource.openai.azure.com">
+    </label>
+    <label>Deployment / Model-Router-Name
+      <input type="text" name="aiDeployment" value="{{.Settings.AI.Deployment}}" placeholder="z. B. model-router">
+    </label>
+    <label>API-Version
+      <input type="text" name="aiApiVersion" value="{{.Settings.AI.APIVersion}}" placeholder="2024-10-21">
+    </label>
+    <label>API-Key (Secret)
+      <input type="password" name="aiApiKey" value="{{.Settings.AI.APIKey}}" autocomplete="off" placeholder="{{if .Settings.AI.APIKey}}unverändert lassen oder neu eingeben{{else}}API-Key{{end}}">
+    </label>
+    <p class="hint">Der API-Key wird in der Datendatei gespeichert und ist damit auch im JSON-Export enthalten. Lass das Feld leer, um den gespeicherten Key beizubehalten.</p>
+    <button type="submit" class="btn primary">KI-Endpoint speichern</button>
+  </form>
+</section>
+
 {{template "footer" .}}

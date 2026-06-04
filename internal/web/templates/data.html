@@ -10,8 +10,24 @@
 {{if .Success}}<div class="msg ok">{{.Success}}</div>{{end}}
 
 <section class="card">
+  <h2>Mit KI aktualisieren</h2>
+  {{if .AIConfigured}}
+  <p class="hint">Beschreibe die gewünschte Änderung. Prompt und aktuelles JSON (aus dem Feld unten) werden an den konfigurierten KI-Endpoint gesendet; das Ergebnis wird unten eingefügt und geprüft – gespeichert wird erst, wenn du auf „Speichern“ klickst.</p>
+  <form id="aiForm" method="post" action="/data/ai" class="form-stack json-form">
+    <textarea name="prompt" class="prompt" rows="3" placeholder="z. B. Erstelle ein Projekt namens ABC im Fiskaljahr 2027 mit 120 Stunden Budget.">{{.Prompt}}</textarea>
+    <textarea id="aiJson" name="json" hidden>{{.JSON}}</textarea>
+    <div class="actions">
+      <button type="submit" class="btn primary">An KI senden</button>
+    </div>
+  </form>
+  {{else}}
+  <p class="hint">Es ist noch kein KI-Endpoint konfiguriert. Hinterlege Endpoint, Deployment und API-Key in den <a href="/settings">Einstellungen</a>, um das Dokument per Prompt zu aktualisieren.</p>
+  {{end}}
+</section>
+
+<section class="card">
   <form method="post" action="/data" class="form-stack json-form">
-    <textarea name="json" class="jsoneditor" spellcheck="false" autocomplete="off" wrap="off">{{.JSON}}</textarea>
+    <textarea id="jsonEditor" name="json" class="jsoneditor" spellcheck="false" autocomplete="off" wrap="off">{{.JSON}}</textarea>
     <div class="actions">
       <button type="submit" class="btn primary">Speichern</button>
       <a href="/data" class="btn">Zurücksetzen</a>
@@ -26,5 +42,20 @@
     Jede <code>entries.projectId</code> muss zu einer existierenden <code>projects.id</code> passen.
   </p>
 </section>
+
+{{if .AIConfigured}}
+<script>
+  // Send the editor's current (possibly edited) content to the AI endpoint
+  // instead of the last server-rendered version.
+  (function () {
+    var form = document.getElementById('aiForm');
+    var editor = document.getElementById('jsonEditor');
+    var hidden = document.getElementById('aiJson');
+    if (form && editor && hidden) {
+      form.addEventListener('submit', function () { hidden.value = editor.value; });
+    }
+  })();
+</script>
+{{end}}
 
 {{template "footer" .}}

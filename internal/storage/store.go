@@ -149,16 +149,8 @@ func (s *Store) Marshal() ([]byte, error) {
 // replaces the whole document. The data is only persisted when it is valid, so
 // a bad payload never corrupts the store.
 func (s *Store) ReplaceJSON(raw []byte) error {
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.DisallowUnknownFields()
-	var d models.Data
-	if err := dec.Decode(&d); err != nil {
-		return fmt.Errorf("ungültiges JSON: %w", err)
-	}
-	if dec.More() {
-		return fmt.Errorf("ungültiges JSON: zusätzliche Daten nach dem JSON-Objekt")
-	}
-	if err := models.Validate(d); err != nil {
+	d, err := parseAndValidate(raw)
+	if err != nil {
 		return err
 	}
 	normalize(&d)
@@ -166,6 +158,30 @@ func (s *Store) ReplaceJSON(raw []byte) error {
 	defer s.mu.Unlock()
 	s.data = d
 	return s.persist()
+}
+
+// ValidateJSON parses and validates raw JSON without persisting anything. It is
+// used to check AI-generated output before offering it for saving.
+func (s *Store) ValidateJSON(raw []byte) error {
+	_, err := parseAndValidate(raw)
+	return err
+}
+
+// parseAndValidate decodes raw JSON strictly and runs model validation.
+func parseAndValidate(raw []byte) (models.Data, error) {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	var d models.Data
+	if err := dec.Decode(&d); err != nil {
+		return models.Data{}, fmt.Errorf("ungültiges JSON: %w", err)
+	}
+	if dec.More() {
+		return models.Data{}, fmt.Errorf("ungültiges JSON: zusätzliche Daten nach dem JSON-Objekt")
+	}
+	if err := models.Validate(d); err != nil {
+		return models.Data{}, err
+	}
+	return d, nil
 }
 
 // Update runs fn against the mutable data under the write lock and persists.

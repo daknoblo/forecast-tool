@@ -141,6 +141,18 @@ table.week.span .cellpair { display: flex; flex-direction: column; gap: 2px; ali
 }
 .jsoneditor:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
 
+.prompt {
+  width: 100%;
+  resize: vertical;
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.prompt:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+
 .week-head { display: flex; align-items: center; justify-content: space-between; }
 .week-nav { display: flex; gap: 1rem; }
 
