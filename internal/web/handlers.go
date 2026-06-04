@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/daknoblo/forecast-tool/internal/ai"
 	"github.com/daknoblo/forecast-tool/internal/forecast"
 	"github.com/daknoblo/forecast-tool/internal/holidays"
 	"github.com/daknoblo/forecast-tool/internal/models"
@@ -92,6 +93,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /export", s.handleExport)
 	mux.HandleFunc("GET /data", s.handleData)
 	mux.HandleFunc("POST /data", s.handleDataSave)
+	mux.HandleFunc("POST /data/ai", s.handleDataAI)
 	mux.HandleFunc("POST /fy", s.handleSetActiveFY)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -442,6 +444,23 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad form", http.StatusBadRequest)
 		return
 	}
+	if trim(r.FormValue("section")) == "ai" {
+		endpoint := trim(r.FormValue("aiEndpoint"))
+		deployment := trim(r.FormValue("aiDeployment"))
+		apiVersion := trim(r.FormValue("aiApiVersion"))
+		apiKey := trim(r.FormValue("aiApiKey"))
+		_ = s.store.Update(func(d *models.Data) error {
+			d.Settings.AI.Endpoint = endpoint
+			d.Settings.AI.Deployment = deployment
+			d.Settings.AI.APIVersion = apiVersion
+			if apiKey != "" {
+				d.Settings.AI.APIKey = apiKey
+			}
+			return nil
+		})
+		http.Redirect(w, r, "/settings", http.StatusSeeOther)
+		return
+	}
 	year, _ := strconv.Atoi(trim(r.FormValue("year")))
 	state := trim(r.FormValue("state"))
 	weekly, _ := strconv.ParseFloat(normalizeNum(r.FormValue("weekly")), 64)
@@ -508,7 +527,7 @@ func (s *Server) handleData(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "render error", http.StatusInternalServerError)
 		return
 	}
-	s.renderData(w, string(b), "", "")
+	s.renderData(w, string(b), "", "", "")
 }
 
 // handleDataSave validates the submitted JSON and replaces the whole document
@@ -521,7 +540,7 @@ func (s *Server) handleDataSave(w http.ResponseWriter, r *http.Request) {
 	}
 	raw := r.FormValue("json")
 	if err := s.store.ReplaceJSON([]byte(raw)); err != nil {
-		s.renderData(w, raw, err.Error(), "")
+		s.renderData(w, raw, "", err.Error(), "")
 		return
 	}
 	// Re-marshal to show the normalized, canonical form after a successful save.
@@ -529,20 +548,64 @@ func (s *Server) handleDataSave(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		b = []byte(raw)
 	}
-	s.renderData(w, string(b), "", "Daten gespeichert und validiert.")
+	s.renderData(w, string(b), "", "", "Daten gespeichert und validiert.")
+}
+
+// handleDataAI sends the prompt together with the current JSON to the configured
+// AI endpoint and places the returned JSON into the editor. Nothing is saved
+// automatically; the result is validated so the user knows whether it can be
+// stored, but they must press "Speichern" to persist it.
+func (s *Server) handleDataAI(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	prompt := trim(r.FormValue("prompt"))
+	currentJSON := r.FormValue("json")
+	if currentJSON == "" {
+		if b, err := s.store.Marshal(); err == nil {
+			currentJSON = string(b)
+		}
+	}
+	if prompt == "" {
+		s.renderData(w, currentJSON, prompt, "Bitte gib einen Prompt ein.", "")
+		return
+	}
+
+	cfg := s.store.Snapshot().Settings.AI
+	result, err := ai.Generate(r.Context(), cfg, prompt, currentJSON)
+	if err != nil {
+		s.renderData(w, currentJSON, prompt, err.Error(), "")
+		return
+	}
+
+	// Validate the AI output but keep it in the editor regardless, so the user
+	// can review and fix it before saving.
+	if vErr := s.store.ValidateJSON([]byte(result)); vErr != nil {
+		s.renderData(w, result, prompt, "KI-Antwort ist noch nicht gültig – bitte prüfen und korrigieren: "+vErr.Error(), "")
+		return
+	}
+	s.renderData(w, result, "", "", "KI-Antwort eingefügt und validiert. Prüfe das Ergebnis und klicke auf „Speichern“, um es zu übernehmen.")
 }
 
 // renderData renders the JSON editor page with optional error/success messages.
-func (s *Server) renderData(w http.ResponseWriter, jsonText, errMsg, okMsg string) {
+func (s *Server) renderData(w http.ResponseWriter, jsonText, prompt, errMsg, okMsg string) {
 	d := s.store.Snapshot()
 	s.render(w, "data.html", map[string]any{
-		"Active":   "data",
-		"Settings": d.Settings,
-		"FYYears":  fyYears(d),
-		"JSON":     jsonText,
-		"Error":    errMsg,
-		"Success":  okMsg,
+		"Active":       "data",
+		"Settings":     d.Settings,
+		"FYYears":      fyYears(d),
+		"JSON":         jsonText,
+		"Prompt":       prompt,
+		"AIConfigured": aiConfigured(d.Settings.AI),
+		"Error":        errMsg,
+		"Success":      okMsg,
 	})
+}
+
+// aiConfigured reports whether the minimum AI endpoint settings are present.
+func aiConfigured(a models.AISettings) bool {
+	return trim(a.Endpoint) != "" && trim(a.Deployment) != "" && trim(a.APIKey) != ""
 }
 
 // handleSetActiveFY switches the globally active fiscal year (used by the

@@ -33,10 +33,23 @@ type Settings struct {
 	WeeklyTargetHours    float64 `json:"weeklyTargetHours"`
 	FiscalYearStartMonth int     `json:"fiscalYearStartMonth"` // 1-12; 7 = July (default). 1 == calendar year
 
+	// AI holds the configuration for the remote AI endpoint used to update the
+	// JSON document from a natural-language prompt.
+	AI AISettings `json:"ai"`
+
 	// Legacy fields retained only for migrating old documents into FiscalYears.
 	// They are no longer read once a per-FY entry exists. Deprecated.
 	FiscalYearTargetHours float64 `json:"fiscalYearTargetHours,omitempty"`
 	AnnualVacationDays    int     `json:"annualVacationDays,omitempty"`
+}
+
+// AISettings configures the remote AI endpoint (e.g. an Azure AI Foundry
+// model-router exposing an Azure OpenAI-compatible chat-completions API).
+type AISettings struct {
+	Endpoint   string `json:"endpoint"`   // base URL, e.g. https://my-resource.openai.azure.com
+	APIKey     string `json:"apiKey"`     // secret api key sent as the "api-key" header
+	Deployment string `json:"deployment"` // deployment / model-router name
+	APIVersion string `json:"apiVersion"` // e.g. 2024-10-21
 }
 
 // FiscalYearSettings holds configuration that changes from one fiscal year to
@@ -137,6 +150,9 @@ func Validate(d Data) error {
 	}
 	if d.Settings.WeeklyTargetHours < 0 {
 		return fmt.Errorf("settings.weeklyTargetHours darf nicht negativ sein")
+	}
+	if ep := strings.TrimSpace(d.Settings.AI.Endpoint); ep != "" && !strings.HasPrefix(ep, "http://") && !strings.HasPrefix(ep, "https://") {
+		return fmt.Errorf("settings.ai.endpoint muss mit http:// oder https:// beginnen")
 	}
 
 	ids := make(map[string]bool, len(d.Projects))
