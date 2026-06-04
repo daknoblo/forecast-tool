@@ -34,7 +34,8 @@ cmd/server/main.go                  # Bootstrap, HTTP-Server, Graceful Shutdown
 internal/models/models.go           # Settings, AISettings, Project, Entry, Data, Validate
 internal/storage/store.go           # JSON load/save, RWMutex, atomic write, ReplaceJSON/ValidateJSON
 internal/holidays/holidays.go       # Wrapper um rickar/cal (DE-Regionen)
-internal/ai/client.go               # Azure-OpenAI-kompatibler KI-Client (JSON-Update per Prompt)
+internal/ai/client.go               # Azure-OpenAI-kompatibler KI-Client (JSON-Update per Prompt, Blueprint)
+internal/logging/logging.go         # slog-Logger: stdout + rotierende Datei (10 MB) in appdata
 internal/forecast/agg.go            # Wochen-/Jahres-Aggregation, Burn-Down
 internal/forecast/agg_test.go       # Unit-Tests der Aggregation
 internal/web/handlers.go            # HTTP-Handler + Routing
@@ -62,7 +63,7 @@ go.mod
   KI-Endpoint (Endpoint, Deployment, API-Version; API-Key aus Env). Konfigurationsdatei-
   Übersicht (Pfad/Größe) steht ganz unten.
 - **Layout**: Zentraler App-Name über `web.AppName`/`{{appName}}` (Titel, Header-Brand, Footer).
-  Navigation: Dashboard – Projekte – Forecast (`/week`) – Target (`/goal`) – JSON – Einstellungen.
+  Navigation: Dashboard – Projekte – Forecast (`/week`) – Ziele (`/goal`) – JSON – Einstellungen.
   Footer mit Link auf das GitHub-Profil (Icon), ohne Wochensoll.
 - **JSON-Editor** (`/data`): gesamte Datendatei im Browser bearbeiten, exportieren (`/export`)
   und mit serverseitiger Validierung speichern; optional per KI-Prompt aktualisieren (`/data/ai`).
