@@ -219,6 +219,104 @@ func BuildWeek(d models.Data, cal *holidays.Calendar, week int) WeekView {
 	return wv
 }
 
+// formatDayDot turns an ISO date (YYYY-MM-DD) into German DD.MM.YYYY.
+func formatDayDot(iso string) string {
+	t, err := time.Parse("2006-01-02", iso)
+	if err != nil {
+		return iso
+	}
+	return t.Format("02.01.2006")
+}
+
+// SpanView aggregates several consecutive fiscal-year weeks into one Mon-Fri
+// grid so wide screens can show as many days as fit at once.
+type SpanView struct {
+	StartWeek            int
+	EndWeek              int
+	Weeks                int
+	MaxWeek              int
+	PrevStart            int
+	NextStart            int
+	RangeLabel           string
+	Blocks               []WeekView         // one entry per visible week (for header grouping)
+	Days                 []DayCell          // all days flattened across the visible weeks
+	ProjectTotals        map[string]float64 // projectID -> forecast hours over the span
+	ActualTotals         map[string]float64 // projectID -> actual hours over the span
+	Total                float64
+	ActualTotal          float64
+	HolidayHours         float64
+	TargetHours          float64 // weekly target * number of visible weeks
+	UtilizationPct       float64
+	ActualUtilizationPct float64
+}
+
+// BuildSpan assembles a Mon-Fri grid spanning `weeks` consecutive fiscal-year
+// weeks starting at startWeek. The start is clamped so the span stays within the
+// fiscal year where possible.
+func BuildSpan(d models.Data, cal *holidays.Calendar, startWeek, weeks int) SpanView {
+	year := d.Settings.Year
+	startMonth := d.Settings.FiscalYearStartMonth
+	max := FYWeeks(year, startMonth)
+	if weeks < 1 {
+		weeks = 1
+	}
+	if weeks > max {
+		weeks = max
+	}
+	if startWeek < 1 {
+		startWeek = 1
+	}
+	if startWeek > max {
+		startWeek = max
+	}
+	if startWeek+weeks-1 > max {
+		startWeek = max - weeks + 1
+		if startWeek < 1 {
+			startWeek = 1
+		}
+	}
+
+	sv := SpanView{
+		StartWeek:     startWeek,
+		EndWeek:       startWeek + weeks - 1,
+		Weeks:         weeks,
+		MaxWeek:       max,
+		ProjectTotals: map[string]float64{},
+		ActualTotals:  map[string]float64{},
+	}
+	for i := 0; i < weeks; i++ {
+		wv := BuildWeek(d, cal, startWeek+i)
+		sv.Blocks = append(sv.Blocks, wv)
+		sv.Days = append(sv.Days, wv.Days...)
+		for pid, h := range wv.ProjectTotals {
+			sv.ProjectTotals[pid] += h
+		}
+		for pid, h := range wv.ActualTotals {
+			sv.ActualTotals[pid] += h
+		}
+		sv.Total += wv.Total
+		sv.ActualTotal += wv.ActualTotal
+		sv.HolidayHours += wv.HolidayHours
+	}
+	sv.Total = round1(sv.Total)
+	sv.ActualTotal = round1(sv.ActualTotal)
+	sv.HolidayHours = round1(sv.HolidayHours)
+	sv.TargetHours = round1(d.Settings.WeeklyTargetHours * float64(weeks))
+	if sv.TargetHours > 0 {
+		sv.UtilizationPct = round1(sv.Total / sv.TargetHours * 100)
+		sv.ActualUtilizationPct = round1(sv.ActualTotal / sv.TargetHours * 100)
+	}
+	sv.PrevStart = startWeek - weeks
+	if sv.PrevStart < 1 {
+		sv.PrevStart = 1
+	}
+	sv.NextStart = startWeek + weeks
+	if len(sv.Days) > 0 {
+		sv.RangeLabel = formatDayDot(sv.Days[0].Date) + "–" + formatDayDot(sv.Days[len(sv.Days)-1].Date)
+	}
+	return sv
+}
+
 // ProjectSummary describes budget consumption for one project.
 type ProjectSummary struct {
 	Project        models.Project

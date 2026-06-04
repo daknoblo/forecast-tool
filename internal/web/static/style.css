@@ -44,6 +44,7 @@ a:hover { text-decoration: underline; }
 .topbar .year .state { padding-left: 0.25rem; }
 
 main { max-width: 1080px; margin: 1.5rem auto; padding: 0 1.25rem; }
+main.wide { max-width: 90vw; width: 90vw; }
 
 h1 { font-size: 1.4rem; margin: 0 0 1rem; }
 h2 { font-size: 1.1rem; margin: 1.5rem 0 0.75rem; }
@@ -79,6 +80,27 @@ table.week .holiday { background: var(--holiday); }
 table.week tfoot td { background: #f8fafc; font-weight: 600; }
 .hcell { width: 64px; text-align: center; padding: 0.3rem; border: 1px solid var(--line); border-radius: 6px; }
 .hcell:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+
+/* Wide multi-week editor */
+.table-scroll { width: 100%; overflow-x: auto; }
+table.week.span { table-layout: fixed; }
+table.week.span th, table.week.span td { padding: 0.35rem 0.3rem; border-right: 1px solid var(--line); }
+table.week.span th.day, table.week.span td.day { min-width: 84px; }
+table.week.span td.pname, table.week.span th.pname { position: sticky; left: 0; z-index: 2; background: var(--panel); min-width: 160px; text-align: left; border-right: 2px solid var(--line); }
+table.week.span thead th.pname { background: #f8fafc; }
+table.week.span tfoot td.pname { background: #f8fafc; }
+table.week.span .weekgroup { text-align: center; border-left: 2px solid var(--line); border-right: 2px solid var(--line); white-space: nowrap; }
+table.week.span .weekgroup small { font-weight: 400; color: var(--muted); }
+table.week.span .outyear { background: #f8fafc; color: var(--muted); }
+table.week.span .hcell { width: 100%; max-width: 72px; }
+table.week.span .cellpair { display: flex; flex-direction: column; gap: 2px; align-items: center; }
+
+.span-ctl { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; margin: 0.25rem 0 1rem; }
+.span-ctl-label { color: var(--muted); font-size: 0.85rem; margin-right: 0.25rem; }
+.span-ctl .chip { display: inline-block; min-width: 1.6rem; text-align: center; padding: 0.2rem 0.55rem; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 0.85rem; background: var(--panel); }
+.span-ctl .chip:hover { text-decoration: none; border-color: var(--accent); color: var(--text); }
+.span-ctl .chip.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.span-ctl .chip.auto { font-style: italic; }
 
 .tag { display: inline-block; font-size: 0.65rem; background: #f59e0b; color: #fff; padding: 0 0.3rem; border-radius: 4px; }
 

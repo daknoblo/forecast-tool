@@ -1,37 +1,54 @@
 {{template "header" .}}
 <div class="week-head">
-  <h1>{{.Week.Label}}</h1>
+  <h1>
+    {{if gt .Span.Weeks 1}}Wochen {{.Span.StartWeek}}–{{.Span.EndWeek}}{{else}}Woche {{.Span.StartWeek}}{{end}}
+    · FY {{.Settings.Year}}
+  </h1>
   <div class="week-nav">
-    {{if ge .Week.PrevWeek 1}}<a href="/week/{{.Week.PrevWeek}}">&laquo; Woche {{.Week.PrevWeek}}</a>{{end}}
-    {{if le .Week.NextWeek .MaxWeek}}<a href="/week/{{.Week.NextWeek}}">Woche {{.Week.NextWeek}} &raquo;</a>{{end}}
+    {{if gt .Span.StartWeek 1}}<a href="/week/{{.Span.PrevStart}}?weeks={{.Span.Weeks}}">&laquo; zurück</a>{{end}}
+    {{if lt .Span.EndWeek .MaxWeek}}<a href="/week/{{.Span.NextStart}}?weeks={{.Span.Weeks}}">weiter &raquo;</a>{{end}}
   </div>
 </div>
-<p class="hint">Zeitraum {{.Week.RangeLabel}}{{if gt .Week.HolidayHours 0.0}} · Feiertage automatisch {{hours .Week.HolidayHours}} h{{end}}</p>
+<p class="hint">Zeitraum {{.Span.RangeLabel}}{{if gt .Span.HolidayHours 0.0}} · Feiertage automatisch {{hours .Span.HolidayHours}} h{{end}}</p>
+
+<div class="span-ctl">
+  <span class="span-ctl-label">Sichtbare Wochen:</span>
+  {{range $n := .WeekChoices}}
+    <a href="/week/{{$.Span.StartWeek}}?weeks={{$n}}" class="chip{{if eq $n $.Span.Weeks}} active{{end}}">{{$n}}</a>
+  {{end}}
+  <a href="/week/{{.Span.StartWeek}}" class="chip auto" data-autofit>Auto</a>
+</div>
 
 {{if .Projects}}
-<form method="post" action="/week/{{.Week.Week}}">
-<table class="grid week">
+<form method="post" action="/week/{{.Span.StartWeek}}?weeks={{.Span.Weeks}}">
+<div class="table-scroll">
+<table class="grid week span" data-day-min="92">
   <thead>
+    <tr class="weekrow">
+      <th rowspan="2" class="pname">Projekt</th>
+      {{range .Span.Blocks}}
+        <th colspan="5" class="weekgroup">W{{.Week}} · KW{{printf "%02d" .ISOWeek}}<br><small>{{.RangeLabel}}</small></th>
+      {{end}}
+      <th rowspan="2" class="num">Summe</th>
+    </tr>
     <tr>
-      <th>Projekt</th>
-      {{range .Week.Days}}
-        <th class="day {{if .IsHoliday}}holiday{{end}}">
+      {{range .Span.Days}}
+        <th class="day{{if .IsHoliday}} holiday{{end}}{{if not .InYear}} outyear{{end}}">
           {{.WeekdayName}}<br><small>{{slice .Date 8 10}}.{{slice .Date 5 7}}.</small>
           {{if .IsHoliday}}<br><span class="tag" title="{{.HolidayName}}">Feiertag</span>{{end}}
         </th>
       {{end}}
-      <th class="num">Summe</th>
     </tr>
   </thead>
   <tbody>
-    {{$days := .Week.Days}}
-    {{$totals := .Week.ProjectTotals}}
-    {{$actuals := .Week.ActualTotals}}
+    {{$days := .Span.Days}}
+    {{$totals := .Span.ProjectTotals}}
+    {{$actuals := .Span.ActualTotals}}
     {{range $p := .Projects}}
     <tr>
-      <td><span class="dot" style="background:{{$p.Color}}"></span>{{$p.Name}}</td>
+      <td class="pname"><span class="dot" style="background:{{$p.Color}}"></span>{{$p.Name}}</td>
       {{range $d := $days}}
-        <td class="day {{if $d.IsHoliday}}holiday{{end}}">
+        <td class="day{{if $d.IsHoliday}} holiday{{end}}{{if not $d.InYear}} outyear{{end}}">
           <div class="cellpair">
             <input type="text" inputmode="decimal" name="{{cellName $p.ID $d.Date}}"
                    value="{{with cellHours $d $p.ID}}{{hours .}}{{end}}"
@@ -51,29 +68,30 @@
   </tbody>
   <tfoot>
     <tr>
-      <td>Forecast / Tag</td>
-      {{range .Week.Days}}
-        <td class="num {{if .IsHoliday}}holiday{{end}}">{{hours .Total}}</td>
+      <td class="pname">Forecast / Tag</td>
+      {{range .Span.Days}}
+        <td class="num{{if .IsHoliday}} holiday{{end}}">{{hours .Total}}</td>
       {{end}}
-      <td class="num strong">{{hours .Week.Total}}</td>
+      <td class="num strong">{{hours .Span.Total}}</td>
     </tr>
     <tr>
-      <td>Ist / Tag</td>
-      {{range .Week.Days}}
-        <td class="num ist {{if .IsHoliday}}holiday{{end}}">{{hours .ActualTotal}}</td>
+      <td class="pname">Ist / Tag</td>
+      {{range .Span.Days}}
+        <td class="num ist{{if .IsHoliday}} holiday{{end}}">{{hours .ActualTotal}}</td>
       {{end}}
-      <td class="num strong ist">{{hours .Week.ActualTotal}}</td>
+      <td class="num strong ist">{{hours .Span.ActualTotal}}</td>
     </tr>
     <tr>
-      <td>Auslastung (Soll {{hours .Week.TargetHours}} h)</td>
-      <td colspan="5">
-        <div class="bar"><span style="width:{{barWidth .Week.UtilizationPct}}%"></span></div>
-        <div class="bar ist"><span style="width:{{barWidth .Week.ActualUtilizationPct}}%"></span></div>
+      <td class="pname">Auslastung (Soll {{hours .Span.TargetHours}} h)</td>
+      <td colspan="{{len .Span.Days}}">
+        <div class="bar"><span style="width:{{barWidth .Span.UtilizationPct}}%"></span></div>
+        <div class="bar ist"><span style="width:{{barWidth .Span.ActualUtilizationPct}}%"></span></div>
       </td>
-      <td class="num strong">{{hours .Week.UtilizationPct}} %<br><small class="ist">{{hours .Week.ActualUtilizationPct}} % Ist</small></td>
+      <td class="num strong">{{hours .Span.UtilizationPct}} %<br><small class="ist">{{hours .Span.ActualUtilizationPct}} % Ist</small></td>
     </tr>
   </tfoot>
 </table>
+</div>
 <div class="actions">
   <button type="submit" class="btn primary">Speichern</button>
   <span class="hint">Pro Tag oben den <strong>Forecast (Plan)</strong>, unten die <strong>Ist</strong>-Stunden eintragen (Komma oder Punkt). Leere Felder = 0.</span>
@@ -82,5 +100,24 @@
 {{else}}
 <p class="empty">Keine aktiven Projekte. Lege zuerst unter <a href="/projects">Projekte</a> ein Projekt an.</p>
 {{end}}
+
+<script>
+(function () {
+  var url = new URL(window.location.href);
+  // Respect an explicit week count; only auto-fit when no ?weeks= is set.
+  if (url.searchParams.has('weeks')) return;
+  var main = document.querySelector('main');
+  var table = document.querySelector('table.week.span');
+  if (!main || !table) return;
+  var dayMin = parseInt(table.getAttribute('data-day-min'), 10) || 92;
+  var fixedCols = 200 /* project name */ + 96 /* sum column */;
+  var fitDays = Math.floor((main.clientWidth - fixedCols) / dayMin);
+  var weeks = Math.max(1, Math.floor(fitDays / 5));
+  if (weeks > 52) weeks = 52;
+  if (weeks <= 1) return; // single week already shown server-side
+  url.searchParams.set('weeks', weeks);
+  window.location.replace(url.toString());
+})();
+</script>
 
 {{template "footer" .}}
