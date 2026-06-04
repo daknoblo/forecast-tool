@@ -18,10 +18,12 @@ Build via GitHub Actions nach GHCR. Betrieb per `docker compose` auf anderem Hos
 - Deployment: `docker-compose.yml`, Daten unter `appdata`-Volume
 
 ## Datenmodell (`data.json`)
-- `Settings` (global): year (aktives Fiskaljahr), federalState (z. B. "BY"),
-  weeklyTargetHours, fiscalYearStartMonth, `ai{ endpoint, deployment, apiVersion }`
+- `Settings` (global): year (aktives Fiskaljahr), federalState (Default "SN"),
+  weeklyTargetHours (Default 40), fiscalYearStartMonth, `ai{ endpoint, deployment, apiVersion }`
   (API-Key NICHT in der Datei – via Env `FORECAST_AI_API_KEY`)
-- `FiscalYears` (pro FY): targetHours, vacationDaysH1/H2, standardTaskLabel, standardTaskHours
+- `FiscalYears` (pro FY): targetHours, vacationDaysH1/H2, standardTaskLabel, standardTaskHours.
+  Defaults für neue/unkonfigurierte FY (`models.DefaultFYSettings`): Ziel 1440 h,
+  Urlaub H1/H2 je 15 Tage, Standard Tasks 250 h.
 - `Project`: id, name, budgetHours, color, active, fiscalYear
 - `Entry`: date (YYYY-MM-DD), projectId, hours, kind (forecast | actual)
 - Feiertage werden zur Laufzeit berechnet (nicht persistiert)
@@ -57,7 +59,11 @@ go.mod
 - **Ziel/Kapazität**: FY-Ziel, Urlaub (pro Halbjahr), Standard Tasks, verfügbare Stunden,
   Soll je Woche/Monat/Quartal.
 - **Einstellungen**: FY-Startmonat, Bundesland (Feiertage), Wochensollstunden, pro-FY-Werte,
-  KI-Endpoint (Endpoint, Deployment, API-Version, API-Key).
+  KI-Endpoint (Endpoint, Deployment, API-Version; API-Key aus Env). Konfigurationsdatei-
+  Übersicht (Pfad/Größe) steht ganz unten.
+- **Layout**: Zentraler App-Name über `web.AppName`/`{{appName}}` (Titel, Header-Brand, Footer).
+  Navigation: Dashboard – Projekte – Forecast (`/week`) – Target (`/goal`) – JSON – Einstellungen.
+  Footer mit Link auf das GitHub-Profil (Icon), ohne Wochensoll.
 - **JSON-Editor** (`/data`): gesamte Datendatei im Browser bearbeiten, exportieren (`/export`)
   und mit serverseitiger Validierung speichern; optional per KI-Prompt aktualisieren (`/data/ai`).
 

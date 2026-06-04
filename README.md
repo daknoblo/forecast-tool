@@ -27,6 +27,18 @@ bearbeiten, exportieren und optional per KI-Prompt aktualisieren.
   das Ergebnis wird vor dem Speichern geprüft
 - Daten als JSON im Volume, läuft als schlanker Container
 
+### Standardwerte für neue Daten
+Beim ersten Start (leere Datendatei) bzw. für noch nicht konfigurierte Fiskaljahre
+gelten folgende Vorgaben:
+
+| Einstellung            | Default        |
+|------------------------|----------------|
+| Bundesland (Feiertage) | `SN` (Sachsen) |
+| Wochensollstunden      | `40`           |
+| FY-Ziel                | `1440` h       |
+| Urlaub H1 / H2         | `15` / `15` Tage |
+| Standard Tasks         | `250` h        |
+
 ## Schnellstart (lokal mit Go)
 ```bash
 go run ./cmd/server

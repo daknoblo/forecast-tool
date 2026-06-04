@@ -26,6 +26,9 @@ var templateFS embed.FS
 //go:embed static/*
 var staticFS embed.FS
 
+// AppName is the central application name shown in the header and footer.
+const AppName = "Forecast Tool"
+
 // Server wires storage, templates and HTTP routing together.
 type Server struct {
 	store *storage.Store
@@ -39,8 +42,9 @@ type Server struct {
 // NewServer parses templates and returns a ready-to-mount handler.
 func NewServer(store *storage.Store) (*Server, error) {
 	funcs := template.FuncMap{
-		"hours": formatHours,
-		"pct":   func(f float64) string { return formatHours(f) + " %" },
+		"hours":   formatHours,
+		"appName": func() string { return AppName },
+		"pct":     func(f float64) string { return formatHours(f) + " %" },
 		"cellName": func(projectID, date string) string {
 			return "h_" + projectID + "_" + date
 		},
