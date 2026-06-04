@@ -85,6 +85,9 @@ table.week tfoot td { background: #f8fafc; font-weight: 600; }
 .table-scroll { width: 100%; overflow-x: auto; }
 table.week.span { table-layout: fixed; }
 table.week.span th, table.week.span td { padding: 0.35rem 0.3rem; border-right: 1px solid var(--line); }
+/* all forecast cells centred; only the project-name column stays left-aligned */
+table.week.span th, table.week.span td { text-align: center; }
+table.week.span th.pname, table.week.span td.pname { text-align: left; }
 table.week.span th.day, table.week.span td.day { min-width: 84px; }
 table.week.span td.pname, table.week.span th.pname { position: sticky; left: 0; z-index: 2; background: var(--panel); min-width: 160px; text-align: left; border-right: 2px solid var(--line); }
 table.week.span thead th.pname { background: #f8fafc; }

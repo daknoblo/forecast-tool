@@ -74,7 +74,7 @@ func TestYearSummaryRemaining(t *testing.T) {
 
 func TestBurndownEndsAtRemaining(t *testing.T) {
 	d := sampleData()
-	pts := BuildBurndown(d, "p1", 100)
+	pts := BuildBurndown(d, "p1", "2026-01-01", "2026-12-31", 100)
 	if len(pts) == 0 {
 		t.Fatal("no burndown points")
 	}
