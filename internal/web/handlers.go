@@ -181,6 +181,10 @@ func (s *Server) handleWeek(w http.ResponseWriter, r *http.Request) {
 		spanEnd = sv.Days[len(sv.Days)-1].Date
 	}
 	burn := forecast.BuildSpanBurn(ys.Projects, spanStart, spanEnd)
+	budgetLeft := map[string]float64{}
+	for _, p := range ys.Projects {
+		budgetLeft[p.Project.ID] = round1(p.Project.BudgetHours - p.Actual - p.Forecast)
+	}
 	s.render(w, "week.html", map[string]any{
 		"Active":      "week",
 		"Wide":        true,
@@ -192,6 +196,7 @@ func (s *Server) handleWeek(w http.ResponseWriter, r *http.Request) {
 		"WeekChoices": []int{1, 2, 3, 4, 6, 8},
 		"Projects":    projects,
 		"AllProjects": forecast.SortedProjects(d.Projects),
+		"BudgetLeft":  budgetLeft,
 	})
 }
 

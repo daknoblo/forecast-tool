@@ -58,9 +58,14 @@
     {{$blocks := .Span.Blocks}}
     {{$totals := .Span.ProjectTotals}}
     {{$actuals := .Span.ActualTotals}}
+    {{$budgetLeft := .BudgetLeft}}
     {{range $p := .Projects}}
     <tr>
-      <td class="pname"><span class="dot" style="background:{{$p.Color}}"></span>{{$p.Name}}</td>
+      <td class="pname">
+        <span class="dot" style="background:{{$p.Color}}"></span>{{$p.Name}}
+        {{$bl := index $budgetLeft $p.ID}}
+        <small class="budget-left{{if lt $bl 0.0}} negative{{end}}" data-rem-project="{{$p.ID}}" data-rem-base="{{$bl}}" title="Budget − Ist gebucht − Forecast">Budget frei <strong>{{hours $bl}} h</strong></small>
+      </td>
       {{range $b := $blocks}}
         {{range $i, $d := $b.Days}}
         <td class="day{{if $d.IsHoliday}} holiday{{end}}{{if not $d.InYear}} outyear{{end}}{{if not (bookable $p $d.Date)}} closed{{end}}{{if eq $i 0}} weekstart{{end}}{{if $d.MonthEnd}} monthend{{end}}">
@@ -183,6 +188,11 @@
     return (window.CSS && CSS.escape) ? CSS.escape(s) : String(s).replace(/["\\]/g, '\\$&');
   }
 
+  // Remaining budget = budget − actual − forecast. The server value already
+  // covers the whole fiscal year; off-screen weeks stay constant, so we only
+  // adjust by how much the *visible* plan+actual inputs change from page load.
+  var remInit = null; // projectID -> visible (plan+actual) sum captured at load
+
   window.recalc = function () {
     var pw = {}, pa = {};            // project|week -> plan / actual
     var pgPlan = {}, pgActual = {};  // project -> plan / actual
@@ -263,11 +273,28 @@
     setText('[data-util-actual]', utilActual);
     setWidth('[data-util-plan-bar]', utilPlan);
     setWidth('[data-util-actual-bar]', utilActual);
+
+    // remaining budget per project (budget − actual − forecast)
+    var visible = {}; // projectID -> visible plan+actual sum
+    document.querySelectorAll('[data-rem-project]').forEach(function (el) {
+      var pid = el.getAttribute('data-rem-project');
+      visible[pid] = (pgPlan[pid] || 0) + (pgActual[pid] || 0);
+    });
+    if (remInit === null) { remInit = visible; } // capture baseline on first run
+    document.querySelectorAll('[data-rem-project]').forEach(function (el) {
+      var pid = el.getAttribute('data-rem-project');
+      var base = parseFloat(el.getAttribute('data-rem-base')) || 0;
+      var rem = base - ((visible[pid] || 0) - (remInit[pid] || 0));
+      var strong = el.querySelector('strong');
+      if (strong) strong.textContent = fmt(rem) + ' h';
+      el.classList.toggle('negative', rem < 0);
+    });
   };
 
   table.addEventListener('input', function (e) {
     if (e.target && e.target.classList.contains('hcell')) recalc();
   });
+  recalc(); // capture the baseline of visible inputs on load
 })();
 (function () {
   var url = new URL(window.location.href);
