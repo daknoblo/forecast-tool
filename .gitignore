@@ -1,5 +1,7 @@
 /appdata/data.json
 /appdata/data.json.tmp
+/appdata/forecast.log
+/appdata/forecast.log.*
 /forecast
 /out/
 

@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"io/fs"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"sort"
@@ -31,16 +32,22 @@ const AppName = "Forecast Tool"
 
 // Server wires storage, templates and HTTP routing together.
 type Server struct {
-	store *storage.Store
-	tpl   *template.Template
+	store  *storage.Store
+	tpl    *template.Template
+	logger *slog.Logger
 
 	mu      sync.Mutex
 	calKey  string
 	calData *holidays.Calendar
 }
 
-// NewServer parses templates and returns a ready-to-mount handler.
-func NewServer(store *storage.Store) (*Server, error) {
+// NewServer parses templates and returns a ready-to-mount handler. The logger is
+// used for operational logging (e.g. AI endpoint usage); if nil, slog.Default()
+// is used.
+func NewServer(store *storage.Store, logger *slog.Logger) (*Server, error) {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	funcs := template.FuncMap{
 		"hours":   formatHours,
 		"appName": func() string { return AppName },
@@ -74,7 +81,7 @@ func NewServer(store *storage.Store) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Server{store: store, tpl: tpl}, nil
+	return &Server{store: store, tpl: tpl, logger: logger}, nil
 }
 
 // Handler builds the HTTP routing mux.
@@ -598,8 +605,11 @@ func (s *Server) handleDataAI(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cfg := effectiveAI(s.store.Snapshot().Settings.AI)
-	result, err := ai.Generate(r.Context(), cfg, prompt, currentJSON)
+	s.logger.Info("ai update requested",
+		"remoteAddr", r.RemoteAddr, "promptChars", len(prompt), "inputJSONChars", len(currentJSON))
+	result, err := ai.Generate(r.Context(), cfg, prompt, currentJSON, s.logger)
 	if err != nil {
+		s.logger.Error("ai update failed", "error", err)
 		s.renderData(w, currentJSON, prompt, err.Error(), "")
 		return
 	}
@@ -607,9 +617,11 @@ func (s *Server) handleDataAI(w http.ResponseWriter, r *http.Request) {
 	// Validate the AI output but keep it in the editor regardless, so the user
 	// can review and fix it before saving.
 	if vErr := s.store.ValidateJSON([]byte(result)); vErr != nil {
+		s.logger.Warn("ai update returned invalid json", "error", vErr, "resultChars", len(result))
 		s.renderData(w, result, prompt, "KI-Antwort ist noch nicht gültig – bitte prüfen und korrigieren: "+vErr.Error(), "")
 		return
 	}
+	s.logger.Info("ai update succeeded", "resultChars", len(result))
 	s.renderData(w, result, "", "", "KI-Antwort eingefügt und validiert. Prüfe das Ergebnis und klicke auf „Speichern“, um es zu übernehmen.")
 }
 

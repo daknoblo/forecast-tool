@@ -94,7 +94,7 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
   Template-Funktion `{{appName}}` ausgegeben – in `<title>`, Header-Brand und Footer.
   Name nur an dieser einen Stelle ändern.
 - **Navigation (Header)** in dieser Reihenfolge und Beschriftung:
-  Dashboard (`/`) – Projekte (`/projects`) – Forecast (`/week`) – Target (`/goal`) –
+  Dashboard (`/`) – Projekte (`/projects`) – Forecast (`/week`) – Ziele (`/goal`) –
   JSON (`/data`) – Einstellungen (`/settings`). Die Active-Klassen-Schlüssel bleiben
   technisch `dashboard`/`projects`/`week`/`goal`/`data`/`settings` (nur Anzeige + Reihenfolge).
 - **Footer:** `{{appName}} · Fiskaljahr {{Year}}` links, rechts ein Link auf das
@@ -153,8 +153,28 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
   `{endpoint}/openai/deployments/{deployment}/chat/completions?api-version=...`, Auth via
   `api-key`-Header, `response_format: json_object`, `temperature: 0`, Timeout, entfernt
   Markdown-Fences. Deutsche Fehlermeldungen.
+- Dem System-Prompt wird ein **Blueprint** (`ai.Blueprint`) mitgesendet – ein vollständiges,
+  gültiges Beispiel-Dokument –, damit das entfernte Modell Feldnamen, Verschachtelung und
+  Werttypen des Forecast-JSON kennt. Bei Schema-Änderungen am Datenmodell den Blueprint
+  mitpflegen.
 - **Die KI-Antwort wird nie automatisch gespeichert**: Sie wird nur eingefügt und sofort
   via `store.ValidateJSON` geprüft. Speichern erfolgt erst beim expliziten „Speichern"
   (durchläuft erneut die volle Validierung).
 - Abgeschnittene KI-Antworten (`finish_reason: length`) werden erkannt und mit
-  deutscher Meldung gemeldet; der Client setzt `max_completion_tokens`.
+  deutscher Meldung gemeldet; der Client setzt `max_completion_tokens` (32768).
+
+## Logging
+
+- Logging-Paket `internal/logging` (nur stdlib): `Setup(dataDir)` liefert einen
+  `*slog.Logger`, der **gleichzeitig auf stdout (Docker-Container-Output) und in eine
+  Datei** `appdata/forecast.log` schreibt (Text-Handler).
+- **Selbst-Rotation**: bei Überschreiten von **10 MB** (`DefaultMaxBytes`) wird die Datei
+  rotiert (`forecast.log.1..3`, `DefaultMaxBackups`), älteste wird verworfen. Kein externes
+  Paket.
+- `main.go` ruft `logging.Setup` auf, setzt `slog.SetDefault` und leitet die Standard-
+  `log`-Ausgabe über einen Adapter in denselben Logger (alles landet in Container-Output
+  **und** Logdatei).
+- **KI-Nutzung wird protokolliert** (Endpoint/Deployment/API-Version, Prompt-/JSON-Größe,
+  Status, `finish_reason`, Token-Usage, Dauer, Erfolg/Fehler/Truncation) – **niemals der
+  API-Key**. Fehler/Warnungen erscheinen so auch im Container-Output zum Debuggen.
+- `forecast.log*` sind git-ignored.

@@ -91,7 +91,17 @@ docker compose up -d
 
 Prompt und aktuelles JSON werden an den Endpoint gesendet; das Ergebnis wird in
 den Editor eingefügt und geprüft. Gespeichert wird erst nach explizitem Klick auf
-*Speichern*.
+*Speichern*. Dem Modell wird zusätzlich ein **Blueprint** (vollständiges
+Beispiel-Dokument) mitgesendet, damit es das exakte JSON-Format kennt.
+
+## Logging
+Die Anwendung schreibt Logs **gleichzeitig** in den Container-Output (`docker logs`)
+und in eine Datei `appdata/forecast.log`. Die Datei rotiert automatisch bei **10 MB**
+(bis zu drei Backups `forecast.log.1`–`forecast.log.3`); ein externes Paket ist nicht
+nötig. KI-Aufrufe werden mit Endpoint/Deployment, Prompt-/Antwortgröße, `finish_reason`,
+Token-Verbrauch und Dauer protokolliert (der **API-Key wird nie geloggt**), was das
+Debugging des KI-Endpoints erleichtert. Fehler und Warnungen erscheinen zusätzlich im
+Container-Output.
 
 ## Mit Docker bauen und starten
 ```bash
