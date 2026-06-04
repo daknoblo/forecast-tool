@@ -20,7 +20,19 @@ import (
 const systemPrompt = `Du bist ein Assistent, der ein JSON-Dokument für ein Forecast-Tool bearbeitet.
 Du erhältst das aktuelle JSON-Dokument und eine Anweisung des Nutzers.
 Wende die Anweisung an und gib AUSSCHLIESSLICH das vollständige, gültige JSON-Dokument zurück.
-Behalte alle bestehenden Daten bei, sofern die Anweisung nichts anderes verlangt.
+
+Schema:
+- settings: { year, federalState, weeklyTargetHours, fiscalYearStartMonth, ai{...} } – GLOBAL, NUR ändern wenn der Nutzer es ausdrücklich verlangt.
+- fiscalYears: Objekt mit Jahr-Schlüsseln, je { targetHours, vacationDaysH1, vacationDaysH2, standardTaskLabel, standardTaskHours }.
+- projects: Liste von { id, name, budgetHours, color, active, fiscalYear }. id = kurze eindeutige Kennung; color = Hex (#rrggbb); fiscalYear = das Anker-Jahr (FY 27 => 2027).
+- entries: Liste von { date (YYYY-MM-DD), projectId, hours, kind } mit kind "forecast" (Plan) oder "actual" (Ist). Jede projectId MUSS zu einer projects.id passen.
+
+Regeln:
+- Behalte alle bestehenden Daten bei, sofern die Anweisung nichts anderes verlangt. Ändere settings und andere Projekte nicht ohne Auftrag.
+- "FY 27" bzw. "Fiskaljahr 27" bedeutet fiscalYear 2027. Das FY beginnt am fiscalYearStartMonth (Standard Juli) des Anker-Jahres.
+- "X Stunden pro Woche, gleichmäßig verteilt" bedeutet Forecast-Einträge nur an Wochentagen (Mo–Fr): X/5 Stunden pro Werktag, kind "forecast", für alle Wochen des betreffenden Fiskaljahres.
+- budgetHours ist das Gesamtbudget des Projekts; verwechsle es nicht mit standardTaskHours.
+- Schreibe die entries möglichst kompakt (ein Objekt pro Zeile).
 Gib keinen erklärenden Text, keine Markdown-Codeblöcke und keine Kommentare aus – nur das reine JSON-Objekt.`
 
 // Generate sends the prompt and current JSON to the configured endpoint and
@@ -42,8 +54,9 @@ func Generate(ctx context.Context, cfg models.AISettings, prompt, currentJSON st
 		"/chat/completions?api-version=" + apiVersion
 
 	reqBody := chatRequest{
-		Temperature:    0,
-		ResponseFormat: &responseFormat{Type: "json_object"},
+		Temperature:         0,
+		MaxCompletionTokens: 16384,
+		ResponseFormat:      &responseFormat{Type: "json_object"},
 		Messages: []chatMessage{
 			{Role: "system", Content: systemPrompt},
 			{Role: "user", Content: "Anweisung:\n" + prompt + "\n\nAktuelles JSON:\n" + currentJSON},
@@ -82,6 +95,9 @@ func Generate(ctx context.Context, cfg models.AISettings, prompt, currentJSON st
 	if len(parsed.Choices) == 0 {
 		return "", fmt.Errorf("KI-Antwort enthielt kein Ergebnis")
 	}
+	if parsed.Choices[0].FinishReason == "length" {
+		return "", fmt.Errorf("KI-Antwort wurde abgeschnitten (Token-Limit erreicht). Formuliere den Prompt kompakter oder fordere weniger Einträge an (z. B. Stunden pro Woche statt pro Tag).")
+	}
 	content := strings.TrimSpace(parsed.Choices[0].Message.Content)
 	if content == "" {
 		return "", fmt.Errorf("KI-Antwort war leer")
@@ -116,9 +132,10 @@ func snippet(b []byte) string {
 }
 
 type chatRequest struct {
-	Messages       []chatMessage   `json:"messages"`
-	Temperature    float64         `json:"temperature"`
-	ResponseFormat *responseFormat `json:"response_format,omitempty"`
+	Messages            []chatMessage   `json:"messages"`
+	Temperature         float64         `json:"temperature"`
+	MaxCompletionTokens int             `json:"max_completion_tokens,omitempty"`
+	ResponseFormat      *responseFormat `json:"response_format,omitempty"`
 }
 
 type responseFormat struct {
@@ -132,7 +149,8 @@ type chatMessage struct {
 
 type chatResponse struct {
 	Choices []struct {
-		Message struct {
+		FinishReason string `json:"finish_reason"`
+		Message      struct {
 			Content string `json:"content"`
 		} `json:"message"`
 	} `json:"choices"`
