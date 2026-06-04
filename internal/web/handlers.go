@@ -148,16 +148,19 @@ func (s *Server) handleWeekRedirect(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleWeek(w http.ResponseWriter, r *http.Request) {
 	d := s.store.Snapshot()
 	d.Projects = models.ProjectsForFY(d.Projects, d.Settings.Year)
-	week := clampWeek(r.PathValue("week"), d.Settings)
+	start := clampWeek(r.PathValue("week"), d.Settings)
+	weeks := spanWeeks(r)
 	cal := s.calendar(d)
-	wv := forecast.BuildWeek(d, cal, week)
+	sv := forecast.BuildSpan(d, cal, start, weeks)
 	projects := forecast.SortedProjects(activeProjects(d.Projects))
 	s.render(w, "week.html", map[string]any{
 		"Active":      "week",
+		"Wide":        true,
 		"Settings":    d.Settings,
 		"FYYears":     fyYears(d),
-		"Week":        wv,
-		"MaxWeek":     forecast.FYWeeks(d.Settings.Year, d.Settings.FiscalYearStartMonth),
+		"Span":        sv,
+		"MaxWeek":     sv.MaxWeek,
+		"WeekChoices": []int{1, 2, 3, 4, 6, 8},
 		"Projects":    projects,
 		"AllProjects": forecast.SortedProjects(d.Projects),
 	})
@@ -169,13 +172,26 @@ func (s *Server) handleWeekSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	d := s.store.Snapshot()
-	week := clampWeek(r.PathValue("week"), d.Settings)
-	monday := forecast.FYWeekMonday(d.Settings.Year, d.Settings.FiscalYearStartMonth, week)
+	start := clampWeek(r.PathValue("week"), d.Settings)
+	weeks := spanWeeks(r)
+	max := forecast.FYWeeks(d.Settings.Year, d.Settings.FiscalYearStartMonth)
+	if weeks > max {
+		weeks = max
+	}
+	if start+weeks-1 > max {
+		start = max - weeks + 1
+		if start < 1 {
+			start = 1
+		}
+	}
 
-	// Collect the set of dates belonging to this week (Mon-Fri).
+	// Collect every Mon-Fri date across the visible span of weeks.
 	weekDates := map[string]bool{}
-	for i := 0; i < 5; i++ {
-		weekDates[monday.AddDate(0, 0, i).Format("2006-01-02")] = true
+	for wi := 0; wi < weeks; wi++ {
+		monday := forecast.FYWeekMonday(d.Settings.Year, d.Settings.FiscalYearStartMonth, start+wi)
+		for i := 0; i < 5; i++ {
+			weekDates[monday.AddDate(0, 0, i).Format("2006-01-02")] = true
+		}
 	}
 
 	type key struct{ date, project string }
@@ -257,7 +273,7 @@ func (s *Server) handleWeekSave(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "save failed", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/week/"+strconv.Itoa(week), http.StatusSeeOther)
+	http.Redirect(w, r, fmt.Sprintf("/week/%d?weeks=%d", start, weeks), http.StatusSeeOther)
 }
 
 // --- Projects ---
@@ -556,6 +572,19 @@ func clampWeek(raw string, st models.Settings) int {
 		w = max
 	}
 	return w
+}
+
+// spanWeeks parses the number of consecutive weeks to display from the request
+// query (?weeks=N), clamped to a sane range. Defaults to 1 when absent.
+func spanWeeks(r *http.Request) int {
+	n, err := strconv.Atoi(trim(r.URL.Query().Get("weeks")))
+	if err != nil || n < 1 {
+		return 1
+	}
+	if n > 52 {
+		n = 52
+	}
+	return n
 }
 
 func newID() string {

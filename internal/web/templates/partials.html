@@ -27,7 +27,7 @@
     <span class="state">{{.Settings.FederalState}}</span>
   </div>
 </header>
-<main>
+<main{{if .Wide}} class="wide"{{end}}>
 {{end}}
 
 {{define "footer"}}
