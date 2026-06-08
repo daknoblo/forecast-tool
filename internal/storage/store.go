@@ -189,14 +189,15 @@ func parseAndValidate(raw []byte) (models.Data, error) {
 	return d, nil
 }
 
-// Reset replaces the whole document with a blank default document for the given
-// year, discarding all projects, entries, fiscal-year settings and AI settings.
+// Reset clears all bookings (entries) and projects while preserving every
+// setting (global Settings and per-fiscal-year FiscalYears). The year argument
+// is unused and kept only for backward compatibility of the signature.
 func (s *Store) Reset(year int) error {
-	d := models.DefaultData(year)
-	normalize(&d)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.data = d
+	s.data.Projects = []models.Project{}
+	s.data.Entries = []models.Entry{}
+	normalize(&s.data)
 	return s.persist()
 }
 

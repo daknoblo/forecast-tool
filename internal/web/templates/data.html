@@ -34,8 +34,8 @@
       <a href="/export" class="btn" download>JSON exportieren</a>
     </div>
   </form>
-  <form method="post" action="/data/reset" class="reset-form" onsubmit="return confirm('Wirklich ALLE Daten zurücksetzen? Projekte, Stunden, Einträge, Jahresziele und KI-Einstellungen werden unwiderruflich gelöscht und durch eine leere JSON ersetzt.');">
-    <button type="submit" class="btn danger">JSON zurücksetzen (alle Daten löschen)</button>
+  <form method="post" action="/data/reset" class="reset-form" onsubmit="return confirm('Wirklich alle Projekte und Buchungen löschen? Einstellungen (settings, fiscalYears) bleiben erhalten. Dieser Schritt kann nicht rückgängig gemacht werden.');">
+    <button type="submit" class="btn danger">Projekte &amp; Buchungen löschen</button>
   </form>
   <p class="hint">
     Struktur: <code>settings</code> (year, federalState, weeklyTargetHours, fiscalYearStartMonth),
