@@ -18,7 +18,7 @@
 {{range .Views}}
 <section class="card project">
   <div class="project-head">
-    <h2><span class="dot" style="background:{{.Summary.Project.Color}}"></span>{{.Summary.Project.Name}}</h2>
+    <h2><span class="dot" style="background:{{.Summary.Project.Color}}"></span>{{.Summary.Project.Name}}{{if .Summary.Project.IsVacation}} <span class="fy-badge">automatisch · Urlaub</span>{{end}}</h2>
     <div class="project-kpis">
       <span>Budget <strong>{{hours .Summary.Project.BudgetHours}} h</strong></span>
       <span>Forecast <strong>{{hours .Summary.Forecast}} h</strong></span>
@@ -43,6 +43,9 @@
 
   <div class="burndown-wrap">{{.Burndown}}</div>
 
+  {{if .Summary.Project.IsVacation}}
+  <p class="hint">Das Urlaubsprojekt wird automatisch verwaltet: Das Budget ergibt sich aus den Urlaubstagen (H1 + H2) in den <a href="/settings">Einstellungen</a> (Tage à 8 h). Es kann nicht gelöscht werden – trage Urlaub wie bei jedem Projekt im <a href="/week">Forecast</a> ein. Diese Stunden zählen nicht aufs Jahresziel und nicht in die Wochen-Auslastung.</p>
+  {{else}}
   <details>
     <summary>Bearbeiten</summary>
     <form method="post" action="/projects/{{.Summary.Project.ID}}/update" class="form-row">
@@ -59,6 +62,7 @@
       <button type="submit" class="btn danger">Löschen</button>
     </form>
   </details>
+  {{end}}
 </section>
 {{end}}
 {{else}}

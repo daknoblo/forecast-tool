@@ -39,7 +39,8 @@ const Blueprint = `{
     }
   },
   "projects": [
-    { "id": "proj-a", "name": "Projekt A", "budgetHours": 200, "color": "#2563eb", "active": true, "fiscalYear": 2027 }
+    { "id": "proj-a", "name": "Projekt A", "budgetHours": 200, "color": "#2563eb", "active": true, "fiscalYear": 2027 },
+    { "id": "vacation-2027", "name": "Urlaub", "budgetHours": 240, "color": "#64748b", "active": true, "fiscalYear": 2027, "system": "vacation" }
   ],
   "entries": [
     { "date": "2026-07-01", "projectId": "proj-a", "hours": 8, "kind": "forecast" },
@@ -58,7 +59,7 @@ Wende die Anweisung an und gib AUSSCHLIESSLICH das vollständige, gültige JSON-
 Schema:
 - settings: { year, federalState, weeklyTargetHours, fiscalYearStartMonth, ai{...} } – GLOBAL, NUR ändern wenn der Nutzer es ausdrücklich verlangt.
 - fiscalYears: Objekt mit Jahr-Schlüsseln, je { targetHours, vacationDaysH1, vacationDaysH2, standardTaskLabel, standardTaskHours }.
-- projects: Liste von { id, name, budgetHours, color, active, fiscalYear }. id = kurze eindeutige Kennung; color = Hex (#rrggbb); fiscalYear = das Anker-Jahr (FY 27 => 2027).
+- projects: Liste von { id, name, budgetHours, color, active, fiscalYear, system? }. id = kurze eindeutige Kennung; color = Hex (#rrggbb); fiscalYear = das Anker-Jahr (FY 27 => 2027). Ein Projekt mit "system": "vacation" ist das automatisch verwaltete Urlaubsprojekt (id "vacation-<jahr>", Name "Urlaub"): NICHT löschen, umbenennen oder sein budgetHours ändern; seine Stunden zählen nicht aufs Jahresziel. Reguläre Projekte haben kein system-Feld.
 - entries: Liste von { date (YYYY-MM-DD), projectId, hours, kind } mit kind "forecast" (Plan) oder "actual" (Ist). Jede projectId MUSS zu einer projects.id passen.
 - forecastPlan (OPTIONAL): kompakte Liste von { projectId, fiscalYear, hoursPerWeek, kind } für regelmäßige, über ein ganzes Fiskaljahr gleichmäßig verteilte Forecasts.
 
@@ -135,7 +136,7 @@ func Generate(ctx context.Context, cfg models.AISettings, prompt, currentJSON st
 		logger.Error("ai endpoint unreachable", "error", err, "deployment", deployment)
 		return "", fmt.Errorf("KI-Endpoint nicht erreichbar: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 	elapsed := time.Since(start)

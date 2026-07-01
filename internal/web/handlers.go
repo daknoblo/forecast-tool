@@ -357,14 +357,17 @@ func (s *Server) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad form", http.StatusBadRequest)
 		return
 	}
-	name := trim(r.FormValue("name"))
+	name := capLen(trim(r.FormValue("name")), 200)
 	if name == "" {
 		http.Redirect(w, r, "/projects", http.StatusSeeOther)
 		return
 	}
 	budget, _ := strconv.ParseFloat(normalizeNum(r.FormValue("budget")), 64)
-	startDate := trim(r.FormValue("startDate"))
-	endDate := trim(r.FormValue("endDate"))
+	if budget < 0 {
+		budget = 0
+	}
+	startDate := validISODate(r.FormValue("startDate"))
+	endDate := validISODate(r.FormValue("endDate"))
 	_ = s.store.Update(func(d *models.Data) error {
 		used := make([]string, 0, len(d.Projects))
 		for _, p := range d.Projects {
@@ -391,15 +394,26 @@ func (s *Server) handleProjectUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("id")
-	name := trim(r.FormValue("name"))
+	name := capLen(trim(r.FormValue("name")), 200)
 	budget, _ := strconv.ParseFloat(normalizeNum(r.FormValue("budget")), 64)
+	if budget < 0 {
+		budget = 0
+	}
 	color := trim(r.FormValue("color"))
+	if color != "" && !models.IsHexColor(color) {
+		color = ""
+	}
 	active := r.FormValue("active") != ""
-	startDate := trim(r.FormValue("startDate"))
-	endDate := trim(r.FormValue("endDate"))
+	startDate := validISODate(r.FormValue("startDate"))
+	endDate := validISODate(r.FormValue("endDate"))
 	_ = s.store.Update(func(d *models.Data) error {
 		for i := range d.Projects {
 			if d.Projects[i].ID == id {
+				// The vacation project is auto-managed: its budget comes from the
+				// FY settings and it must not be renamed or reconfigured here.
+				if d.Projects[i].IsVacation() {
+					return nil
+				}
 				if name != "" {
 					d.Projects[i].Name = name
 				}
@@ -421,10 +435,17 @@ func (s *Server) handleProjectDelete(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	_ = s.store.Update(func(d *models.Data) error {
 		out := make([]models.Project, 0, len(d.Projects))
+		removed := false
 		for _, p := range d.Projects {
-			if p.ID != id {
-				out = append(out, p)
+			// The vacation project is auto-managed and cannot be deleted.
+			if p.ID == id && !p.IsVacation() {
+				removed = true
+				continue
 			}
+			out = append(out, p)
+		}
+		if !removed {
+			return nil
 		}
 		d.Projects = out
 		// also drop entries of that project
@@ -448,12 +469,31 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 	gs := forecast.BuildGoalSummary(d, cal)
 	d.Projects = models.ProjectsForFY(d.Projects, d.Settings.Year)
 	ys := forecast.BuildYearSummary(d, cal)
+
+	// Cumulative projected hours per month drive the progress charts for the
+	// whole FY and each half-year.
+	var fyChart, h1Chart, h2Chart template.HTML
+	if len(gs.Months) == 12 {
+		labels := make([]string, 12)
+		proj := make([]float64, 12)
+		for i, m := range gs.Months {
+			labels[i] = m.Label
+			proj[i] = m.Projected
+		}
+		fyChart = progressSVG(labels, cumulative(proj), gs.TargetHours)
+		h1Chart = progressSVG(labels[:6], cumulative(proj[:6]), round1(gs.TargetHours/2))
+		h2Chart = progressSVG(labels[6:], cumulative(proj[6:]), round1(gs.TargetHours/2))
+	}
+
 	s.render(w, "goal.html", map[string]any{
 		"Active":     "goal",
 		"Settings":   d.Settings,
 		"FYYears":    fyYears(d),
 		"Goal":       gs,
 		"WeekTotals": ys.WeekTotals,
+		"FYChart":    fyChart,
+		"H1Chart":    h1Chart,
+		"H2Chart":    h2Chart,
 	})
 }
 
@@ -519,10 +559,10 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 		minH, minErr := strconv.ParseFloat(normalizeNum(r.FormValue("utilMin")), 64)
 		optH, optErr := strconv.ParseFloat(normalizeNum(r.FormValue("utilOptimal")), 64)
 		overH, overErr := strconv.ParseFloat(normalizeNum(r.FormValue("utilOver")), 64)
-		minLabel := trim(r.FormValue("utilMinLabel"))
-		optLabel := trim(r.FormValue("utilOptimalLabel"))
-		highLabel := trim(r.FormValue("utilHighLabel"))
-		overLabel := trim(r.FormValue("utilOverLabel"))
+		minLabel := capLen(trim(r.FormValue("utilMinLabel")), 60)
+		optLabel := capLen(trim(r.FormValue("utilOptimalLabel")), 60)
+		highLabel := capLen(trim(r.FormValue("utilHighLabel")), 60)
+		overLabel := capLen(trim(r.FormValue("utilOverLabel")), 60)
 		_ = s.store.Update(func(d *models.Data) error {
 			if minErr == nil && minH >= 0 {
 				d.Settings.Utilization.MinHours = minH
@@ -588,6 +628,8 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 			fy.StandardTaskHours = stdHours
 		}
 		d.FiscalYears[d.Settings.Year] = fy
+		// Keep the vacation project's budget in sync with the vacation days.
+		models.EnsureVacationProject(d, d.Settings.Year)
 		return nil
 	})
 	http.Redirect(w, r, "/settings", http.StatusSeeOther)
@@ -752,6 +794,8 @@ func (s *Server) handleSetActiveFY(w http.ResponseWriter, r *http.Request) {
 	if year, err := strconv.Atoi(trim(r.FormValue("year"))); err == nil && models.ValidYear(year) {
 		_ = s.store.Update(func(d *models.Data) error {
 			d.Settings.Year = year
+			// Make sure the vacation project exists for the newly active FY.
+			models.EnsureVacationProject(d, year)
 			return nil
 		})
 	}

@@ -89,7 +89,7 @@ table.week.span th, table.week.span td { padding: 0.35rem 0.3rem; border-right: 
 table.week.span th, table.week.span td { text-align: center; }
 table.week.span th.pname, table.week.span td.pname { text-align: left; }
 table.week.span th.day, table.week.span td.day { min-width: 84px; }
-table.week.span td.pname, table.week.span th.pname { position: sticky; left: 0; z-index: 2; background: var(--panel); min-width: 160px; text-align: left; border-right: 2px solid var(--line); }
+table.week.span td.pname, table.week.span th.pname { position: sticky; left: 0; z-index: 2; background: var(--panel); min-width: 240px; width: 240px; text-align: left; border-right: 2px solid var(--line); }
 table.week.span .budget-left { display: block; margin-top: 2px; font-weight: 400; color: var(--muted); font-size: 0.72rem; }
 table.week.span .budget-left strong { color: var(--text); }
 table.week.span .budget-left.negative, table.week.span .budget-left.negative strong { color: var(--danger); }
@@ -257,6 +257,12 @@ table.week.span thead th.grandsum, table.week.span tfoot td.grandsum { backgroun
 /* month boundary: coloured divider on the right edge of the last weekday */
 table.week.span .monthend { border-right: 3px solid #f59e0b; }
 
+/* wider project-name column, narrower per-week sum column (sized to content),
+   and a clearer horizontal separator between projects */
+table.week.span .weeksum { width: 58px; padding-left: 0.25rem; padding-right: 0.25rem; }
+table.week.span .grandsum { width: 66px; }
+table.week.span tbody td { border-bottom: 2px solid #cbd5e1; }
+
 /* centred daily totals in the forecast footer (Forecast/Tag, Ist/Tag) */
 table.week tfoot td.center { text-align: center; }
 
@@ -270,5 +276,14 @@ table.week tfoot td.center { text-align: center; }
 .burnbanner-items { display: flex; flex-wrap: wrap; gap: 0.4rem 0.9rem; color: var(--muted); font-size: 0.82rem; }
 .burnchip { display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; }
 .burnchip .dot { width: 10px; height: 10px; }
+
+/* goal half-year cards + progress charts */
+.halves { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; }
+.half { border: 1px solid var(--line); border-radius: 10px; padding: 0.75rem 1rem; background: #fbfcfe; }
+.half h3 { margin: 0 0 0.5rem; font-size: 1rem; }
+.half-kpis { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; color: var(--muted); font-size: 0.85rem; margin-bottom: 0.5rem; }
+.half-kpis strong { color: var(--text); }
+.mini-chart { margin-top: 0.6rem; }
+.progress-chart { width: 100%; height: auto; }
 
 

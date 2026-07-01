@@ -1,14 +1,28 @@
 # ---- Build stage ----
-FROM golang:1.26-alpine AS build
+# Pin the builder to the native BUILDPLATFORM so the Go toolchain runs natively
+# and cross-compiles for the requested TARGETOS/TARGETARCH. This avoids slow
+# QEMU emulation of the whole Go build for non-native arches (e.g. arm64).
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
 WORKDIR /src
 
-# Cache dependencies first
-COPY go.mod go.sum* ./
-RUN go mod download
+ARG TARGETOS
+ARG TARGETARCH
 
-# Build the static binary
+# Download modules first, reusing a shared BuildKit cache mount so repeat builds
+# don't re-fetch unchanged dependencies.
+COPY go.mod go.sum* ./
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
+
+# Build the static binary, cross-compiled for the target platform. The module
+# and Go build caches are mounted so only changed packages get recompiled. Go's
+# build cache keys already include GOOS/GOARCH, so a shared cache is safe across
+# architectures.
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/forecast ./cmd/server
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} \
+    go build -trimpath -ldflags="-s -w" -o /out/forecast ./cmd/server
 
 # ---- Runtime stage ----
 FROM alpine:3.21
