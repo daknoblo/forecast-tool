@@ -40,8 +40,8 @@ func burndownSVG(points []forecast.BurnPoint, budget float64, color string) temp
 
 	n := len(points)
 	if n < 2 {
-		// Not enough data to draw a meaningful curve.
-		return template.HTML(fmt.Sprintf(
+		// Not enough data to draw a meaningful curve; numeric-only placeholder.
+		return template.HTML(fmt.Sprintf( // #nosec G203 -- constant SVG shell, numeric values only
 			`<svg viewBox="0 0 %g %g" class="burndown" role="img" aria-label="Burn-Down"></svg>`, w, h))
 	}
 	yMax := budget
@@ -131,7 +131,7 @@ func progressSVG(labels []string, cumulative []float64, target float64) template
 	plotW := w - padL - padR
 	plotH := h - padT - padB
 	if n < 1 {
-		return template.HTML(fmt.Sprintf(
+		return template.HTML(fmt.Sprintf( // #nosec G203 -- constant SVG shell, numeric values only
 			`<svg viewBox="0 0 %g %g" class="progress-chart" role="img" aria-label="Fortschritt"></svg>`, w, h))
 	}
 	yMax := target

@@ -8,6 +8,7 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"sort"
 	"strconv"
@@ -318,7 +319,7 @@ func (s *Server) handleWeekSave(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "save failed", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, fmt.Sprintf("/week/%d?weeks=%d", start, weeks), http.StatusSeeOther)
+	http.Redirect(w, r, fmt.Sprintf("/week/%d?weeks=%d", start, weeks), http.StatusSeeOther) // #nosec G710 -- path built from integers only, not user-controlled
 }
 
 // --- Projects ---
@@ -772,8 +773,9 @@ func aiConfigured(a models.AISettings) bool {
 	return trim(a.Endpoint) != "" && trim(a.Deployment) != "" && trim(a.APIKey) != ""
 }
 
-// aiAPIKeyEnv is the environment variable that supplies the secret AI API key.
-const aiAPIKeyEnv = "FORECAST_AI_API_KEY"
+// aiAPIKeyEnv is the NAME of the environment variable that supplies the secret
+// AI API key. The key itself is never stored in code or the data file.
+const aiAPIKeyEnv = "FORECAST_AI_API_KEY" // #nosec G101 -- env var name, not a credential
 
 // effectiveAI overlays the API key from the environment so the secret never has
 // to live in the data file. A stored (legacy) key is used only as a fallback.
@@ -799,14 +801,31 @@ func (s *Server) handleSetActiveFY(w http.ResponseWriter, r *http.Request) {
 			return nil
 		})
 	}
-	dest := trim(r.Header.Get("Referer"))
-	if dest == "" {
-		dest = "/"
-	}
-	http.Redirect(w, r, dest, http.StatusSeeOther)
+	// Redirect back to the page the user came from, but only to a same-origin
+	// path so a crafted Referer header cannot cause an open redirect.
+	http.Redirect(w, r, refererPath(r), http.StatusSeeOther) // #nosec G710 -- same-origin path/query only
 }
 
 // --- helpers ---
+
+// refererPath returns the local path (with query) of the request's Referer so
+// the user is sent back to the page they came from, never to an external
+// origin. Scheme and host are discarded, which prevents an open redirect.
+func refererPath(r *http.Request) string {
+	ref := trim(r.Header.Get("Referer"))
+	if ref == "" {
+		return "/"
+	}
+	u, err := url.Parse(ref)
+	if err != nil || u.Path == "" {
+		return "/"
+	}
+	dest := u.Path
+	if u.RawQuery != "" {
+		dest += "?" + u.RawQuery
+	}
+	return dest
+}
 
 // halfLabel formats a half-year range like "Juli 2026 – Dezember 2026".
 func halfLabel(start, end time.Time) string {

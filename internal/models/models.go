@@ -476,5 +476,5 @@ func RandomColor(used []string) string {
 	if len(avail) == 0 {
 		avail = Palette
 	}
-	return avail[rand.Intn(len(avail))]
+	return avail[rand.Intn(len(avail))] // #nosec G404 -- colour selection is cosmetic, not security-sensitive
 }
