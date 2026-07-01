@@ -88,6 +88,28 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
   zwei Kalenderjahre. Daher Eingabe **getrennt für H1 und H2** (Tage à 8 h).
 - In der Kapazität getrennt als „Urlaub 1. Halbjahr“ / „Urlaub 2. Halbjahr“ ausweisen.
 
+## Urlaub als Projekt (auto-verwaltet)
+
+- Pro Fiskaljahr existiert genau **ein automatisch verwaltetes Urlaubs­projekt**
+  (`Project.System == "vacation"`, `models.VacationSystem`), stabile ID
+  `vacation-<Jahr>` (`models.VacationProjectID`), Name „Urlaub“, feste Farbe
+  `models.VacationColor` (#64748b). Es wird über `models.EnsureVacationProject(d, year)`
+  angelegt/synchronisiert – aufgerufen in `storage.normalize` (Laden + JSON-Editor +
+  Erststart via `load()`), beim FY-Wechsel (`handleSetActiveFY`) und beim Speichern der
+  Einstellungen (`handleSettingsSave`).
+- **Budget = (VacationDaysH1 + VacationDaysH2) × 8 h** aus den FY-Einstellungen
+  (`FiscalYearSettings.VacationBudgetHours`). Es ist **gesperrt** (kein Bearbeiten/
+  Umbenennen über `handleProjectUpdate`) und **nicht löschbar** (`handleProjectDelete`-Guard;
+  auch im JSON-Editor wird es durch `normalize` wiederhergestellt).
+- Urlaubsstunden sind **rein informativ**: Sie zählen **nicht aufs FY-Ziel**
+  (`BuildGoalSummary` überspringt Urlaub) und **nicht in die Wochen-Auslastungs-Ampel**
+  (`BuildWeek`/`BuildSpan` `WorkForecast`/`WorkActual`/`EffectiveTotal`, `BuildYearSummary`
+  `WeekTotals`). Urlaub bleibt aber ein **normales Projekt** (buchbar im Forecast-Grid,
+  eigenes Budget/Burndown, eigene Zeilen-/Wochensummen). Projekte-Seite zeigt Badge
+  „automatisch · Urlaub“ statt der Bearbeiten/Löschen-Steuerung.
+- AI-Blueprint (`internal/ai`) enthält das Urlaubsprojekt inkl. `system`-Feld; die KI darf
+  es nicht löschen, umbenennen oder sein Budget ändern.
+
 ## Standard Tasks
 
 - Stundenanzahl für Standard Tasks für das gesamte FY (ein Eingabefeld in den
@@ -142,6 +164,16 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
   da `embed`). Kein Wochensoll mehr im Footer.
 - Auf der Ziel-Seite werden **Quartals- und Monatsübersicht immer angezeigt**
   (nicht ausklappbar).
+- **Ziel-Seite Reihenfolge (chronologisch):** Gesamt-FY (KPIs, Status inkl.
+  Fortschritts-Diagramm, FY-Kapazität, Resttempo, Soll-Tempo) → **Halbjahre H1 & H2**
+  (`GoalSummary.Halves`, je Card mit Kennzahlen, Auslastungsbalken und kleinem
+  Fortschritts-/Burn-Diagramm) → Quartale → Monatsübersicht → Wochenauslastung.
+  Die Diagramme (`web.progressSVG`, kumulierte Hochrechnung vs. Ideallinie + Ziel)
+  gibt es für FY, H1 und H2; Monate/Wochen behalten die Balken.
+- **Forecast-Grid Layout:** Projektnamen-Spalte (`.pname`) breit (~240 px), alle Werte
+  zentriert (außer `.pname`), Projektzeilen durch einen horizontalen Rahmen getrennt
+  (`tbody td` border-bottom 2px), Wochensummen-Spalte (`.weeksum`) schmal an den Inhalt
+  angepasst. Diese Vorgaben liegen in `static/style.css` (kein Markup in `week.html` nötig).
 - **Zentrales FY-Dropdown oben rechts im Header** (dort, wo Jahr/Bundesland stehen):
   schaltet das aktive Fiskaljahr global um, funktioniert von **jeder** Seite und kehrt
   nach dem Wechsel zur Ursprungsseite zurück (Route `POST /fy`, Redirect auf Referer). Sofern man hier das FY wechselt müssen auch auf allen seiten die passenden FY angezeigt werden

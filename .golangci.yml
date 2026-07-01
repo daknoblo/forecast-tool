@@ -1,0 +1,26 @@
+# golangci-lint configuration (v2 schema).
+#
+# The default linter set already enables errcheck, govet, ineffassign,
+# staticcheck and unused. We add a few low-false-positive linters on top.
+# gosec is intentionally NOT enabled here: it runs as a separate,
+# non-blocking SARIF job in the CI workflow so findings are reported in the
+# GitHub Security tab without failing the build.
+#
+# Tip: pin the version via the golangci-lint-action `version:` input in CI if
+# you need fully reproducible results across runs.
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  enable:
+    - misspell
+    - unconvert
+  exclusions:
+    rules:
+      # The UI language is German; user-facing error strings are intentionally
+      # capitalized and may end with a period, which conflicts with ST1005.
+      - linters:
+          - staticcheck
+        text: "ST1005"

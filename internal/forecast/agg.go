@@ -37,7 +37,9 @@ type WeekView struct {
 	ActualTotals         map[string]float64
 	Total                float64
 	ActualTotal          float64
-	EffectiveTotal       float64 // actual where booked, else forecast (basis for the status)
+	WorkForecast         float64 // forecast hours excluding vacation (utilization basis)
+	WorkActual           float64 // actual hours excluding vacation (utilization basis)
+	EffectiveTotal       float64 // actual where booked, else forecast, excluding vacation (status basis)
 	HolidayHours         float64
 	TargetHours          float64
 	UtilizationPct       float64
@@ -163,6 +165,19 @@ func kindIndex(entries []models.Entry, kind string) map[string]float64 {
 	return idx
 }
 
+// vacationSet returns the set of vacation project IDs. Their hours are
+// informational: excluded from the weekly utilization traffic-light and the FY
+// goal, but still shown as a normal project with its own budget/burn-down.
+func vacationSet(ps []models.Project) map[string]bool {
+	set := map[string]bool{}
+	for _, p := range ps {
+		if p.IsVacation() {
+			set[p.ID] = true
+		}
+	}
+	return set
+}
+
 // BuildWeek assembles the Mon-Fri view for one fiscal-year week.
 func BuildWeek(d models.Data, cal *holidays.Calendar, week int) WeekView {
 	year := d.Settings.Year
@@ -171,6 +186,7 @@ func BuildWeek(d models.Data, cal *holidays.Calendar, week int) WeekView {
 	fyStart, fyEnd := FiscalYear(year, startMonth)
 	fidx := kindIndex(d.Entries, models.KindForecast)
 	aidx := kindIndex(d.Entries, models.KindActual)
+	vac := vacationSet(d.Projects)
 
 	_, isoWeek := monday.ISOWeek()
 	friday := monday.AddDate(0, 0, 4)
@@ -225,9 +241,14 @@ func BuildWeek(d models.Data, cal *holidays.Calendar, week int) WeekView {
 				cell.ActualTotal += a
 				wv.ActualTotals[p.ID] += a
 			}
-			// Effective hours: a booked actual overrides the forecast.
+			// Vacation is informational: excluded from utilization and status.
+			if vac[p.ID] {
+				continue
+			}
+			wv.WorkForecast += f
 			if a != 0 {
-				wv.EffectiveTotal += a
+				wv.WorkActual += a
+				wv.EffectiveTotal += a // a booked actual overrides the forecast
 			} else {
 				wv.EffectiveTotal += f
 			}
@@ -238,10 +259,12 @@ func BuildWeek(d models.Data, cal *holidays.Calendar, week int) WeekView {
 	}
 
 	wv.EffectiveTotal = round1(wv.EffectiveTotal)
+	wv.WorkForecast = round1(wv.WorkForecast)
+	wv.WorkActual = round1(wv.WorkActual)
 	wv.Status = d.Settings.ClassifyUtilization(wv.EffectiveTotal)
 	if wv.TargetHours > 0 {
-		wv.UtilizationPct = round1(wv.Total / wv.TargetHours * 100)
-		wv.ActualUtilizationPct = round1(wv.ActualTotal / wv.TargetHours * 100)
+		wv.UtilizationPct = round1(wv.WorkForecast / wv.TargetHours * 100)
+		wv.ActualUtilizationPct = round1(wv.WorkActual / wv.TargetHours * 100)
 	}
 	return wv
 }
@@ -271,6 +294,8 @@ type SpanView struct {
 	ActualTotals         map[string]float64 // projectID -> actual hours over the span
 	Total                float64
 	ActualTotal          float64
+	WorkForecast         float64 // forecast hours excluding vacation (utilization basis)
+	WorkActual           float64 // actual hours excluding vacation (utilization basis)
 	HolidayHours         float64
 	TargetHours          float64 // weekly target * number of visible weeks
 	UtilizationPct       float64
@@ -323,15 +348,19 @@ func BuildSpan(d models.Data, cal *holidays.Calendar, startWeek, weeks int) Span
 		}
 		sv.Total += wv.Total
 		sv.ActualTotal += wv.ActualTotal
+		sv.WorkForecast += wv.WorkForecast
+		sv.WorkActual += wv.WorkActual
 		sv.HolidayHours += wv.HolidayHours
 	}
 	sv.Total = round1(sv.Total)
 	sv.ActualTotal = round1(sv.ActualTotal)
+	sv.WorkForecast = round1(sv.WorkForecast)
+	sv.WorkActual = round1(sv.WorkActual)
 	sv.HolidayHours = round1(sv.HolidayHours)
 	sv.TargetHours = round1(d.Settings.WeeklyTargetHours * float64(weeks))
 	if sv.TargetHours > 0 {
-		sv.UtilizationPct = round1(sv.Total / sv.TargetHours * 100)
-		sv.ActualUtilizationPct = round1(sv.ActualTotal / sv.TargetHours * 100)
+		sv.UtilizationPct = round1(sv.WorkForecast / sv.TargetHours * 100)
+		sv.ActualUtilizationPct = round1(sv.WorkActual / sv.TargetHours * 100)
 	}
 	sv.PrevStart = startWeek - weeks
 	if sv.PrevStart < 1 {
@@ -510,6 +539,7 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 	for _, p := range d.Projects {
 		projByID[p.ID] = p
 	}
+	vac := vacationSet(d.Projects)
 	for k, v := range eff {
 		sep := strings.IndexByte(k, '|')
 		dateStr := k[:sep]
@@ -583,8 +613,11 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 	weekForecast := make(map[int]float64)
 	weekActual := make(map[int]float64)
 	for k, v := range eff {
-		dateStr := k[:strings.IndexByte(k, '|')]
-		t, err := time.Parse("2006-01-02", dateStr)
+		sep := strings.IndexByte(k, '|')
+		if vac[k[sep+1:]] {
+			continue // vacation is excluded from weekly utilization
+		}
+		t, err := time.Parse("2006-01-02", k[:sep])
 		if err != nil {
 			continue
 		}
@@ -593,6 +626,9 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 		}
 	}
 	for _, e := range d.Entries {
+		if vac[e.ProjectID] {
+			continue
+		}
 		t, err := time.Parse("2006-01-02", e.Date)
 		if err != nil {
 			continue
@@ -738,6 +774,7 @@ type GoalSummary struct {
 	TargetPerQuarter  float64 // target / 4
 	Quarters          []PeriodStat
 	Months            []PeriodStat
+	Halves            []PeriodStat // H1 (first 6 FY months) and H2 (last 6)
 
 	// Capacity overview (working time available in the FY).
 	WeekdayHours      float64 // all FY weekdays (Mon-Fri) * 8h, weekends excluded
@@ -785,7 +822,11 @@ func BuildGoalSummary(d models.Data, cal *holidays.Calendar) GoalSummary {
 
 	fByDate := map[string]float64{}
 	aByDate := map[string]float64{}
+	vac := vacationSet(d.Projects)
 	for _, e := range d.Entries {
+		if vac[e.ProjectID] {
+			continue // vacation is informational, not counted towards the goal
+		}
 		if entryKind(e) == models.KindActual {
 			aByDate[e.Date] += e.Hours
 		} else {
@@ -938,6 +979,32 @@ func BuildGoalSummary(d models.Data, cal *holidays.Calendar) GoalSummary {
 
 	gs.Quarters = quarters
 	gs.Months = months
+
+	// Half-year roll-ups (H1 = first 6 FY months, H2 = last 6), derived from the
+	// per-month figures so they stay consistent with the month table.
+	halves := make([]PeriodStat, 2)
+	for half := 0; half < 2; half++ {
+		var ps PeriodStat
+		for m := half * 6; m < half*6+6; m++ {
+			ps.Forecast += months[m].Forecast
+			ps.Actual += months[m].Actual
+			ps.Holiday += months[m].Holiday
+			ps.Projected += months[m].Projected
+		}
+		fmH := (startMonth - 1 + half*6) % 12
+		lmH := (startMonth - 1 + half*6 + 5) % 12
+		ps.Label = fmt.Sprintf("%d. Halbjahr (%s–%s)", half+1, monthShort[fmH], monthShort[lmH])
+		ps.Target = round1(target / 2)
+		ps.Forecast = round1(ps.Forecast)
+		ps.Actual = round1(ps.Actual)
+		ps.Holiday = round1(ps.Holiday)
+		ps.Projected = round1(ps.Projected)
+		if ps.Target > 0 {
+			ps.PctOfTarget = round1(ps.Projected / ps.Target * 100)
+		}
+		halves[half] = ps
+	}
+	gs.Halves = halves
 	return gs
 }
 

@@ -296,3 +296,104 @@ func TestProjectWindowBurnrate(t *testing.T) {
 		t.Errorf("OutOfWindow = %v, want 7", p.OutOfWindow)
 	}
 }
+
+// vacationData has one real project and one auto-managed vacation project in
+// week 3 of 2026 (Mon 2026-01-12 .. Fri 2026-01-16).
+func vacationData() models.Data {
+	return models.Data{
+		Settings: models.Settings{
+			Year: 2026, FederalState: "BY", WeeklyTargetHours: 40,
+			FiscalYearStartMonth: 1, FiscalYearTargetHours: 1000,
+		},
+		Projects: []models.Project{
+			{ID: "p1", Name: "Alpha", BudgetHours: 100, Active: true, FiscalYear: 2026},
+			{ID: "vacation-2026", Name: "Urlaub", BudgetHours: 240, Active: true, FiscalYear: 2026, System: models.VacationSystem},
+		},
+		Entries: []models.Entry{
+			{Date: "2026-01-12", ProjectID: "p1", Hours: 8, Kind: models.KindActual},
+			{Date: "2026-01-13", ProjectID: "vacation-2026", Hours: 8, Kind: models.KindActual},
+			{Date: "2026-01-14", ProjectID: "vacation-2026", Hours: 8, Kind: models.KindForecast},
+		},
+	}
+}
+
+func TestVacationExcludedFromWeek(t *testing.T) {
+	d := vacationData()
+	wv := BuildWeek(d, holidays.New(2026, "BY"), 3)
+
+	// The vacation project is still displayed with its own per-project sums.
+	if wv.ActualTotals["vacation-2026"] != 8 {
+		t.Errorf("vacation actual total = %v, want 8 (still displayed)", wv.ActualTotals["vacation-2026"])
+	}
+	if wv.ProjectTotals["vacation-2026"] != 8 {
+		t.Errorf("vacation forecast total = %v, want 8 (still displayed)", wv.ProjectTotals["vacation-2026"])
+	}
+	// ...but it is excluded from the utilization/status basis.
+	if wv.EffectiveTotal != 8 {
+		t.Errorf("effective total = %v, want 8 (vacation excluded)", wv.EffectiveTotal)
+	}
+	if wv.WorkForecast != 0 {
+		t.Errorf("work forecast = %v, want 0 (only vacation was forecast)", wv.WorkForecast)
+	}
+	if wv.Status.Key != "min" {
+		t.Errorf("status = %q, want min (8h effective work)", wv.Status.Key)
+	}
+}
+
+func TestVacationExcludedFromYearAndGoal(t *testing.T) {
+	d := vacationData()
+	cal := holidays.New(2026, "BY")
+	ys := BuildYearSummary(d, cal)
+
+	// Vacation still appears as a project with its own consumption/budget.
+	var vac ProjectSummary
+	found := false
+	for _, p := range ys.Projects {
+		if p.Project.ID == "vacation-2026" {
+			vac, found = p, true
+		}
+	}
+	if !found {
+		t.Fatal("vacation project missing from year summary")
+	}
+	if vac.Consumed != 16 { // 8 actual + 8 forecast effective
+		t.Errorf("vacation consumed = %v, want 16", vac.Consumed)
+	}
+	// Weekly totals (the Ampel) exclude vacation: week 3 = only p1's 8h.
+	var w3 WeekTotal
+	for _, wt := range ys.WeekTotals {
+		if wt.Week == 3 {
+			w3 = wt
+		}
+	}
+	if w3.Hours != 8 {
+		t.Errorf("week 3 effective hours = %v, want 8 (vacation excluded)", w3.Hours)
+	}
+
+	// Goal excludes vacation entirely.
+	gs := BuildGoalSummary(d, cal)
+	if gs.ActualTotal != 8 {
+		t.Errorf("goal actual total = %v, want 8 (vacation excluded)", gs.ActualTotal)
+	}
+	if gs.ForecastTotal != 0 {
+		t.Errorf("goal forecast total = %v, want 0 (vacation forecast excluded)", gs.ForecastTotal)
+	}
+}
+
+func TestGoalHalves(t *testing.T) {
+	d := vacationData()
+	gs := BuildGoalSummary(d, holidays.New(2026, "BY"))
+	if len(gs.Halves) != 2 {
+		t.Fatalf("halves = %d, want 2", len(gs.Halves))
+	}
+	if gs.Halves[0].Target != 500 || gs.Halves[1].Target != 500 {
+		t.Errorf("half targets = %v/%v, want 500/500", gs.Halves[0].Target, gs.Halves[1].Target)
+	}
+	// Half projections sum to the overall projection (both derive from months).
+	if round1(gs.Halves[0].Projected+gs.Halves[1].Projected) != gs.Projected {
+		t.Errorf("halves projected sum = %v, want %v", gs.Halves[0].Projected+gs.Halves[1].Projected, gs.Projected)
+	}
+	if gs.Halves[0].Label == "" || gs.Halves[1].Label == "" {
+		t.Error("half labels must not be empty")
+	}
+}

@@ -126,6 +126,27 @@ func labelOr(s, def string) string {
 	return s
 }
 
+// IsHexColor reports whether s is a #RGB or #RRGGBB hex colour string.
+func IsHexColor(s string) bool {
+	if len(s) != 4 && len(s) != 7 {
+		return false
+	}
+	if s[0] != '#' {
+		return false
+	}
+	for i := 1; i < len(s); i++ {
+		if !isHexDigit(s[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// isHexDigit reports whether c is a hexadecimal digit (0-9, a-f, A-F).
+func isHexDigit(c byte) bool {
+	return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+}
+
 // FiscalYearSettings holds configuration that changes from one fiscal year to
 // the next. Vacation is entered per half-year because a fiscal year spans two
 // calendar years and vacation entitlement is counted per calendar year.
@@ -153,6 +174,7 @@ type Project struct {
 	FiscalYear  int     `json:"fiscalYear"`
 	StartDate   string  `json:"startDate,omitempty"` // inclusive, empty = FY start
 	EndDate     string  `json:"endDate,omitempty"`   // inclusive, empty = FY end
+	System      string  `json:"system,omitempty"`    // "" or "vacation" (auto-managed, non-deletable)
 }
 
 // Bookable reports whether the given ISO date lies within the project's booking
@@ -177,6 +199,72 @@ func ProjectsForFY(ps []Project, year int) []Project {
 		}
 	}
 	return out
+}
+
+// VacationSystem marks the auto-managed, non-deletable vacation project of a
+// fiscal year. Its hours are informational: they do not count towards the FY
+// goal or the weekly utilization traffic-light.
+const VacationSystem = "vacation"
+
+// VacationColor is the fixed colour of the vacation project so it is visually
+// distinct from real projects.
+const VacationColor = "#64748b"
+
+// vacationDayHours is the number of hours credited per planned vacation day.
+const vacationDayHours = 8.0
+
+// IsVacation reports whether the project is the auto-managed vacation project.
+func (p Project) IsVacation() bool { return p.System == VacationSystem }
+
+// VacationProjectID returns the stable ID of the vacation project of a FY.
+func VacationProjectID(year int) string {
+	return fmt.Sprintf("vacation-%d", year)
+}
+
+// VacationBudgetHours returns the vacation budget derived from the per-FY
+// settings: (H1 + H2 vacation days) * 8h.
+func (fy FiscalYearSettings) VacationBudgetHours() float64 {
+	return float64(fy.VacationDaysH1+fy.VacationDaysH2) * vacationDayHours
+}
+
+// EnsureVacationProject makes sure a non-deletable vacation project exists for
+// the given fiscal year and keeps its budget in sync with the FY settings
+// (vacation days * 8h). It returns true when it created or changed anything so
+// callers can decide whether to persist.
+func EnsureVacationProject(d *Data, year int) bool {
+	if !ValidYear(year) {
+		return false
+	}
+	budget := d.FYFor(year).VacationBudgetHours()
+	for i := range d.Projects {
+		p := &d.Projects[i]
+		if p.FiscalYear == year && p.IsVacation() {
+			changed := false
+			if p.BudgetHours != budget {
+				p.BudgetHours = budget
+				changed = true
+			}
+			if !p.Active {
+				p.Active = true
+				changed = true
+			}
+			if p.Name == "" {
+				p.Name = "Urlaub"
+				changed = true
+			}
+			return changed
+		}
+	}
+	d.Projects = append(d.Projects, Project{
+		ID:          VacationProjectID(year),
+		Name:        "Urlaub",
+		BudgetHours: budget,
+		Color:       VacationColor,
+		Active:      true,
+		FiscalYear:  year,
+		System:      VacationSystem,
+	})
+	return true
 }
 
 // Entry is the number of hours for a project on a specific day.
@@ -281,6 +369,12 @@ func Validate(d Data) error {
 		}
 		if p.BudgetHours < 0 {
 			return fmt.Errorf("projects[%d] (%s): budgetHours darf nicht negativ sein", i, p.Name)
+		}
+		if p.System != "" && p.System != VacationSystem {
+			return fmt.Errorf("projects[%d] (%s): system %q ist ungültig (nur %q erlaubt)", i, p.Name, p.System, VacationSystem)
+		}
+		if p.Color != "" && !IsHexColor(p.Color) {
+			return fmt.Errorf("projects[%d] (%s): color %q ist keine gültige Hex-Farbe (#rgb oder #rrggbb)", i, p.Name, p.Color)
 		}
 		if p.FiscalYear != 0 && !ValidYear(p.FiscalYear) {
 			return fmt.Errorf("projects[%d] (%s): fiscalYear %d liegt außerhalb von %d–%d", i, p.Name, p.FiscalYear, MinYear, MaxYear)

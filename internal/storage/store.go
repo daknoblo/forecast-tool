@@ -35,7 +35,9 @@ func New(path string) (*Store, error) {
 func (s *Store) load() error {
 	b, err := os.ReadFile(s.path)
 	if errors.Is(err, os.ErrNotExist) {
-		s.data = models.DefaultData(time.Now().Year())
+		d := models.DefaultData(time.Now().Year())
+		normalize(&d) // ensure defaults incl. the vacation project on first start
+		s.data = d
 		return s.persist()
 	}
 	if err != nil {
@@ -102,6 +104,10 @@ func normalize(d *models.Data) {
 			}
 		}
 	}
+	// Ensure the non-deletable vacation project exists for the active FY and
+	// that its budget matches the configured vacation days. This also enforces
+	// the project even when a user removes it via the raw JSON editor.
+	models.EnsureVacationProject(d, d.Settings.Year)
 }
 
 // persist writes the current document atomically (temp file + rename).

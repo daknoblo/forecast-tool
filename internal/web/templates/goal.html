@@ -50,6 +50,7 @@
       <span>Differenz zum Ziel: <strong class="{{if gt .Goal.Remaining 0.0}}negative{{end}}">{{hours .Goal.Remaining}} h</strong></span>
     </div>
   </div>
+  {{if .FYChart}}<div class="mini-chart">{{.FYChart}}</div>{{end}}
 </section>
 
 <section class="card">
@@ -98,6 +99,39 @@
       <tr><td>Arbeitstage vergangen</td><td class="num">{{.Goal.WorkingDaysDone}}</td></tr>
     </tbody>
   </table>
+</section>
+
+<section class="card">
+  <h2>Halbjahre</h2>
+  <p class="hint">H1 = erste 6 Monate des Fiskaljahres, H2 = letzte 6. Ziel je Halbjahr = Jahresziel / 2. Das Diagramm zeigt die kumulierte Hochrechnung gegenüber der idealen Gleichverteilung (gestrichelt) und dem Ziel (grün).</p>
+  <div class="halves">
+    {{$h1 := index .Goal.Halves 0}}
+    {{$h2 := index .Goal.Halves 1}}
+    <div class="half">
+      <h3>{{$h1.Label}}</h3>
+      <div class="half-kpis">
+        <span>Soll <strong>{{hours $h1.Target}} h</strong></span>
+        <span>Forecast <strong>{{hours $h1.Forecast}} h</strong></span>
+        <span>Ist <strong class="ist">{{hours $h1.Actual}} h</strong></span>
+        <span>Hochrechnung <strong>{{hours $h1.Projected}} h</strong></span>
+        <span class="{{if lt $h1.PctOfTarget 100.0}}negative{{end}}">Zielerreichung <strong>{{hours $h1.PctOfTarget}} %</strong></span>
+      </div>
+      <div class="bar"><span style="width:{{barWidth $h1.PctOfTarget}}%"></span></div>
+      {{if .H1Chart}}<div class="mini-chart">{{.H1Chart}}</div>{{end}}
+    </div>
+    <div class="half">
+      <h3>{{$h2.Label}}</h3>
+      <div class="half-kpis">
+        <span>Soll <strong>{{hours $h2.Target}} h</strong></span>
+        <span>Forecast <strong>{{hours $h2.Forecast}} h</strong></span>
+        <span>Ist <strong class="ist">{{hours $h2.Actual}} h</strong></span>
+        <span>Hochrechnung <strong>{{hours $h2.Projected}} h</strong></span>
+        <span class="{{if lt $h2.PctOfTarget 100.0}}negative{{end}}">Zielerreichung <strong>{{hours $h2.PctOfTarget}} %</strong></span>
+      </div>
+      <div class="bar"><span style="width:{{barWidth $h2.PctOfTarget}}%"></span></div>
+      {{if .H2Chart}}<div class="mini-chart">{{.H2Chart}}</div>{{end}}
+    </div>
+  </div>
 </section>
 
 <section class="card">
