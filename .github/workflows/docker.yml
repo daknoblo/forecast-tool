@@ -60,7 +60,7 @@ jobs:
       - name: Upload gosec SARIF
         if: always()
         continue-on-error: true
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: gosec.sarif
           category: gosec
@@ -123,7 +123,7 @@ jobs:
       - name: Trivy image scan (SARIF, non-blocking)
         if: github.event_name != 'pull_request'
         continue-on-error: true
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
           format: sarif
@@ -134,7 +134,7 @@ jobs:
       - name: Upload Trivy SARIF
         if: github.event_name != 'pull_request'
         continue-on-error: true
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy.sarif
           category: trivy
