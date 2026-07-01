@@ -23,7 +23,7 @@ type Store struct {
 // New opens (or initializes) the store at the given file path.
 func New(path string) (*Store, error) {
 	s := &Store{path: path}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return nil, err
 	}
 	if err := s.load(); err != nil {
@@ -118,7 +118,7 @@ func (s *Store) persist() error {
 		return err
 	}
 	tmp := s.path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o644); err != nil {
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
 		return err
 	}
 	return os.Rename(tmp, s.path)

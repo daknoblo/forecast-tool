@@ -31,7 +31,7 @@ type rotatingWriter struct {
 }
 
 func newRotatingWriter(path string, maxBytes int64, maxBackups int) (*rotatingWriter, error) {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return nil, err
 	}
 	w := &rotatingWriter{path: path, maxBytes: maxBytes, maxBackups: maxBackups}
@@ -42,7 +42,7 @@ func newRotatingWriter(path string, maxBytes int64, maxBackups int) (*rotatingWr
 }
 
 func (w *rotatingWriter) open() error {
-	f, err := os.OpenFile(w.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	f, err := os.OpenFile(w.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		return err
 	}
