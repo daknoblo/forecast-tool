@@ -120,27 +120,28 @@ Container-Output.
 ## Mit Docker bauen und starten
 ```bash
 docker build -t forecast-tool .
-docker run -p 8080:8080 -v "$PWD/appdata:/app/appdata" forecast-tool
+docker volume create forecast-data
+docker run -p 8080:8080 -v forecast-data:/app/appdata forecast-tool
 ```
 
 ## Mit docker compose (Ziel-Host)
 `docker-compose.yml` zieht standardmäßig das fertige Image aus der GitHub
-Container Registry und persistiert die Daten unter `./appdata`:
+Container Registry und persistiert die Daten in einem Named Volume:
 ```bash
 docker compose up -d
 ```
 Möchtest du lokal bauen statt zu ziehen, kommentiere in `docker-compose.yml`
 die `image:`-Zeile aus und aktiviere `build: .`.
 
-## CI/CD: Container über GitHub Actions nach GHCR
-Der Workflow [.github/workflows/docker.yml](.github/workflows/docker.yml) führt
-bei jedem Push auf `main` (und bei Tags `v*`) Folgendes aus:
-1. `go vet` + `go test`
-2. Multi-Arch-Build (`linux/amd64`, `linux/arm64`)
-3. Push nach `ghcr.io/<owner>/forecast-tool`
+## CI/CD: Prüfungen und Container-Release
+Der Workflow [.github/workflows/ci.yml](.github/workflows/ci.yml) prüft Format,
+`go vet`, golangci-lint, govulncheck, gosec (SARIF), Race-Tests und den
+statischen Build. [.github/workflows/release.yml](.github/workflows/release.yml)
+baut und pusht Multi-Arch-Images nach GHCR, erzeugt SBOM/Provenance, signiert
+keyless mit cosign und lädt den Trivy-SARIF-Report hoch.
 
-Das Image wird mit `latest` (auf `main`), der Git-SHA und – bei Tags – mit der
-Version getaggt.
+Das Image wird auf `main` als `stable`, auf `develop` als `dev`, zusätzlich mit
+Git-SHA und – bei Tags – mit der Version getaggt.
 
 ### Was du einmalig einrichten musst
 1. **Repository-Berechtigungen**: In *Settings → Actions → General → Workflow

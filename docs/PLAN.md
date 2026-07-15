@@ -49,7 +49,9 @@ appdata/.gitkeep                    # data.json zur Laufzeit (git-ignored)
 docs/PLAN.md                        # dieser Plan
 Dockerfile                          # Multi-stage, distroless
 docker-compose.yml
-.github/workflows/docker.yml        # CI: test + build + push -> GHCR
+.github/workflows/ci.yml            # CI: lint + test + build
+.github/workflows/release.yml       # Container build + push -> GHCR
+.github/workflows/codeql.yml        # CodeQL-Analyse
 go.mod
 ```
 
