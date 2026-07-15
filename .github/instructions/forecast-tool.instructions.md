@@ -14,11 +14,11 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
 - Go (Standardbibliothek): `net/http` ServeMux (Methode+Pattern-Routing, `r.PathValue`),
   `html/template` + `embed`. Modulpfad `github.com/daknoblo/forecast-tool`.
 - Speicher: **eine JSON-Datei** unter `appdata/data.json` (atomar via temp + rename,
-  `sync.RWMutex`). Pfad über `DATA_DIR` überschreibbar.
+  `sync.RWMutex`). Pfad über `FORECAST_DATA_DIR` überschreibbar (`DATA_DIR` nur Legacy-Alias).
 - Feiertage automatisch via `github.com/rickar/cal/v2` (deutsche Bundesländer wählbar);
   Abdeckung year-1..year+2, da das Fiskaljahr zwei Kalenderjahre umspannt.
-- Keine Authentifizierung (nur intern). Server lauscht auf `:8080` (`PORT`-env).
-- Deployment: Dockerfile (alpine, multi-arch) + GitHub Actions → `ghcr.io/daknoblo/forecast-tool`.
+- Keine Authentifizierung (nur intern). Server lauscht auf `:8080` (`FORECAST_ADDR`).
+- Deployment: Dockerfile (distroless, non-root, multi-arch, Healthcheck) + GitHub Actions → `ghcr.io/daknoblo/forecast-tool`.
 - Vorgschaltete reverse-proxy mit traefik, port 8080 ist also intern
 
 ## Datenmodell
@@ -218,7 +218,7 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
 ## Arbeitskonventionen (für den Agenten)
 
 - Vor dem Commit: `gofmt`, `go vet ./...`, `go build ./...`, `go test ./...` müssen grün sein.
-- Danach lokaler Smoke-Test (Server mit temporärem `DATA_DIR`), anschließend aufräumen
+- Danach lokaler Smoke-Test (Server mit temporärem `FORECAST_DATA_DIR`), anschließend aufräumen
   (`appdata` entfernen, `appdata/.gitkeep` wiederherstellen).
 - Keine separaten Markdown-Doku-Dateien anlegen, außer ausdrücklich gewünscht.
 - Templates/Static liegen unter `internal/web/` (per `embed`), nicht im Repo-Root.

@@ -1,44 +1,34 @@
-# ---- Build stage ----
-# Pin the builder to the native BUILDPLATFORM so the Go toolchain runs natively
-# and cross-compiles for the requested TARGETOS/TARGETARCH. This avoids slow
-# QEMU emulation of the whole Go build for non-native arches (e.g. arm64).
+# ---- Build-Stage ----
+# Der Go-Compiler läuft nativ auf BUILDPLATFORM und cross-compiliert für
+# TARGETOS/TARGETARCH. Das vermeidet langsame QEMU-Emulation im Build.
 FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
 WORKDIR /src
 
 ARG TARGETOS
 ARG TARGETARCH
 
-# Download modules first, reusing a shared BuildKit cache mount so repeat builds
-# don't re-fetch unchanged dependencies.
+# Module zuerst laden, damit der BuildKit-Cache unveränderte Abhängigkeiten
+# zwischen Builds wiederverwenden kann.
 COPY go.mod go.sum* ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
 
-# Build the static binary, cross-compiled for the target platform. The module
-# and Go build caches are mounted so only changed packages get recompiled. Go's
-# build cache keys already include GOOS/GOARCH, so a shared cache is safe across
-# architectures.
 COPY . .
+RUN mkdir -p /out/appdata
+
+# Statisches Binary für die Zielplattform bauen. Die Go-Caches sind sicher über
+# Architekturen hinweg nutzbar, weil GOOS/GOARCH Teil des Cache-Schlüssels sind.
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} \
+    CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-$(go env GOARCH)} \
     go build -trimpath -ldflags="-s -w" -o /out/forecast ./cmd/server
 
-# ---- Runtime stage ----
-FROM alpine:3.21
+# ---- Runtime-Stage ----
+FROM gcr.io/distroless/static:nonroot
 WORKDIR /app
 
-# su-exec lets the entrypoint drop from root to the unprivileged user after
-# fixing volume permissions. ca-certificates for good measure.
-RUN apk add --no-cache su-exec ca-certificates \
-    && addgroup -S appuser \
-    && adduser -S -G appuser -H -h /app appuser
-
-COPY --from=build /out/forecast /app/forecast
-COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
-    && mkdir -p /app/appdata \
-    && chown -R appuser:appuser /app
+COPY --from=build --chown=65532:65532 /out/forecast /app/forecast
+COPY --from=build --chown=65532:65532 /out/appdata /app/appdata
 
 ENV FORECAST_ADDR=:8080 \
     FORECAST_DATA_DIR=/app/appdata
@@ -46,6 +36,7 @@ ENV FORECAST_ADDR=:8080 \
 VOLUME ["/app/appdata"]
 EXPOSE 8080
 
-# Start as root so the entrypoint can adjust volume ownership, then it drops
-# privileges to appuser via su-exec before running the app.
-ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+USER nonroot:nonroot
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD ["/app/forecast", "-healthcheck"]
+ENTRYPOINT ["/app/forecast"]

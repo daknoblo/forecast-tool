@@ -1,9 +1,6 @@
 services:
   forecast:
     image: ghcr.io/daknoblo/forecast-tool:stable
-    # Für lokale Builds statt Pull aus GHCR die image-Zeile auskommentieren
-    # und den Build-Block aktivieren.
-    # build: .
     container_name: forecast-tool
     restart: unless-stopped
     ports:
