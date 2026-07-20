@@ -28,12 +28,12 @@ FROM gcr.io/distroless/static:nonroot
 WORKDIR /app
 
 COPY --from=build --chown=65532:65532 /out/forecast /app/forecast
-COPY --from=build --chown=65532:65532 /out/appdata /app/appdata
+COPY --from=build --chown=65532:65532 /out/appdata /appdata
 
 ENV FORECAST_ADDR=:8080 \
-    FORECAST_DATA_DIR=/app/appdata
+    FORECAST_DATA_DIR=/appdata
 
-VOLUME ["/app/appdata"]
+VOLUME ["/appdata"]
 EXPOSE 8080
 
 USER nonroot:nonroot

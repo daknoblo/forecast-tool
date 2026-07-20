@@ -9,7 +9,7 @@ Build via GitHub Actions nach GHCR. Betrieb per `docker compose` auf anderem Hos
 
 ## Entscheidungen
 - Stack: Go + `html/template` (Standardbibliothek, `net/http` ServeMux)
-- Speicher: JSON-Datei in `/app/appdata/data.json`, persistiert via compose-Volume
+- Speicher: JSON-Datei in `/appdata/data.json`, persistiert via compose-Volume
 - Auth: keine (Single-User, nur intern)
 - Feiertage: automatisch via `github.com/rickar/cal/v2` (DE, Bundesland wählbar)
 - Sollarbeitszeit: pro Woche konfigurierbar (Settings)
