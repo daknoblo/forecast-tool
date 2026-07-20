@@ -121,7 +121,7 @@ Container-Output.
 ```bash
 docker build -t forecast-tool .
 docker volume create forecast-data
-docker run -p 8080:8080 -v forecast-data:/app/appdata forecast-tool
+docker run -p 8080:8080 -v forecast-data:/appdata forecast-tool
 ```
 
 ## Mit docker compose (Ziel-Host)

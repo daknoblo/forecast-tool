@@ -10,12 +10,12 @@ services:
       - "8080:8080"
     environment:
       FORECAST_ADDR: ":8080"
-      FORECAST_DATA_DIR: "/app/appdata"
+      FORECAST_DATA_DIR: "/appdata"
       TZ: "Europe/Berlin"
       # Optional: API-Key für den KI-Endpoint per Host-Env oder .env-Datei setzen.
       # FORECAST_AI_API_KEY: "${FORECAST_AI_API_KEY}"
     volumes:
-      - forecast-data:/app/appdata
+      - forecast-data:/appdata
     read_only: true
     tmpfs:
       - /tmp
