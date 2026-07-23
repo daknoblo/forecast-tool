@@ -1,8 +1,8 @@
 # Forecast-Tool – HTTP-API
 
 Die JSON-API unter `/api/v1` erlaubt externen Tools (z. B. einem Desktop-Client)
-den Forecast zu **lesen** und zu **synchronisieren** (Plan-/Ist-Stunden), Projekte
-zu verwalten und Einstellungen zu pflegen.
+den Forecast zu **lesen** und zu **synchronisieren** (Stunden je Tag/Projekt),
+Projekte zu verwalten und Einstellungen zu pflegen.
 
 Die HTML-Oberfläche bleibt bewusst ohne Authentifizierung (nur intern hinter dem
 Reverse-Proxy). **Nur `/api/**` ist geschützt** – über zwei Bearer-Tokens.
@@ -44,8 +44,9 @@ Web-Oberfläche wird angezeigt, ob die Variablen gesetzt sind.
 - **Basis-URL:** `<host>/api/v1`
 - **Content-Type:** Request- und Response-Body sind JSON (`application/json`).
 - **Datumsformat:** ISO `YYYY-MM-DD`.
-- **Stunden (`hours`):** Dezimalzahl ≥ 0.
-- **Art (`kind`):** `forecast` (Plan) oder `actual` (Ist). Leer wird als `forecast` gewertet.
+- **Stunden (`hours`):** Dezimalzahl ≥ 0. Pro Tag und Projekt gibt es genau **einen**
+  Wert; ob er als **gebucht** (Ist) oder **Forecast** zählt, ergibt sich aus dem Datum
+  (vergangene Tage = gebucht, heute und später = Forecast). Es gibt **kein** `kind`-Feld.
 - **Fehlerformat:** `{ "error": "<deutsche Meldung>" }` mit passendem HTTP-Status.
 - **Request-Body-Limit:** 2 MiB. Unbekannte JSON-Felder werden abgelehnt (`400`).
 - **Teil-Updates (`PUT`):** Nur mitgeschickte Felder werden geändert. Bei Projekt-
@@ -142,7 +143,8 @@ curl -H "Authorization: Bearer $READ" "https://host/api/v1/projects/summary"
   ]
 }
 ```
-`consumedHours` ist der effektive Verbrauch (Ist wo gebucht, sonst Forecast),
+`consumedHours` ist die Summe aller Stunden (gebucht + Forecast), `forecastHours`
+zählt die zukünftigen (ab heute), `actualHours` die vergangenen Tage,
 `remainingHours` = `budgetHours − consumedHours`, `utilizationPct` =
 `consumedHours / budgetHours × 100`.
 
@@ -157,14 +159,13 @@ Query-Parameter (alle optional, kombinierbar):
 | `from=YYYY-MM-DD` | nur Einträge ab (inkl.) diesem Datum |
 | `to=YYYY-MM-DD`   | nur Einträge bis (inkl.) diesem Datum |
 | `projectId=<id>`  | nur dieses Projekt |
-| `kind=forecast\|actual` | nur diese Art |
 
 ```bash
 curl -H "Authorization: Bearer $READ" \
-  "https://host/api/v1/entries?from=2026-07-01&to=2026-07-31&kind=actual"
+  "https://host/api/v1/entries?from=2026-07-01&to=2026-07-31"
 ```
 ```json
-{ "entries": [ { "date": "2026-07-01", "projectId": "…", "hours": 6, "kind": "actual" } ] }
+{ "entries": [ { "date": "2026-07-01", "projectId": "…", "hours": 6 } ] }
 ```
 
 ### `GET /api/v1/goal`
@@ -176,7 +177,7 @@ Ziel-/Kapazitätsübersicht des aktiven FY, oder `?year=YYYY` für ein anderes F
 
 ### `POST /api/v1/entries/sync` — Kern-Synchronisation
 
-Upsert eines Stapels von Einträgen. Schlüssel je Eintrag: **(date, projectId, kind)**.
+Upsert eines Stapels von Einträgen. Schlüssel je Eintrag: **(date, projectId)**.
 
 - Existiert der Schlüssel bereits, werden die Stunden **überschrieben**, sonst **neu angelegt**.
 - `hours: 0` **löscht** einen vorhandenen Eintrag (zum Leeren von Tagen).
@@ -188,9 +189,9 @@ Upsert eines Stapels von Einträgen. Schlüssel je Eintrag: **(date, projectId, 
 ```json
 {
   "entries": [
-    { "date": "2026-07-01", "projectId": "abc", "hours": 6, "kind": "actual" },
-    { "date": "2026-07-01", "projectId": "abc", "hours": 2, "kind": "forecast" },
-    { "date": "2026-07-02", "projectId": "abc", "hours": 0, "kind": "actual" }
+    { "date": "2026-07-01", "projectId": "abc", "hours": 6 },
+    { "date": "2026-07-02", "projectId": "abc", "hours": 8 },
+    { "date": "2026-07-03", "projectId": "abc", "hours": 0 }
   ]
 }
 ```
@@ -206,7 +207,7 @@ verworfenen Eintrag (Index bezieht sich auf das gesendete Array).
 ```bash
 curl -X POST https://host/api/v1/entries/sync \
   -H "Authorization: Bearer $WRITE" -H "Content-Type: application/json" \
-  -d '{"entries":[{"date":"2026-07-01","projectId":"abc","hours":6,"kind":"actual"}]}'
+  -d '{"entries":[{"date":"2026-07-01","projectId":"abc","hours":6}]}'
 ```
 
 > **Projekt-IDs**: Ein externes Tool ermittelt die IDs vorab über
@@ -298,15 +299,15 @@ curl -X PUT https://host/api/v1/settings/fiscal-years/2027 \
    curl -X POST https://host/api/v1/entries/sync \
      -H "Authorization: Bearer $WRITE" -H "Content-Type: application/json" \
      -d '{"entries":[
-       {"date":"2026-07-20","projectId":"abc","hours":8,"kind":"actual"},
-       {"date":"2026-07-21","projectId":"abc","hours":6,"kind":"actual"},
-       {"date":"2026-07-21","projectId":"xyz","hours":2,"kind":"actual"}
+       {"date":"2026-07-20","projectId":"abc","hours":8},
+       {"date":"2026-07-21","projectId":"abc","hours":6},
+       {"date":"2026-07-21","projectId":"xyz","hours":2}
      ]}'
    ```
 3. Kontrolle:
    ```bash
    curl -H "Authorization: Bearer $READ" \
-     "https://host/api/v1/entries?from=2026-07-20&to=2026-07-24&kind=actual"
+     "https://host/api/v1/entries?from=2026-07-20&to=2026-07-24"
    ```
 
 Da der Sync idempotent ist, kann derselbe Zeitraum beliebig oft übertragen

@@ -17,8 +17,9 @@ bearbeiten, exportieren und optional per KI-Prompt aktualisieren.
   Daraus abgeleitet werden **Burnrate** (h/Woche bzw. h/Arbeitstag), Resttempo und ein
   Warnhinweis, falls außerhalb des Zeitraums gebucht wurde
 - Mehrwochen-Forecast-Ansicht: Projekte × Tage (Mo–Fr) über mehrere Wochen,
-  Eingabe von Plan- und Ist-Stunden pro Tag, automatische Summen (Summenspalte
-  zentriert), Buttons zum Leeren einzelner Tage oder ganzer Wochen
+  **ein Stundenwert pro Tag** (vergangene Tage = gebucht, ab heute = Forecast),
+  automatische Summen (Summenspalte zentriert), Buttons zum Leeren einzelner Tage
+  oder ganzer Wochen
 - Konfigurierbare **Auslastungs-Ampel**: vier Status (Burnrate Minimum, Optimal,
   Zu hoch, Überbucht) mit frei wählbaren Schwellen (Std.) und Labels; farbige
   Punkte in der Forecast-Übersicht sowie in den Wochentabellen von Dashboard und Zielen
@@ -106,14 +107,14 @@ Beispiel-Dokument) mitgesendet, damit es das exakte JSON-Format kennt.
 
 Für regelmäßige, über ein ganzes Fiskaljahr gleichmäßig verteilte Forecasts gibt die
 KI keine hunderten Tageseinträge aus (das würde das Token-Limit sprengen), sondern
-eine kompakte Direktive `forecastPlan` (`projectId`, `fiscalYear`, `hoursPerWeek`,
-`kind`). Der Server expandiert diese automatisch in Mo–Fr-Einträge
-(`hoursPerWeek/5` pro Werktag) für das gesamte Fiskaljahr.
+eine kompakte Direktive `forecastPlan` (`projectId`, `fiscalYear`, `hoursPerWeek`).
+Der Server expandiert diese automatisch in Mo–Fr-Einträge (`hoursPerWeek/5` pro
+Werktag) für das gesamte Fiskaljahr.
 
 ## HTTP-API
 Unter `/api/v1` steht eine JSON-API bereit, um den Forecast von externen Tools
-(z. B. einem Desktop-Client) zu **lesen** und **zu synchronisieren** (Plan- und
-Ist-Stunden), Projekte zu verwalten und Einstellungen zu pflegen. Die
+(z. B. einem Desktop-Client) zu **lesen** und **zu synchronisieren** (ein
+Stundenwert je Tag/Projekt), Projekte zu verwalten und Einstellungen zu pflegen. Die
 Web-Oberfläche bleibt bewusst ohne Authentifizierung; **nur `/api/**` ist über
 zwei Bearer-Tokens geschützt**:
 
@@ -131,10 +132,10 @@ angezeigt, ob die beiden Variablen gesetzt sind.
 # Aktuellen Stand lesen
 curl -H "Authorization: Bearer $READ" https://host/api/v1/data
 
-# Ist-Stunden synchronisieren (Upsert; hours=0 löscht)
+# Stunden synchronisieren (Upsert je Tag/Projekt; hours=0 löscht)
 curl -X POST https://host/api/v1/entries/sync \
   -H "Authorization: Bearer $WRITE" -H "Content-Type: application/json" \
-  -d '{"entries":[{"date":"2026-07-01","projectId":"<id>","hours":6,"kind":"actual"}]}'
+  -d '{"entries":[{"date":"2026-07-01","projectId":"<id>","hours":6}]}'
 ```
 
 Die vollständige Referenz aller Endpunkte, Parameter und Beispiele steht in

@@ -14,7 +14,7 @@ func TestExpandPlanGeneratesWeekdayEntries(t *testing.T) {
       "fiscalYears": { "2027": { "targetHours": 1440, "vacationDaysH1": 15, "vacationDaysH2": 15, "standardTaskLabel": "", "standardTaskHours": 250 } },
       "projects": [ { "id": "mvp", "name": "MVP", "budgetHours": 250, "color": "#2563eb", "active": true, "fiscalYear": 2027 } ],
       "entries": [],
-      "forecastPlan": [ { "projectId": "mvp", "fiscalYear": 2027, "hoursPerWeek": 20, "kind": "forecast" } ]
+      "forecastPlan": [ { "projectId": "mvp", "fiscalYear": 2027, "hoursPerWeek": 20 } ]
     }`)
 
 	out, err := ExpandPlan(raw, 7)
@@ -37,7 +37,7 @@ func TestExpandPlanGeneratesWeekdayEntries(t *testing.T) {
 		t.Fatalf("unexpected entry count: %d", len(data.Entries))
 	}
 	for _, e := range data.Entries {
-		if e.ProjectID != "mvp" || e.Kind != models.KindForecast || e.Hours != 4 {
+		if e.ProjectID != "mvp" || e.Hours != 4 {
 			t.Fatalf("unexpected entry: %+v", e)
 		}
 	}
