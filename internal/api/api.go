@@ -80,6 +80,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("GET /api/v1/data", s.handleGetData)
 	mux.HandleFunc("GET /api/v1/settings", s.handleGetSettings)
 	mux.HandleFunc("GET /api/v1/projects", s.handleListProjects)
+	mux.HandleFunc("GET /api/v1/projects/summary", s.handleProjectsSummary)
 	mux.HandleFunc("GET /api/v1/projects/{id}", s.handleGetProject)
 	mux.HandleFunc("GET /api/v1/entries", s.handleListEntries)
 	mux.HandleFunc("GET /api/v1/goal", s.handleGetGoal)
