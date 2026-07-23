@@ -201,23 +201,47 @@ Stages (kein `stable`/`dev`) mehr.
 > `docker-compose.yml` an deinen GitHub-Benutzer/-Organisation an.
 
 ### Fehlerbehebung: `open /appdata/data.json: permission denied`
-Das Image läuft als **Non-Root-User (UID 65532)**. Ein **frisch** angelegtes
-Volume erhält automatisch die richtigen Rechte. Ein **bestehendes** Volume aus
-einer älteren Image-Version kann jedoch noch `root` gehören – dann darf der
-Prozess `/appdata` nicht schreiben und der Container beendet sich mit
-`permission denied`.
+Das Image läuft als **Non-Root-User (UID 65532)** und muss nach `/appdata`
+schreiben. Der Fehler tritt auf, wenn das gemountete Datenverzeichnis einem
+anderen Nutzer gehört (meist `root`, z. B. aus einer älteren, als root
+laufenden Image-Version).
 
-Die mitgelieferte `docker-compose.yml` behebt das automatisch über einen kleinen
-`init-permissions`-Container, der die Rechte vor dem Start setzt. Es genügt:
+**Named Volume** (Standard dieses Repos): Ein frisch angelegtes Volume erhält
+automatisch die richtigen Rechte; die mitgelieferte `docker-compose.yml` setzt
+sie über einen kleinen `init-permissions`-Container zusätzlich bei jedem Start:
 ```bash
 docker compose up -d
 ```
-Ohne die Compose-Datei (bzw. für einen einmaligen Fix) reicht:
+Einmaliger manueller Fix für ein bestehendes Named Volume:
 ```bash
 docker compose down
 VOL=$(docker volume ls -q | grep forecast-data | head -1)
 docker run --rm -v "$VOL":/appdata alpine chown -R 65532:65532 /appdata
 docker compose up -d
+```
+
+**Bind Mount** (z. B. `./appdata:/appdata`, häufig bei Dockge/Portainer): Hier
+initialisiert Docker die Rechte **nicht** automatisch – das Host-Verzeichnis
+muss dem Container-User (UID 65532) gehören. Entweder einmalig auf dem Host im
+Stack-Verzeichnis:
+```bash
+sudo chown -R 65532:65532 ./appdata
+```
+… oder – damit es bei jedem Deploy automatisch passiert – denselben
+`init-permissions`-Service (mit **demselben** Bind-Mount) in die Compose
+aufnehmen und `forecast` per `depends_on` darauf warten lassen:
+```yaml
+  init-permissions:
+    image: alpine:3
+    command: ["chown", "-R", "65532:65532", "/appdata"]
+    volumes:
+      - ./appdata:/appdata
+    restart: "no"
+  forecast:
+    # ... bisherige Konfiguration ...
+    depends_on:
+      init-permissions:
+        condition: service_completed_successfully
 ```
 
 ## Tests
