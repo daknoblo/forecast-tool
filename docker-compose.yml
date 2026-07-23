@@ -1,6 +1,6 @@
 services:
   forecast:
-    image: ghcr.io/daknoblo/forecast-tool:stable
+    image: ghcr.io/daknoblo/forecast-tool:latest
     # Für lokale Builds statt Pull aus GHCR die image-Zeile auskommentieren
     # und den Build-Block aktivieren.
     # build: .
