@@ -62,12 +62,12 @@ func normalize(d *models.Data) {
 	if d.Entries == nil {
 		d.Entries = []models.Entry{}
 	}
-	// Backwards compatibility: entries without a kind are planned forecasts.
-	for i := range d.Entries {
-		if d.Entries[i].Kind == "" {
-			d.Entries[i].Kind = models.KindForecast
-		}
-	}
+	// Collapse entries to a single hours value per (date, projectId). Legacy
+	// documents distinguished forecast and actual entries; a booked actual used
+	// to override the forecast for the same day and project, so it wins here too.
+	// The kind marker is dropped afterwards: hours are now classified as booked
+	// or forecast purely by their date at read time.
+	d.Entries = mergeEntries(d.Entries)
 	if d.Settings.Year == 0 {
 		d.Settings.Year = time.Now().Year()
 	}
@@ -108,6 +108,45 @@ func normalize(d *models.Data) {
 	// that its budget matches the configured vacation days. This also enforces
 	// the project even when a user removes it via the raw JSON editor.
 	models.EnsureVacationProject(d, d.Settings.Year)
+}
+
+// mergeEntries collapses entries to a single value per (date, projectId). A
+// legacy booked "actual" entry overrides the "forecast" for the same day and
+// project (the old effective-hours rule); otherwise same-key hours are summed.
+// The resulting entries carry no kind and zero-hour results are dropped. The
+// first-seen order of (date, projectId) pairs is preserved for a stable file.
+func mergeEntries(entries []models.Entry) []models.Entry {
+	type key struct{ date, project string }
+	forecast := map[key]float64{}
+	actual := map[key]float64{}
+	hasActual := map[key]bool{}
+	order := make([]key, 0, len(entries))
+	seen := map[key]bool{}
+	for _, e := range entries {
+		k := key{e.Date, e.ProjectID}
+		if !seen[k] {
+			seen[k] = true
+			order = append(order, k)
+		}
+		if e.Kind == models.KindActual {
+			actual[k] += e.Hours
+			hasActual[k] = true
+		} else {
+			forecast[k] += e.Hours
+		}
+	}
+	out := make([]models.Entry, 0, len(order))
+	for _, k := range order {
+		h := forecast[k]
+		if hasActual[k] {
+			h = actual[k]
+		}
+		if h == 0 {
+			continue
+		}
+		out = append(out, models.Entry{Date: k.date, ProjectID: k.project, Hours: h})
+	}
+	return out
 }
 
 // persist writes the current document atomically (temp file + rename).

@@ -28,8 +28,12 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
   grenzen den **Buchungszeitraum** ein; leer = ganzes Fiskaljahr. `Project.Bookable(iso)`
   prüft per lexikografischem String-Vergleich, ob ein Datum im Zeitraum liegt.
   `Validate` prüft Datumsformat und `startDate <= endDate`.
-- `Entry`: date (YYYY-MM-DD), projectId, hours, kind (`forecast` | `actual`).
-  Ist-Stunden überschreiben Forecast pro Tag+Projekt bei der Budget-/Verbrauchsrechnung.
+- `Entry`: date (YYYY-MM-DD), projectId, hours. Pro Tag und Projekt gibt es genau
+  **einen** Stundenwert; ob er als gebucht (Ist) oder Forecast zählt, ergibt sich aus
+  dem Datum (vergangene Tage = gebucht, heute und später = Forecast). Das frühere
+  `kind`-Feld ist nur noch ein Migrations-Altfeld (wird beim Laden in `storage.normalize`
+  über `mergeEntries` kollabiert: pro (date, projectId) ein Wert, Ist gewinnt) und wird
+  nicht mehr geschrieben.
 - `Settings` (global): year (= aktives Fiskaljahr), federalState, weeklyTargetHours,
   fiscalYearStartMonth, `ai` (AISettings), `utilization` (UtilizationSettings).
 - `UtilizationSettings` (global, in `Settings.Utilization`): die Auslastungs-Ampel.
@@ -39,7 +43,7 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
   ordnet Wochenstunden einem `UtilStatus{Key,Label,Hours}` zu: `h<=min`→`min`
   (blau, Pfeil runter) · `min<h<=optimal`→`optimal` (grün, OK) ·
   `optimal<h<over`→`high` (orange, Pfeil hoch) · `h>=over`→`over` (rot, ✕).
-  Basis ist die **effektive** Wochenbuchung (Ist überschreibt Forecast).
+  Basis ist die Wochenbuchung (Summe der Stundenwerte, ohne Urlaub).
 - `AISettings` (in `Settings.AI`): endpoint, deployment, apiVersion. Konfiguriert
   einen entfernten, Azure-OpenAI-kompatiblen Chat-Completions-Endpoint (z. B. Azure AI
   Foundry Model-Router). Der **API-Key wird NICHT in der JSON gespeichert**, sondern
@@ -103,8 +107,8 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
   auch im JSON-Editor wird es durch `normalize` wiederhergestellt).
 - Urlaubsstunden sind **rein informativ**: Sie zählen **nicht aufs FY-Ziel**
   (`BuildGoalSummary` überspringt Urlaub) und **nicht in die Wochen-Auslastungs-Ampel**
-  (`BuildWeek`/`BuildSpan` `WorkForecast`/`WorkActual`/`EffectiveTotal`, `BuildYearSummary`
-  `WeekTotals`). Urlaub bleibt aber ein **normales Projekt** (buchbar im Forecast-Grid,
+  (`BuildWeek`/`BuildSpan` `EffectiveTotal`, `BuildYearSummary` `WeekTotals`). Urlaub
+  bleibt aber ein **normales Projekt** (buchbar im Forecast-Grid,
   eigenes Budget/Burndown, eigene Zeilen-/Wochensummen). Projekte-Seite zeigt Badge
   „automatisch · Urlaub“ statt der Bearbeiten/Löschen-Steuerung.
 - AI-Blueprint (`internal/ai`) enthält das Urlaubsprojekt inkl. `system`-Feld; die KI darf
@@ -119,7 +123,8 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
 
 ## Zielrechnung & Kapazität
 
-- Feiertage (Mo–Fr) zählen **nicht** aufs FY-Ziel; nur reale (Ist) + Forecast-Stunden.
+- Feiertage (Mo–Fr) zählen **nicht** aufs FY-Ziel; nur die erfassten Stunden (vergangene
+  Tage = gebucht, ab heute = Forecast).
   Feiertage sind rein informativ (8 h/Tag, eigene Kategorie).
 - FY-Gesamtstunden = alle FY-Wochentage × 8 h (ohne Wochenende).
 - **Verfügbare Arbeitsstunden (netto) = Wochentagsstunden − Feiertage − Urlaub (H1+H2) − Standard Tasks.**
@@ -190,12 +195,13 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
   `utilOverLabel`). Steht zwischen der Pro-FY-Karte und der KI-Endpoint-Karte.
 - **Forecast-Seite (`/week`):** Das Grid ist **pro Woche gruppiert** (`.Span.Blocks`):
   nach den fünf Tagesspalten folgt je Woche eine **Wochensummen-Spalte** (`.weeksum`,
-  Plan + Ist pro Projekt), ganz rechts eine **Gesamt-Spalte** über alle sichtbaren Wochen
+  Stundensumme pro Projekt), ganz rechts eine **Gesamt-Spalte** über alle sichtbaren Wochen
   (`.grandsum`). Wochen sind durch einen dickeren linken Rahmen am ersten Tag (`.weekstart`)
   abgegrenzt; **Monatsenden** durch einen farbigen rechten Strich (`.monthend`, gesetzt über
-  `DayCell.MonthEnd`: nächster sichtbarer Wochentag liegt in einem neuen Monat). Die
-  `tfoot`-Zeilen „Forecast / Tag“ und „Ist / Tag“ (`.dayfoot`) sind **zentriert**
-  (`td.center`) und haben ebenfalls Wochen-/Gesamtsummen. Header/Tages-/Footer-Zeilen
+  `DayCell.MonthEnd`: nächster sichtbarer Wochentag liegt in einem neuen Monat).
+  Vergangene (gebuchte) Tage sind dezent markiert (`td.day.past`, Badge „gebucht“). Die
+  `tfoot`-Zeile „Stunden / Tag“ (`.dayfoot`) ist **zentriert** (`td.center`) und hat
+  ebenfalls Wochen-/Gesamtsummen. Header/Tages-/Footer-Zeilen
   iterieren alle über `.Span.Blocks` → `.Days`, damit Spalten bündig bleiben; die
   Wochensummen-Header sind `rowspan=2`.
 - **Burnrate-Banner (`/week`):** über der Tabelle (neben dem Zeitraum) zeigt `.burnbanner`
@@ -204,9 +210,9 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
   Zeitraum überlappt. Quelle: `forecast.BuildSpanBurn(ys.Projects, spanStart, spanEnd)`
   in `handleWeek` (`ys` = `BuildYearSummary(d, cal)`).
 - **Leeren-Buttons** (`.clearbtn`, `type=button`, `data-clear-dates`) in Wochengruppen- und
-  Tages-Kopfzeilen leeren per JS alle `input.hcell` mit passendem `_<datum>`-Suffix (Plan +
-  Ist). Eine **Status-Zeile** im `tfoot` zeigt je Woche (`colspan=6`: 5 Tage + Summenspalte)
-  den Ampel-Punkt plus effektive Wochenstunden.
+  Tages-Kopfzeilen leeren per JS alle `input.hcell` mit passendem `_<datum>`-Suffix. Eine
+  **Status-Zeile** im `tfoot` zeigt je Woche (`colspan=6`: 5 Tage + Summenspalte) den
+  Ampel-Punkt plus die (urlaubsbereinigten) Wochenstunden.
 - **Projekte-Seite:** KPI-Zeile zeigt Budget, Verbraucht, Rest, **Burnrate** (h/Woche) und
   Auslastung; darunter der Zeitraum-/Burnrate-Block (`.project-window`).
 - **Ampel-Punkte** werden über das Template-Partial `{{define "utilstatus"}}` (in
@@ -293,11 +299,11 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
   `Snapshot()`/`Marshal()`. `GET`-Antworten **redigieren** den KI-Key (`AI.APIKey=""`).
 - **Endpunkte:** Read (`GET`): `/data`, `/settings`, `/projects[?fiscalYear=&all=]`,
   `/projects/summary[?fiscalYear=]` (berechnete Verbraucht/Rest/Auslastung je Projekt aus
-  `BuildYearSummary`→`ProjectSummary`), `/projects/{id}`, `/entries[?from=&to=&projectId=&kind=]`,
+  `BuildYearSummary`→`ProjectSummary`), `/projects/{id}`, `/entries[?from=&to=&projectId=]`,
   `/goal[?year=]`. Write:
   `POST /entries/sync`, `POST /projects`, `PUT /projects/{id}`, `DELETE /projects/{id}`,
   `PUT /settings`, `PUT /settings/fiscal-years/{year}`.
-- **`POST /entries/sync`** ist der Kern: Upsert je `(date, projectId, kind)`, `hours=0`
+- **`POST /entries/sync`** ist der Kern: Upsert je `(date, projectId)`, `hours=0`
   löscht; Guard über Projekt-Existenz + `p.Bookable(date)`; verworfene Einträge werden in
   `skipped` gemeldet (Rest wird angewendet). Antwort `{upserted, deleted, skipped}`.
 - Urlaubsprojekt bleibt gesperrt: `PUT`/`DELETE` darauf → `409`. FY-Settings-`PUT`

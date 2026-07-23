@@ -7,7 +7,9 @@ import (
 	"time"
 )
 
-// Entry kinds distinguish forecasted (planned) from actual (booked) hours.
+// Entry kinds are a legacy concept retained only to migrate old documents:
+// hours are now classified as booked or forecast purely by their date relative
+// to today (past = booked, today/future = forecast). See storage.normalize.
 const (
 	KindForecast = "forecast"
 	KindActual   = "actual"
@@ -267,15 +269,19 @@ func EnsureVacationProject(d *Data, year int) bool {
 	return true
 }
 
-// Entry is the number of hours for a project on a specific day.
-// Date is stored as ISO date string (YYYY-MM-DD). Kind is either
-// KindForecast (planned) or KindActual (really booked). An empty Kind
-// is treated as KindForecast for backwards compatibility.
+// Entry is the number of hours for a project on a specific day. Date is stored
+// as an ISO date string (YYYY-MM-DD). There is a single hours value per day and
+// project; whether it counts as "booked" or "forecast" is derived from the date
+// (past = booked, today/future = forecast), never stored.
+//
+// Kind is a deprecated, migration-only field: old documents distinguished
+// forecast and actual entries. It is read once so those can be collapsed into a
+// single value (see storage.normalize) and is never written back.
 type Entry struct {
 	Date      string  `json:"date"`
 	ProjectID string  `json:"projectId"`
 	Hours     float64 `json:"hours"`
-	Kind      string  `json:"kind,omitempty"`
+	Kind      string  `json:"kind,omitempty"` // deprecated: legacy forecast/actual marker, migration only
 }
 
 // Data is the full persisted document.
@@ -411,9 +417,6 @@ func Validate(d Data) error {
 		}
 		if e.Hours < 0 {
 			return fmt.Errorf("entries[%d] (%s): hours darf nicht negativ sein", i, e.Date)
-		}
-		if e.Kind != "" && e.Kind != KindForecast && e.Kind != KindActual {
-			return fmt.Errorf("entries[%d] (%s): kind %q muss %q oder %q sein", i, e.Date, e.Kind, KindForecast, KindActual)
 		}
 	}
 

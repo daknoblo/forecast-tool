@@ -68,7 +68,7 @@ func (s *Server) handleGetProject(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleListEntries returns entries filtered by the optional query parameters
-// from, to (inclusive ISO dates), projectId and kind (forecast|actual).
+// from, to (inclusive ISO dates) and projectId.
 func (s *Server) handleListEntries(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	from, err := optionalISO(q.Get("from"))
@@ -82,11 +82,6 @@ func (s *Server) handleListEntries(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	projectID := strings.TrimSpace(q.Get("projectId"))
-	kind := strings.TrimSpace(q.Get("kind"))
-	if kind != "" && kind != models.KindForecast && kind != models.KindActual {
-		s.writeError(w, http.StatusBadRequest, "kind muss forecast oder actual sein")
-		return
-	}
 
 	d := s.store.Snapshot()
 	out := make([]models.Entry, 0, len(d.Entries))
@@ -98,9 +93,6 @@ func (s *Server) handleListEntries(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		if projectID != "" && e.ProjectID != projectID {
-			continue
-		}
-		if kind != "" && entryKind(e) != kind {
 			continue
 		}
 		out = append(out, e)
@@ -133,7 +125,7 @@ type projectSummaryOut struct {
 	BudgetHours        float64 `json:"budgetHours"`
 	ForecastHours      float64 `json:"forecastHours"`
 	ActualHours        float64 `json:"actualHours"`
-	ConsumedHours      float64 `json:"consumedHours"` // effective: actual where booked, else forecast
+	ConsumedHours      float64 `json:"consumedHours"` // all hours (booked + forecast)
 	RemainingHours     float64 `json:"remainingHours"`
 	UtilizationPct     float64 `json:"utilizationPct"`
 	StartDate          string  `json:"startDate,omitempty"`
@@ -144,8 +136,8 @@ type projectSummaryOut struct {
 }
 
 // handleProjectsSummary returns the computed hour totals per project for a
-// fiscal year (default active, or ?fiscalYear=YYYY): budget, forecast, actual,
-// effective consumed (actual overrides forecast per day), remaining budget and
+// fiscal year (default active, or ?fiscalYear=YYYY): budget, forecast (future
+// days), actual (past days), consumed (all hours), remaining budget and
 // utilization — the same numbers as the Projects page.
 func (s *Server) handleProjectsSummary(w http.ResponseWriter, r *http.Request) {
 	d := s.store.Snapshot()
@@ -194,7 +186,6 @@ type syncEntry struct {
 	Date      string  `json:"date"`
 	ProjectID string  `json:"projectId"`
 	Hours     float64 `json:"hours"`
-	Kind      string  `json:"kind"`
 }
 
 type syncRequest struct {
@@ -213,9 +204,9 @@ type syncResult struct {
 }
 
 // handleSyncEntries upserts a batch of entries. Each item is keyed by
-// (date, projectId, kind); hours=0 deletes an existing entry. Items referencing
-// an unknown project or a date outside the project's booking window are skipped
-// and reported, so a partially-valid batch still applies its valid parts.
+// (date, projectId); hours=0 deletes an existing entry. Items referencing an
+// unknown project or a date outside the project's booking window are skipped and
+// reported, so a partially-valid batch still applies its valid parts.
 func (s *Server) handleSyncEntries(w http.ResponseWriter, r *http.Request) {
 	var req syncRequest
 	if err := decodeJSON(r, &req); err != nil {
@@ -233,10 +224,10 @@ func (s *Server) handleSyncEntries(w http.ResponseWriter, r *http.Request) {
 		for _, p := range d.Projects {
 			projByID[p.ID] = p
 		}
-		type entryKey struct{ date, project, kind string }
+		type entryKey struct{ date, project string }
 		idx := make(map[entryKey]int, len(d.Entries))
 		for i, e := range d.Entries {
-			idx[entryKey{e.Date, e.ProjectID, entryKind(e)}] = i
+			idx[entryKey{e.Date, e.ProjectID}] = i
 		}
 		toDelete := map[int]bool{}
 
@@ -244,14 +235,6 @@ func (s *Server) handleSyncEntries(w http.ResponseWriter, r *http.Request) {
 			date := strings.TrimSpace(se.Date)
 			if _, perr := time.Parse("2006-01-02", date); perr != nil {
 				result.Skipped = append(result.Skipped, syncSkip{i, "ungültiges Datum (YYYY-MM-DD)"})
-				continue
-			}
-			kind := se.Kind
-			if strings.TrimSpace(kind) == "" {
-				kind = models.KindForecast
-			}
-			if kind != models.KindForecast && kind != models.KindActual {
-				result.Skipped = append(result.Skipped, syncSkip{i, "kind muss forecast oder actual sein"})
 				continue
 			}
 			if se.Hours < 0 {
@@ -267,7 +250,7 @@ func (s *Server) handleSyncEntries(w http.ResponseWriter, r *http.Request) {
 				result.Skipped = append(result.Skipped, syncSkip{i, "Datum außerhalb des Buchungszeitraums"})
 				continue
 			}
-			k := entryKey{date, se.ProjectID, kind}
+			k := entryKey{date, se.ProjectID}
 			if se.Hours == 0 {
 				if j, exists := idx[k]; exists {
 					toDelete[j] = true
@@ -278,11 +261,10 @@ func (s *Server) handleSyncEntries(w http.ResponseWriter, r *http.Request) {
 			}
 			if j, exists := idx[k]; exists {
 				d.Entries[j].Hours = se.Hours
-				d.Entries[j].Kind = kind
 				delete(toDelete, j)
 			} else {
 				d.Entries = append(d.Entries, models.Entry{
-					Date: date, ProjectID: se.ProjectID, Hours: se.Hours, Kind: kind,
+					Date: date, ProjectID: se.ProjectID, Hours: se.Hours,
 				})
 				idx[k] = len(d.Entries) - 1
 			}
@@ -746,13 +728,4 @@ func projectDates(in projectInput) (start, end string, err error) {
 		}
 	}
 	return start, end, nil
-}
-
-// entryKind returns the effective kind of an entry, defaulting a blank kind to
-// forecast for backwards compatibility.
-func entryKind(e models.Entry) string {
-	if e.Kind == "" {
-		return models.KindForecast
-	}
-	return e.Kind
 }

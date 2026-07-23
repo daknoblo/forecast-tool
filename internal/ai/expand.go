@@ -21,7 +21,6 @@ type forecastDirective struct {
 	ProjectID    string  `json:"projectId"`
 	FiscalYear   int     `json:"fiscalYear"`
 	HoursPerWeek float64 `json:"hoursPerWeek"`
-	Kind         string  `json:"kind"`
 }
 
 // ExpandPlan looks for an optional "forecastPlan" array in the model's JSON
@@ -56,19 +55,15 @@ func ExpandPlan(raw []byte, defaultStartMonth int) ([]byte, error) {
 	}
 
 	// Track existing entries to avoid creating duplicates for the same
-	// day/project/kind combination.
+	// day/project combination.
 	seen := make(map[string]bool, len(data.Entries))
 	for _, e := range data.Entries {
-		seen[entryKey(e.Date, e.ProjectID, e.Kind)] = true
+		seen[entryKey(e.Date, e.ProjectID)] = true
 	}
 
 	for _, d := range wrap.ForecastPlan {
 		if d.ProjectID == "" || d.FiscalYear == 0 || d.HoursPerWeek <= 0 {
 			continue
-		}
-		kind := d.Kind
-		if kind == "" {
-			kind = models.KindForecast
 		}
 		perDay := d.HoursPerWeek / 5
 		start, end := forecast.FiscalYear(d.FiscalYear, startMonth)
@@ -77,7 +72,7 @@ func ExpandPlan(raw []byte, defaultStartMonth int) ([]byte, error) {
 				continue
 			}
 			date := day.Format("2006-01-02")
-			key := entryKey(date, d.ProjectID, kind)
+			key := entryKey(date, d.ProjectID)
 			if seen[key] {
 				continue
 			}
@@ -86,7 +81,6 @@ func ExpandPlan(raw []byte, defaultStartMonth int) ([]byte, error) {
 				Date:      date,
 				ProjectID: d.ProjectID,
 				Hours:     perDay,
-				Kind:      kind,
 			})
 			if len(data.Entries) > maxExpandedEntries {
 				return nil, fmt.Errorf("forecastPlan würde zu viele Einträge erzeugen (>%d) – bitte Zeitraum/Projekte eingrenzen", maxExpandedEntries)
@@ -101,9 +95,6 @@ func ExpandPlan(raw []byte, defaultStartMonth int) ([]byte, error) {
 	return out, nil
 }
 
-func entryKey(date, projectID, kind string) string {
-	if kind == "" {
-		kind = models.KindForecast
-	}
-	return date + "|" + projectID + "|" + kind
+func entryKey(date, projectID string) string {
+	return date + "|" + projectID
 }

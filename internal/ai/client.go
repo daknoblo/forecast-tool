@@ -43,11 +43,11 @@ const Blueprint = `{
     { "id": "vacation-2027", "name": "Urlaub", "budgetHours": 240, "color": "#64748b", "active": true, "fiscalYear": 2027, "system": "vacation" }
   ],
   "entries": [
-    { "date": "2026-07-01", "projectId": "proj-a", "hours": 8, "kind": "forecast" },
-    { "date": "2026-07-02", "projectId": "proj-a", "hours": 8, "kind": "actual" }
+    { "date": "2026-07-01", "projectId": "proj-a", "hours": 8 },
+    { "date": "2026-07-02", "projectId": "proj-a", "hours": 8 }
   ],
   "forecastPlan": [
-    { "projectId": "proj-a", "fiscalYear": 2027, "hoursPerWeek": 20, "kind": "forecast" }
+    { "projectId": "proj-a", "fiscalYear": 2027, "hoursPerWeek": 20 }
   ]
 }`
 
@@ -60,11 +60,11 @@ Schema:
 - settings: { year, federalState, weeklyTargetHours, fiscalYearStartMonth, ai{...} } – GLOBAL, NUR ändern wenn der Nutzer es ausdrücklich verlangt.
 - fiscalYears: Objekt mit Jahr-Schlüsseln, je { targetHours, vacationDaysH1, vacationDaysH2, standardTaskLabel, standardTaskHours }.
 - projects: Liste von { id, name, budgetHours, color, active, fiscalYear, system? }. id = kurze eindeutige Kennung; color = Hex (#rrggbb); fiscalYear = das Anker-Jahr (FY 27 => 2027). Ein Projekt mit "system": "vacation" ist das automatisch verwaltete Urlaubsprojekt (id "vacation-<jahr>", Name "Urlaub"): NICHT löschen, umbenennen oder sein budgetHours ändern; seine Stunden zählen nicht aufs Jahresziel. Reguläre Projekte haben kein system-Feld.
-- entries: Liste von { date (YYYY-MM-DD), projectId, hours, kind } mit kind "forecast" (Plan) oder "actual" (Ist). Jede projectId MUSS zu einer projects.id passen.
-- forecastPlan (OPTIONAL): kompakte Liste von { projectId, fiscalYear, hoursPerWeek, kind } für regelmäßige, über ein ganzes Fiskaljahr gleichmäßig verteilte Forecasts.
+- entries: Liste von { date (YYYY-MM-DD), projectId, hours }. Pro Tag und Projekt gibt es genau EINEN Stundenwert; ob er als gebucht (Ist) oder Forecast zählt, ergibt sich automatisch aus dem Datum (vergangene Tage = gebucht, ab heute = Forecast) – es gibt KEIN kind-Feld mehr. Jede projectId MUSS zu einer projects.id passen.
+- forecastPlan (OPTIONAL): kompakte Liste von { projectId, fiscalYear, hoursPerWeek } für regelmäßige, über ein ganzes Fiskaljahr gleichmäßig verteilte Stunden.
 
 WICHTIG zur Vermeidung zu langer Antworten:
-- Für „X Stunden pro Woche, gleichmäßig über das Fiskaljahr verteilt" NIEMALS die einzelnen Tageseinträge ausschreiben. Stattdessen GENAU EINEN Eintrag pro Projekt in "forecastPlan" anlegen: { projectId, fiscalYear, hoursPerWeek: X, kind: "forecast" }. Der Server expandiert das automatisch in Mo–Fr-Einträge (X/5 Stunden pro Werktag) für das gesamte Fiskaljahr.
+- Für „X Stunden pro Woche, gleichmäßig über das Fiskaljahr verteilt" NIEMALS die einzelnen Tageseinträge ausschreiben. Stattdessen GENAU EINEN Eintrag pro Projekt in "forecastPlan" anlegen: { projectId, fiscalYear, hoursPerWeek: X }. Der Server expandiert das automatisch in Mo–Fr-Einträge (X/5 Stunden pro Werktag) für das gesamte Fiskaljahr.
 - "entries" NUR für einzelne, konkret genannte Tage verwenden (z. B. „am 3. Juli 6 Stunden").
 
 So sieht ein vollständiges, gültiges Dokument aus (Blueprint, exakt dieses Format und diese Feldnamen verwenden):

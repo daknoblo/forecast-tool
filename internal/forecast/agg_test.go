@@ -2,6 +2,7 @@ package forecast
 
 import (
 	"testing"
+	"time"
 
 	"github.com/daknoblo/forecast-tool/internal/holidays"
 	"github.com/daknoblo/forecast-tool/internal/models"
@@ -98,9 +99,9 @@ func TestGoalSummaryTotals(t *testing.T) {
 	d := models.Data{
 		Settings: models.Settings{Year: 2026, FederalState: "BY", FiscalYearTargetHours: 1000, FiscalYearStartMonth: 1},
 		Entries: []models.Entry{
-			{Date: "2026-01-12", ProjectID: "p1", Hours: 8, Kind: models.KindActual},
-			{Date: "2026-12-21", ProjectID: "p1", Hours: 5, Kind: models.KindForecast},
-			{Date: "2026-03-02", ProjectID: "p1", Hours: 3}, // legacy entry == forecast
+			{Date: "2026-01-12", ProjectID: "p1", Hours: 8},
+			{Date: "2026-12-21", ProjectID: "p1", Hours: 5},
+			{Date: "2026-03-02", ProjectID: "p1", Hours: 3},
 		},
 	}
 	cal := holidays.New(2026, "BY")
@@ -109,11 +110,13 @@ func TestGoalSummaryTotals(t *testing.T) {
 	if !gs.HasTarget {
 		t.Fatal("expected HasTarget = true")
 	}
-	if gs.ActualTotal != 8 {
-		t.Errorf("actual total = %v, want 8", gs.ActualTotal)
+	// All hours count towards the projection regardless of past/future.
+	if gs.Projected != 16 {
+		t.Errorf("projected = %v, want 16 (8+5+3)", gs.Projected)
 	}
-	if gs.ForecastTotal != 8 {
-		t.Errorf("forecast total = %v, want 8", gs.ForecastTotal)
+	// Booked (past) + forecast (today/future) must add up to the projection.
+	if round1(gs.ActualTotal+gs.ForecastRemaining) != gs.Projected {
+		t.Errorf("actual %v + forecast %v != projected %v", gs.ActualTotal, gs.ForecastRemaining, gs.Projected)
 	}
 	if gs.WorkingDaysYear < 240 || gs.WorkingDaysYear > 255 {
 		t.Errorf("working days = %d, out of expected 240-255 range", gs.WorkingDaysYear)
@@ -137,9 +140,9 @@ func TestGoalHolidaysExcludedAndCapacity(t *testing.T) {
 			FiscalYearStartMonth: 1, AnnualVacationDays: 10,
 		},
 		Entries: []models.Entry{
-			// One actual booking in the past, one future forecast.
-			{Date: "2026-01-12", ProjectID: "p1", Hours: 8, Kind: models.KindActual},
-			{Date: "2026-12-21", ProjectID: "p1", Hours: 5, Kind: models.KindForecast},
+			// One booking in the past, one in the future.
+			{Date: "2026-01-12", ProjectID: "p1", Hours: 8},
+			{Date: "2026-12-21", ProjectID: "p1", Hours: 5},
 		},
 	}
 	cal := holidays.New(2026, "BY")
@@ -183,29 +186,39 @@ func TestGoalHolidaysExcludedAndCapacity(t *testing.T) {
 	}
 }
 
-func TestEffectiveHoursOverride(t *testing.T) {
-	d := sampleData()
-	// p1 on 2026-01-12 has a forecast of 8h. An actual booking of 6h on the same
-	// day must OVERRIDE the forecast (effective = actual where booked).
-	d.Entries = append(d.Entries, models.Entry{
-		Date: "2026-01-12", ProjectID: "p1", Hours: 6, Kind: models.KindActual,
-	})
-	ys := BuildYearSummary(d, holidays.New(2026, "BY"))
+func TestForecastActualSplitByDate(t *testing.T) {
+	// Hours are classified as booked or forecast purely by date: days before
+	// today are booked ("Actual"), today and later are forecast.
+	now := time.Now().UTC()
+	year := now.Year()
+	past := now.AddDate(0, 0, -14).Format("2006-01-02")
+	future := now.AddDate(0, 0, 14).Format("2006-01-02")
+	d := models.Data{
+		Settings: models.Settings{Year: year, FederalState: "BY", WeeklyTargetHours: 40, FiscalYearStartMonth: 1},
+		Projects: []models.Project{{ID: "p1", Name: "Alpha", BudgetHours: 100, Active: true, FiscalYear: year}},
+		Entries: []models.Entry{
+			{Date: past, ProjectID: "p1", Hours: 8},
+			{Date: future, ProjectID: "p1", Hours: 5},
+		},
+	}
+	ys := BuildYearSummary(d, holidays.New(year, "BY"))
 	var alpha ProjectSummary
 	for _, p := range ys.Projects {
 		if p.Project.ID == "p1" {
 			alpha = p
 		}
 	}
-	// p1 effective: 6 (actual overrides 8 forecast on 01-12) + 4 (forecast 01-13) = 10
-	if alpha.Consumed != 10 {
-		t.Errorf("alpha effective consumed = %v, want 10 (actual overrides forecast)", alpha.Consumed)
+	if alpha.Actual != 8 {
+		t.Errorf("alpha actual (past) = %v, want 8", alpha.Actual)
 	}
-	if alpha.Forecast != 12 {
-		t.Errorf("alpha forecast = %v, want 12", alpha.Forecast)
+	if alpha.Forecast != 5 {
+		t.Errorf("alpha forecast (future) = %v, want 5", alpha.Forecast)
 	}
-	if alpha.Actual != 6 {
-		t.Errorf("alpha actual = %v, want 6", alpha.Actual)
+	if alpha.Consumed != 13 {
+		t.Errorf("alpha consumed (all) = %v, want 13", alpha.Consumed)
+	}
+	if alpha.Remaining != 87 {
+		t.Errorf("alpha remaining = %v, want 87", alpha.Remaining)
 	}
 }
 
@@ -310,9 +323,9 @@ func vacationData() models.Data {
 			{ID: "vacation-2026", Name: "Urlaub", BudgetHours: 240, Active: true, FiscalYear: 2026, System: models.VacationSystem},
 		},
 		Entries: []models.Entry{
-			{Date: "2026-01-12", ProjectID: "p1", Hours: 8, Kind: models.KindActual},
-			{Date: "2026-01-13", ProjectID: "vacation-2026", Hours: 8, Kind: models.KindActual},
-			{Date: "2026-01-14", ProjectID: "vacation-2026", Hours: 8, Kind: models.KindForecast},
+			{Date: "2026-01-12", ProjectID: "p1", Hours: 8},
+			{Date: "2026-01-13", ProjectID: "vacation-2026", Hours: 8},
+			{Date: "2026-01-14", ProjectID: "vacation-2026", Hours: 8},
 		},
 	}
 }
@@ -321,19 +334,16 @@ func TestVacationExcludedFromWeek(t *testing.T) {
 	d := vacationData()
 	wv := BuildWeek(d, holidays.New(2026, "BY"), 3)
 
-	// The vacation project is still displayed with its own per-project sums.
-	if wv.ActualTotals["vacation-2026"] != 8 {
-		t.Errorf("vacation actual total = %v, want 8 (still displayed)", wv.ActualTotals["vacation-2026"])
+	// The vacation project is still displayed with its own per-project sum.
+	if wv.ProjectTotals["vacation-2026"] != 16 {
+		t.Errorf("vacation total = %v, want 16 (still displayed)", wv.ProjectTotals["vacation-2026"])
 	}
-	if wv.ProjectTotals["vacation-2026"] != 8 {
-		t.Errorf("vacation forecast total = %v, want 8 (still displayed)", wv.ProjectTotals["vacation-2026"])
+	if wv.ProjectTotals["p1"] != 8 {
+		t.Errorf("p1 total = %v, want 8", wv.ProjectTotals["p1"])
 	}
-	// ...but it is excluded from the utilization/status basis.
+	// ...but vacation is excluded from the utilization/status basis.
 	if wv.EffectiveTotal != 8 {
 		t.Errorf("effective total = %v, want 8 (vacation excluded)", wv.EffectiveTotal)
-	}
-	if wv.WorkForecast != 0 {
-		t.Errorf("work forecast = %v, want 0 (only vacation was forecast)", wv.WorkForecast)
 	}
 	if wv.Status.Key != "min" {
 		t.Errorf("status = %q, want min (8h effective work)", wv.Status.Key)
@@ -356,7 +366,7 @@ func TestVacationExcludedFromYearAndGoal(t *testing.T) {
 	if !found {
 		t.Fatal("vacation project missing from year summary")
 	}
-	if vac.Consumed != 16 { // 8 actual + 8 forecast effective
+	if vac.Consumed != 16 { // 8 + 8, both days count
 		t.Errorf("vacation consumed = %v, want 16", vac.Consumed)
 	}
 	// Weekly totals (the Ampel) exclude vacation: week 3 = only p1's 8h.
@@ -375,8 +385,8 @@ func TestVacationExcludedFromYearAndGoal(t *testing.T) {
 	if gs.ActualTotal != 8 {
 		t.Errorf("goal actual total = %v, want 8 (vacation excluded)", gs.ActualTotal)
 	}
-	if gs.ForecastTotal != 0 {
-		t.Errorf("goal forecast total = %v, want 0 (vacation forecast excluded)", gs.ForecastTotal)
+	if gs.ForecastRemaining != 0 {
+		t.Errorf("goal forecast remaining = %v, want 0 (vacation excluded, no future work)", gs.ForecastRemaining)
 	}
 }
 

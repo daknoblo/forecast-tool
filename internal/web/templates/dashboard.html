@@ -5,7 +5,7 @@
 <section class="cards">
   <div class="card kpi">
     <div class="kpi-value">{{hours .Summary.TotalHours}} h</div>
-    <div class="kpi-label">Forecast gesamt</div>
+    <div class="kpi-label">Stunden gesamt</div>
   </div>
   <div class="card kpi">
     <div class="kpi-value">{{len .Projects}}</div>
@@ -46,7 +46,7 @@
 <p class="empty">Noch keine Projekte. Lege im Bereich <a href="/projects">Projekte</a> dein erstes Projekt an.</p>
 {{end}}
 
-<h2>Wochenauslastung (Verbraucht = Ist/Forecast)</h2>
+<h2>Wochenauslastung</h2>
 <table class="grid compact">
   <thead><tr><th>Woche</th><th class="num">Stunden</th><th class="num">Soll</th><th>Status</th><th>Auslastung</th></tr></thead>
   <tbody>

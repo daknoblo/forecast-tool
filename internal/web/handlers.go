@@ -57,14 +57,8 @@ func NewServer(store *storage.Store, logger *slog.Logger) (*Server, error) {
 		"cellName": func(projectID, date string) string {
 			return "h_" + projectID + "_" + date
 		},
-		"cellNameActual": func(projectID, date string) string {
-			return "a_" + projectID + "_" + date
-		},
 		"cellHours": func(cell forecast.DayCell, projectID string) float64 {
 			return cell.Hours[projectID]
-		},
-		"cellActual": func(cell forecast.DayCell, projectID string) float64 {
-			return cell.Actual[projectID]
 		},
 		"weekTotal": func(totals map[string]float64, projectID string) float64 {
 			return totals[projectID]
@@ -188,7 +182,7 @@ func (s *Server) handleWeek(w http.ResponseWriter, r *http.Request) {
 	burn := forecast.BuildSpanBurn(ys.Projects, spanStart, spanEnd)
 	budgetLeft := map[string]float64{}
 	for _, p := range ys.Projects {
-		budgetLeft[p.Project.ID] = round1(p.Project.BudgetHours - p.Actual - p.Forecast)
+		budgetLeft[p.Project.ID] = round1(p.Project.BudgetHours - p.Consumed)
 	}
 	s.render(w, "week.html", map[string]any{
 		"Active":      "week",
@@ -235,13 +229,11 @@ func (s *Server) handleWeekSave(w http.ResponseWriter, r *http.Request) {
 
 	type key struct{ date, project string }
 	newHours := map[key]float64{}
-	newActual := map[key]float64{}
 	for name, vals := range r.Form {
-		if len(name) < 3 || (name[:2] != "h_" && name[:2] != "a_") {
+		if len(name) < 3 || name[:2] != "h_" {
 			continue
 		}
-		// h_{projectID}_{YYYY-MM-DD} (forecast) or a_{...} (actual)
-		isActual := name[:2] == "a_"
+		// h_{projectID}_{YYYY-MM-DD}
 		rest := name[2:]
 		if len(rest) < 11 {
 			continue
@@ -255,11 +247,7 @@ func (s *Server) handleWeekSave(w http.ResponseWriter, r *http.Request) {
 		if err != nil || h < 0 {
 			continue
 		}
-		if isActual {
-			newActual[key{date, projectID}] = h
-		} else {
-			newHours[key{date, projectID}] = h
-		}
+		newHours[key{date, projectID}] = h
 	}
 
 	err := s.store.Update(func(data *models.Data) error {
@@ -293,27 +281,7 @@ func (s *Server) handleWeekSave(w http.ResponseWriter, r *http.Request) {
 			}
 			if newHours[k] > 0 {
 				data.Entries = append(data.Entries, models.Entry{
-					Date: k.date, ProjectID: k.project, Hours: newHours[k], Kind: models.KindForecast,
-				})
-			}
-		}
-		akeys := make([]key, 0, len(newActual))
-		for k := range newActual {
-			akeys = append(akeys, k)
-		}
-		sort.Slice(akeys, func(i, j int) bool {
-			if akeys[i].date != akeys[j].date {
-				return akeys[i].date < akeys[j].date
-			}
-			return akeys[i].project < akeys[j].project
-		})
-		for _, k := range akeys {
-			if p, ok := projByID[k.project]; ok && !p.Bookable(k.date) {
-				continue // outside the project's booking window
-			}
-			if newActual[k] > 0 {
-				data.Entries = append(data.Entries, models.Entry{
-					Date: k.date, ProjectID: k.project, Hours: newActual[k], Kind: models.KindActual,
+					Date: k.date, ProjectID: k.project, Hours: newHours[k],
 				})
 			}
 		}

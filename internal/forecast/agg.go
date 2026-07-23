@@ -10,7 +10,9 @@ import (
 	"github.com/daknoblo/forecast-tool/internal/models"
 )
 
-// DayCell holds the forecast for a single day across all projects.
+// DayCell holds the hours for a single day across all projects. There is a
+// single hours value per project; whether it counts as "booked" or "forecast"
+// is derived from the day's date (Past marks a booked, i.e. before-today, day).
 type DayCell struct {
 	Date         string             // YYYY-MM-DD
 	WeekdayName  string             // Mo, Di, ...
@@ -19,34 +21,28 @@ type DayCell struct {
 	HolidayName  string             // holiday label, if any
 	HolidayHours float64            // auto-booked hours for a weekday holiday (8h)
 	MonthEnd     bool               // the next displayed weekday is in a new month
-	Hours        map[string]float64 // projectID -> forecast hours
-	Actual       map[string]float64 // projectID -> actual (booked) hours
-	Total        float64            // forecast sum over projects
-	ActualTotal  float64            // actual sum over projects
+	Past         bool               // the day lies before today (booked, not forecast)
+	Hours        map[string]float64 // projectID -> hours
+	Total        float64            // hours sum over projects
 }
 
 // WeekView aggregates a single fiscal-year week (Mon-Fri).
 type WeekView struct {
-	Year                 int
-	Week                 int // 1-based fiscal-year week index
-	ISOWeek              int
-	Label                string
-	RangeLabel           string
-	Days                 []DayCell
-	ProjectTotals        map[string]float64
-	ActualTotals         map[string]float64
-	Total                float64
-	ActualTotal          float64
-	WorkForecast         float64 // forecast hours excluding vacation (utilization basis)
-	WorkActual           float64 // actual hours excluding vacation (utilization basis)
-	EffectiveTotal       float64 // actual where booked, else forecast, excluding vacation (status basis)
-	HolidayHours         float64
-	TargetHours          float64
-	UtilizationPct       float64
-	ActualUtilizationPct float64
-	Status               models.UtilStatus // booking traffic-light for this week
-	PrevWeek             int
-	NextWeek             int
+	Year           int
+	Week           int // 1-based fiscal-year week index
+	ISOWeek        int
+	Label          string
+	RangeLabel     string
+	Days           []DayCell
+	ProjectTotals  map[string]float64 // projectID -> hours over the week
+	Total          float64            // hours sum over all projects
+	EffectiveTotal float64            // hours excluding vacation (status/utilization basis)
+	HolidayHours   float64
+	TargetHours    float64
+	UtilizationPct float64
+	Status         models.UtilStatus // booking traffic-light for this week
+	PrevWeek       int
+	NextWeek       int
 }
 
 var weekdayNames = []string{"Mo", "Di", "Mi", "Do", "Fr"}
@@ -145,22 +141,17 @@ func FYWeekIndexOf(year, startMonth int, t time.Time) int {
 	return days/7 + 1
 }
 
-// entryKind returns the effective kind of an entry, treating an empty kind as
-// a forecast for backwards compatibility.
-func entryKind(e models.Entry) string {
-	if e.Kind == models.KindActual {
-		return models.KindActual
-	}
-	return models.KindForecast
+// todayISO returns today's date (UTC) as an ISO YYYY-MM-DD string. Days before
+// it are "booked" (past); today and later are "forecast".
+func todayISO() string {
+	return time.Now().UTC().Format("2006-01-02")
 }
 
-// kindIndex maps "date|projectId" to hours for entries of the given kind.
-func kindIndex(entries []models.Entry, kind string) map[string]float64 {
+// hoursIndex maps "date|projectId" to the summed hours for that day and project.
+func hoursIndex(entries []models.Entry) map[string]float64 {
 	idx := make(map[string]float64, len(entries))
 	for _, e := range entries {
-		if entryKind(e) == kind {
-			idx[e.Date+"|"+e.ProjectID] += e.Hours
-		}
+		idx[e.Date+"|"+e.ProjectID] += e.Hours
 	}
 	return idx
 }
@@ -184,9 +175,9 @@ func BuildWeek(d models.Data, cal *holidays.Calendar, week int) WeekView {
 	startMonth := d.Settings.FiscalYearStartMonth
 	monday := FYWeekMonday(year, startMonth, week)
 	fyStart, fyEnd := FiscalYear(year, startMonth)
-	fidx := kindIndex(d.Entries, models.KindForecast)
-	aidx := kindIndex(d.Entries, models.KindActual)
+	hidx := hoursIndex(d.Entries)
 	vac := vacationSet(d.Projects)
+	today := todayISO()
 
 	_, isoWeek := monday.ISOWeek()
 	friday := monday.AddDate(0, 0, 4)
@@ -197,7 +188,6 @@ func BuildWeek(d models.Data, cal *holidays.Calendar, week int) WeekView {
 		Label:         fmt.Sprintf("Woche %d · KW %02d", week, isoWeek),
 		RangeLabel:    monday.Format("02.01.") + "–" + friday.Format("02.01.2006"),
 		ProjectTotals: map[string]float64{},
-		ActualTotals:  map[string]float64{},
 		TargetHours:   d.Settings.WeeklyTargetHours,
 		PrevWeek:      week - 1,
 		NextWeek:      week + 1,
@@ -221,50 +211,35 @@ func BuildWeek(d models.Data, cal *holidays.Calendar, week int) WeekView {
 			IsHoliday:   cal.IsHoliday(iso),
 			HolidayName: cal.Name(iso),
 			MonthEnd:    next.Month() != day.Month(),
+			Past:        iso < today,
 			Hours:       map[string]float64{},
-			Actual:      map[string]float64{},
 		}
 		if cell.IsHoliday {
 			cell.HolidayHours = HolidayDayHours
 			wv.HolidayHours += HolidayDayHours
 		}
 		for _, p := range d.Projects {
-			f := fidx[iso+"|"+p.ID]
-			a := aidx[iso+"|"+p.ID]
-			if f != 0 {
-				cell.Hours[p.ID] = f
-				cell.Total += f
-				wv.ProjectTotals[p.ID] += f
-			}
-			if a != 0 {
-				cell.Actual[p.ID] = a
-				cell.ActualTotal += a
-				wv.ActualTotals[p.ID] += a
+			h := hidx[iso+"|"+p.ID]
+			if h != 0 {
+				cell.Hours[p.ID] = h
+				cell.Total += h
+				wv.ProjectTotals[p.ID] += h
 			}
 			// Vacation is informational: excluded from utilization and status.
 			if vac[p.ID] {
 				continue
 			}
-			wv.WorkForecast += f
-			if a != 0 {
-				wv.WorkActual += a
-				wv.EffectiveTotal += a // a booked actual overrides the forecast
-			} else {
-				wv.EffectiveTotal += f
-			}
+			wv.EffectiveTotal += h
 		}
 		wv.Total += cell.Total
-		wv.ActualTotal += cell.ActualTotal
 		wv.Days = append(wv.Days, cell)
 	}
 
+	wv.Total = round1(wv.Total)
 	wv.EffectiveTotal = round1(wv.EffectiveTotal)
-	wv.WorkForecast = round1(wv.WorkForecast)
-	wv.WorkActual = round1(wv.WorkActual)
 	wv.Status = d.Settings.ClassifyUtilization(wv.EffectiveTotal)
 	if wv.TargetHours > 0 {
-		wv.UtilizationPct = round1(wv.WorkForecast / wv.TargetHours * 100)
-		wv.ActualUtilizationPct = round1(wv.WorkActual / wv.TargetHours * 100)
+		wv.UtilizationPct = round1(wv.EffectiveTotal / wv.TargetHours * 100)
 	}
 	return wv
 }
@@ -281,25 +256,21 @@ func formatDayDot(iso string) string {
 // SpanView aggregates several consecutive fiscal-year weeks into one Mon-Fri
 // grid so wide screens can show as many days as fit at once.
 type SpanView struct {
-	StartWeek            int
-	EndWeek              int
-	Weeks                int
-	MaxWeek              int
-	PrevStart            int
-	NextStart            int
-	RangeLabel           string
-	Blocks               []WeekView         // one entry per visible week (for header grouping)
-	Days                 []DayCell          // all days flattened across the visible weeks
-	ProjectTotals        map[string]float64 // projectID -> forecast hours over the span
-	ActualTotals         map[string]float64 // projectID -> actual hours over the span
-	Total                float64
-	ActualTotal          float64
-	WorkForecast         float64 // forecast hours excluding vacation (utilization basis)
-	WorkActual           float64 // actual hours excluding vacation (utilization basis)
-	HolidayHours         float64
-	TargetHours          float64 // weekly target * number of visible weeks
-	UtilizationPct       float64
-	ActualUtilizationPct float64
+	StartWeek      int
+	EndWeek        int
+	Weeks          int
+	MaxWeek        int
+	PrevStart      int
+	NextStart      int
+	RangeLabel     string
+	Blocks         []WeekView         // one entry per visible week (for header grouping)
+	Days           []DayCell          // all days flattened across the visible weeks
+	ProjectTotals  map[string]float64 // projectID -> hours over the span
+	Total          float64
+	EffectiveTotal float64 // hours excluding vacation over the span (utilization basis)
+	HolidayHours   float64
+	TargetHours    float64 // weekly target * number of visible weeks
+	UtilizationPct float64
 }
 
 // BuildSpan assembles a Mon-Fri grid spanning `weeks` consecutive fiscal-year
@@ -334,7 +305,6 @@ func BuildSpan(d models.Data, cal *holidays.Calendar, startWeek, weeks int) Span
 		Weeks:         weeks,
 		MaxWeek:       max,
 		ProjectTotals: map[string]float64{},
-		ActualTotals:  map[string]float64{},
 	}
 	for i := 0; i < weeks; i++ {
 		wv := BuildWeek(d, cal, startWeek+i)
@@ -343,24 +313,16 @@ func BuildSpan(d models.Data, cal *holidays.Calendar, startWeek, weeks int) Span
 		for pid, h := range wv.ProjectTotals {
 			sv.ProjectTotals[pid] += h
 		}
-		for pid, h := range wv.ActualTotals {
-			sv.ActualTotals[pid] += h
-		}
 		sv.Total += wv.Total
-		sv.ActualTotal += wv.ActualTotal
-		sv.WorkForecast += wv.WorkForecast
-		sv.WorkActual += wv.WorkActual
+		sv.EffectiveTotal += wv.EffectiveTotal
 		sv.HolidayHours += wv.HolidayHours
 	}
 	sv.Total = round1(sv.Total)
-	sv.ActualTotal = round1(sv.ActualTotal)
-	sv.WorkForecast = round1(sv.WorkForecast)
-	sv.WorkActual = round1(sv.WorkActual)
+	sv.EffectiveTotal = round1(sv.EffectiveTotal)
 	sv.HolidayHours = round1(sv.HolidayHours)
 	sv.TargetHours = round1(d.Settings.WeeklyTargetHours * float64(weeks))
 	if sv.TargetHours > 0 {
-		sv.UtilizationPct = round1(sv.WorkForecast / sv.TargetHours * 100)
-		sv.ActualUtilizationPct = round1(sv.WorkActual / sv.TargetHours * 100)
+		sv.UtilizationPct = round1(sv.EffectiveTotal / sv.TargetHours * 100)
 	}
 	sv.PrevStart = startWeek - weeks
 	if sv.PrevStart < 1 {
@@ -419,10 +381,10 @@ func BuildSpanBurn(ps []ProjectSummary, spanStart, spanEnd string) SpanBurn {
 // ProjectSummary describes budget consumption for one project.
 type ProjectSummary struct {
 	Project        models.Project
-	Forecast       float64 // planned hours
-	Actual         float64 // actually booked hours
-	Consumed       float64 // effective: actual where booked, otherwise forecast
-	Remaining      float64 // budget - consumed (effective)
+	Forecast       float64 // hours on today/future days (forecast)
+	Actual         float64 // hours on past days (booked)
+	Consumed       float64 // all hours (forecast + booked)
+	Remaining      float64 // budget - consumed
 	UtilizationPct float64 // consumed / budget * 100
 
 	// Booking window (clamped to the fiscal year). Empty project dates default
@@ -445,46 +407,21 @@ type ProjectSummary struct {
 // YearSummary aggregates all projects and weekly totals for the fiscal year.
 type YearSummary struct {
 	Projects   []ProjectSummary
-	TotalHours float64 // effective hours over all projects
+	TotalHours float64 // all hours over all projects
 	WeekTotals []WeekTotal
 }
 
-// WeekTotal is the summed effective hours for a single fiscal-year week.
+// WeekTotal is the summed hours for a single fiscal-year week.
 type WeekTotal struct {
 	Week           int // fiscal-year week index
 	ISOWeek        int
 	Label          string
-	Hours          float64 // effective hours (actual where booked, else forecast)
-	Forecast       float64 // planned hours in this week
-	Actual         float64 // actually booked hours in this week
+	Hours          float64 // all hours in this week (booked + forecast)
+	Forecast       float64 // hours on today/future days in this week
+	Actual         float64 // hours on past days in this week (booked)
 	TargetHours    float64
 	UtilizationPct float64
 	Status         models.UtilStatus // booking traffic-light for this week
-}
-
-// effectiveByKey returns per "date|projectId" the effective hours, where a
-// booked actual value overrides the forecast for that day and project.
-func effectiveByKey(entries []models.Entry) map[string]float64 {
-	forecast := map[string]float64{}
-	actual := map[string]float64{}
-	hasActual := map[string]bool{}
-	for _, e := range entries {
-		k := e.Date + "|" + e.ProjectID
-		if entryKind(e) == models.KindActual {
-			actual[k] += e.Hours
-			hasActual[k] = true
-		} else {
-			forecast[k] += e.Hours
-		}
-	}
-	eff := make(map[string]float64, len(forecast)+len(actual))
-	for k, v := range forecast {
-		eff[k] = v
-	}
-	for k := range hasActual {
-		eff[k] = actual[k]
-	}
-	return eff
 }
 
 // projectWindow returns the inclusive [start, end] booking window of a project,
@@ -521,15 +458,16 @@ func countWorkdays(start, end time.Time, cal *holidays.Calendar) int {
 	return n
 }
 
-// BuildYearSummary computes per-project effective consumption and weekly totals
-// over the fiscal year. Effective means: a project/day uses the booked actual
-// hours where present, otherwise the forecast.
+// BuildYearSummary computes per-project consumption and weekly totals over the
+// fiscal year. There is a single hours value per day and project; it counts as
+// booked when the day is in the past and as forecast for today and future days.
 func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 	year := d.Settings.Year
 	startMonth := d.Settings.FiscalYearStartMonth
 	fyStart, fyEnd := FiscalYear(year, startMonth)
 	today := time.Now().UTC().Truncate(24 * time.Hour)
-	eff := effectiveByKey(d.Entries)
+	todayStr := today.Format("2006-01-02")
+	hidx := hoursIndex(d.Entries)
 
 	consumed := map[string]float64{}
 	forecastByP := map[string]float64{}
@@ -540,20 +478,18 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 		projByID[p.ID] = p
 	}
 	vac := vacationSet(d.Projects)
-	for k, v := range eff {
+	for k, v := range hidx {
 		sep := strings.IndexByte(k, '|')
 		dateStr := k[:sep]
 		pid := k[sep+1:]
 		consumed[pid] += v
+		if dateStr < todayStr {
+			actualByP[pid] += v // past days are booked
+		} else {
+			forecastByP[pid] += v // today and future are forecast
+		}
 		if p, ok := projByID[pid]; ok && !p.Bookable(dateStr) {
 			outByP[pid] += v
-		}
-	}
-	for _, e := range d.Entries {
-		if entryKind(e) == models.KindActual {
-			actualByP[e.ProjectID] += e.Hours
-		} else {
-			forecastByP[e.ProjectID] += e.Hours
 		}
 	}
 
@@ -607,29 +543,19 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 	}
 	ys.TotalHours = round1(ys.TotalHours)
 
-	// weekly totals over the fiscal year (effective hours)
+	// weekly totals over the fiscal year (all hours; split into booked/forecast
+	// by date for the derived columns)
 	weeks := FYWeeks(year, startMonth)
 	weekSum := make(map[int]float64)
 	weekForecast := make(map[int]float64)
 	weekActual := make(map[int]float64)
-	for k, v := range eff {
+	for k, v := range hidx {
 		sep := strings.IndexByte(k, '|')
 		if vac[k[sep+1:]] {
 			continue // vacation is excluded from weekly utilization
 		}
-		t, err := time.Parse("2006-01-02", k[:sep])
-		if err != nil {
-			continue
-		}
-		if w := FYWeekIndexOf(year, startMonth, t); w >= 1 {
-			weekSum[w] += v
-		}
-	}
-	for _, e := range d.Entries {
-		if vac[e.ProjectID] {
-			continue
-		}
-		t, err := time.Parse("2006-01-02", e.Date)
+		dateStr := k[:sep]
+		t, err := time.Parse("2006-01-02", dateStr)
 		if err != nil {
 			continue
 		}
@@ -637,10 +563,11 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 		if w < 1 {
 			continue
 		}
-		if entryKind(e) == models.KindActual {
-			weekActual[w] += e.Hours
+		weekSum[w] += v
+		if dateStr < todayStr {
+			weekActual[w] += v
 		} else {
-			weekForecast[w] += e.Hours
+			weekForecast[w] += v
 		}
 	}
 	for w := 1; w <= weeks; w++ {
@@ -688,11 +615,11 @@ func BuildBurndown(d models.Data, projectID, startISO, endISO string, budget flo
 	winStart := mondayOf(start.AddDate(0, -1, 0))
 	winEnd := end.AddDate(0, 1, 0)
 
-	// Effective hours per project per day.
-	eff := effectiveByKey(d.Entries)
+	// Hours per project per day.
+	hidx := hoursIndex(d.Entries)
 	daySum := make(map[string]float64)
 	hoursBefore := 0.0
-	for k, v := range eff {
+	for k, v := range hidx {
 		sep := strings.IndexByte(k, '|')
 		if k[sep+1:] != projectID {
 			continue
@@ -739,18 +666,18 @@ var monthShort = []string{
 	"Jul", "Aug", "Sep", "Okt", "Nov", "Dez",
 }
 
-// PeriodStat captures target vs. forecast/actual for one period (quarter/month).
+// PeriodStat captures target vs. booked/forecast for one period (quarter/month).
 type PeriodStat struct {
 	Label       string
 	Target      float64 // evenly split target for the period
-	Forecast    float64 // planned project hours in the period
-	Actual      float64 // actually booked project hours in the period
+	Forecast    float64 // project hours on today/future days in the period
+	Actual      float64 // project hours on past days in the period (booked)
 	Holiday     float64 // auto-booked holiday hours in the period (informational, not counted)
-	Projected   float64 // effective project hours (past=actual, future=forecast)
+	Projected   float64 // all project hours in the period (booked + forecast)
 	PctOfTarget float64 // projected / target * 100
 }
 
-// GoalSummary tracks fiscal-year target attainment. Only real (actual) and
+// GoalSummary tracks fiscal-year target attainment. Only real (booked) and
 // forecast project hours count towards the target. Public-holiday hours are
 // reported separately but do NOT contribute to the goal.
 type GoalSummary struct {
@@ -758,15 +685,14 @@ type GoalSummary struct {
 	StartLabel        string // FY start, e.g. 01.07.2026
 	EndLabel          string // FY end, e.g. 30.06.2027
 	TargetHours       float64
-	ActualTotal       float64 // booked project hours (past)
-	ForecastTotal     float64 // all forecast project hours
-	ForecastRemaining float64 // forecast for the current and future weeks
+	ActualTotal       float64 // booked project hours (past days)
+	ForecastRemaining float64 // forecast project hours (today and future days)
 	HolidayHours      float64 // all weekday public-holiday hours in the FY (8h each) - informational
 	HolidayDays       int
-	Projected         float64 // effective project hours (actual past + forecast future)
+	Projected         float64 // all project hours (booked past + forecast future)
 	Remaining         float64 // target - projected
 	PctProjected      float64 // projected / target * 100
-	PctActual         float64 // actual project hours / target * 100
+	PctActual         float64 // booked project hours / target * 100
 	WorkingDaysYear   int
 	WorkingDaysDone   int
 	TargetPerWeek     float64 // target / number of FY weeks
@@ -797,10 +723,10 @@ type GoalSummary struct {
 	RequiredPerDay    float64 // RemainingGoal / RemainingWorkdays
 }
 
-// BuildGoalSummary computes fiscal-year goal attainment. Days before the Monday
-// of the current fiscal-year week count as "past" and use actual hours; the
-// current and future weeks use the forecast. Public holidays on weekdays
-// automatically contribute 8h towards the goal. Period targets are split evenly
+// BuildGoalSummary computes fiscal-year goal attainment. Each day carries a
+// single hours value: days before today count as booked ("Ist"), today and
+// future days as forecast. Public holidays on weekdays are reported separately
+// but do NOT count towards the goal. Period targets are split evenly
 // (target/4 per quarter, target/12 per month).
 func BuildGoalSummary(d models.Data, cal *holidays.Calendar) GoalSummary {
 	year := d.Settings.Year
@@ -809,29 +735,16 @@ func BuildGoalSummary(d models.Data, cal *holidays.Calendar) GoalSummary {
 	target := fy.TargetHours
 	fyStart, fyEnd := FiscalYear(year, startMonth)
 
-	now := time.Now().UTC()
-	var curMonday time.Time
-	switch {
-	case now.Before(fyStart):
-		curMonday = mondayOf(fyStart)
-	case now.After(fyEnd):
-		curMonday = fyEnd.AddDate(0, 0, 1)
-	default:
-		curMonday = mondayOf(now)
-	}
+	// Days strictly before today are booked; today and later are forecast.
+	today := time.Now().UTC().Truncate(24 * time.Hour)
 
-	fByDate := map[string]float64{}
-	aByDate := map[string]float64{}
+	hByDate := map[string]float64{}
 	vac := vacationSet(d.Projects)
 	for _, e := range d.Entries {
 		if vac[e.ProjectID] {
 			continue // vacation is informational, not counted towards the goal
 		}
-		if entryKind(e) == models.KindActual {
-			aByDate[e.Date] += e.Hours
-		} else {
-			fByDate[e.Date] += e.Hours
-		}
+		hByDate[e.Date] += e.Hours
 	}
 
 	gs := GoalSummary{
@@ -853,7 +766,7 @@ func BuildGoalSummary(d models.Data, cal *holidays.Calendar) GoalSummary {
 		weekday := wd != time.Saturday && wd != time.Sunday
 		isHoliday := weekday && cal.IsHoliday(iso)
 		working := weekday && !isHoliday
-		past := day.Before(curMonday)
+		past := day.Before(today)
 		if weekday {
 			weekdayDays++
 		}
@@ -864,37 +777,34 @@ func BuildGoalSummary(d models.Data, cal *holidays.Calendar) GoalSummary {
 			}
 		}
 
-		f := fByDate[iso]
-		a := aByDate[iso]
-		work := f
+		// A single hours value per day: booked when past, forecast otherwise.
+		h := hByDate[iso]
+		var booked, forecast float64
 		if past {
-			work = a
+			booked = h
+		} else {
+			forecast = h
 		}
 		if isHoliday {
 			gs.HolidayDays++
 			gs.HolidayHours += HolidayDayHours
 		}
 
-		gs.ActualTotal += a
-		gs.ForecastTotal += f
-		if !past {
-			gs.ForecastRemaining += f
-		}
-		gs.Projected += work // holidays do NOT count towards the goal
-		if past {
-			gs.PctActual += a // accumulate hours, converted to pct later
-		}
+		gs.ActualTotal += booked
+		gs.ForecastRemaining += forecast
+		gs.Projected += h      // all hours count; holidays do NOT count towards the goal
+		gs.PctActual += booked // accumulate hours, converted to pct later
 
-		quarters[q].Actual += a
-		quarters[q].Forecast += f
+		quarters[q].Actual += booked
+		quarters[q].Forecast += forecast
 		if isHoliday {
 			quarters[q].Holiday += HolidayDayHours
 			months[fyMonth].Holiday += HolidayDayHours
 		}
-		quarters[q].Projected += work
-		months[fyMonth].Actual += a
-		months[fyMonth].Forecast += f
-		months[fyMonth].Projected += work
+		quarters[q].Projected += h
+		months[fyMonth].Actual += booked
+		months[fyMonth].Forecast += forecast
+		months[fyMonth].Projected += h
 	}
 
 	weeks := FYWeeks(year, startMonth)
@@ -934,7 +844,6 @@ func BuildGoalSummary(d models.Data, cal *holidays.Calendar) GoalSummary {
 	pctActualHours := gs.PctActual
 	actualRaw := gs.ActualTotal
 	gs.ActualTotal = round1(gs.ActualTotal)
-	gs.ForecastTotal = round1(gs.ForecastTotal)
 	gs.ForecastRemaining = round1(gs.ForecastRemaining)
 	gs.HolidayHours = round1(gs.HolidayHours)
 	gs.Projected = round1(gs.Projected)

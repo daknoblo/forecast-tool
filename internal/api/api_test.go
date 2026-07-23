@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/daknoblo/forecast-tool/internal/models"
 	"github.com/daknoblo/forecast-tool/internal/storage"
@@ -128,14 +129,15 @@ func TestSyncEntries(t *testing.T) {
 	seedProject(t, st, models.Project{ID: "pw", Name: "Fenster", BudgetHours: 40, Color: "#4363d8", Active: true, FiscalYear: year, StartDate: fmt.Sprintf("%04d-07-01", year), EndDate: fmt.Sprintf("%04d-07-31", year)})
 	h := newTestServer(t, st, readTok, writeTok)
 
-	day := fmt.Sprintf("%04d-07-01", year)
+	day1 := fmt.Sprintf("%04d-07-01", year)
+	day2 := fmt.Sprintf("%04d-07-02", year)
 	body := map[string]any{"entries": []map[string]any{
-		{"date": day, "projectId": "p1", "hours": 6, "kind": "forecast"},
-		{"date": day, "projectId": "p1", "hours": 4, "kind": "actual"},
+		{"date": day1, "projectId": "p1", "hours": 6},
+		{"date": day2, "projectId": "p1", "hours": 4},
 		// unknown project -> skipped
-		{"date": day, "projectId": "ghost", "hours": 3, "kind": "actual"},
+		{"date": day1, "projectId": "ghost", "hours": 3},
 		// out of window -> skipped
-		{"date": fmt.Sprintf("%04d-09-01", year), "projectId": "pw", "hours": 2, "kind": "forecast"},
+		{"date": fmt.Sprintf("%04d-09-01", year), "projectId": "pw", "hours": 2},
 	}}
 	rr := do(t, h, http.MethodPost, "/api/v1/entries/sync", writeTok, body)
 	if rr.Code != http.StatusOK {
@@ -161,8 +163,8 @@ func TestSyncEntries(t *testing.T) {
 		t.Fatalf("want 2 persisted entries, got %d", len(listed.Entries))
 	}
 
-	// hours=0 deletes the forecast entry.
-	del := map[string]any{"entries": []map[string]any{{"date": day, "projectId": "p1", "hours": 0, "kind": "forecast"}}}
+	// hours=0 deletes the entry for that (date, project).
+	del := map[string]any{"entries": []map[string]any{{"date": day1, "projectId": "p1", "hours": 0}}}
 	rr = do(t, h, http.MethodPost, "/api/v1/entries/sync", writeTok, del)
 	if err := json.Unmarshal(rr.Body.Bytes(), &res); err != nil {
 		t.Fatalf("decode delete result: %v", err)
@@ -170,10 +172,10 @@ func TestSyncEntries(t *testing.T) {
 	if res.Deleted != 1 || res.Upserted != 0 {
 		t.Fatalf("delete result unexpected: %+v", res)
 	}
-	rr = do(t, h, http.MethodGet, "/api/v1/entries?projectId=p1&kind=forecast", readTok, nil)
+	rr = do(t, h, http.MethodGet, "/api/v1/entries?projectId=p1", readTok, nil)
 	_ = json.Unmarshal(rr.Body.Bytes(), &listed)
-	if len(listed.Entries) != 0 {
-		t.Fatalf("forecast entry should be deleted, got %d", len(listed.Entries))
+	if len(listed.Entries) != 1 {
+		t.Fatalf("one entry should remain after delete, got %d", len(listed.Entries))
 	}
 }
 
@@ -263,14 +265,13 @@ func TestProjectsSummary(t *testing.T) {
 	st := newTestStore(t)
 	year := activeYear(t, st)
 	seedProject(t, st, models.Project{ID: "p1", Name: "Projekt 1", BudgetHours: 100, Color: "#3cb44b", Active: true, FiscalYear: year})
-	dayA := fmt.Sprintf("%04d-02-02", year)
-	dayB := fmt.Sprintf("%04d-02-03", year)
+	dayPast := time.Now().UTC().AddDate(0, 0, -30).Format("2006-01-02")
+	dayFuture := time.Now().UTC().AddDate(0, 0, 30).Format("2006-01-02")
 	if err := st.Update(func(d *models.Data) error {
-		// Same day+project: actual overrides forecast -> effective 8 on dayA.
+		// Past day -> booked (actual); future day -> forecast.
 		d.Entries = append(d.Entries,
-			models.Entry{Date: dayA, ProjectID: "p1", Hours: 8, Kind: models.KindActual},
-			models.Entry{Date: dayA, ProjectID: "p1", Hours: 6, Kind: models.KindForecast},
-			models.Entry{Date: dayB, ProjectID: "p1", Hours: 6, Kind: models.KindForecast},
+			models.Entry{Date: dayPast, ProjectID: "p1", Hours: 8},
+			models.Entry{Date: dayFuture, ProjectID: "p1", Hours: 6},
 		)
 		return nil
 	}); err != nil {
@@ -310,7 +311,7 @@ func TestProjectsSummary(t *testing.T) {
 	if p1 == nil {
 		t.Fatalf("project p1 missing in summary: %s", rr.Body.String())
 	}
-	if p1.ActualHours != 8 || p1.ForecastHours != 12 || p1.ConsumedHours != 14 || p1.RemainingHours != 86 || p1.UtilizationPct != 14 {
+	if p1.ActualHours != 8 || p1.ForecastHours != 6 || p1.ConsumedHours != 14 || p1.RemainingHours != 86 || p1.UtilizationPct != 14 {
 		t.Fatalf("unexpected p1 summary: %+v", *p1)
 	}
 }

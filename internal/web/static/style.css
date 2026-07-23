@@ -98,8 +98,7 @@ table.week.span tfoot td.pname { background: #f8fafc; }
 table.week.span .weekgroup { text-align: center; border-left: 2px solid var(--line); border-right: 2px solid var(--line); white-space: nowrap; }
 table.week.span .weekgroup small { font-weight: 400; color: var(--muted); }
 table.week.span .outyear { background: #f8fafc; color: var(--muted); }
-table.week.span .hcell { width: 100%; max-width: 72px; }
-table.week.span .cellpair { display: flex; flex-direction: column; gap: 2px; align-items: center; }
+table.week.span .hcell { width: 100%; max-width: 64px; }
 
 .span-ctl { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; margin: 0.25rem 0 1rem; }
 .span-ctl-label { color: var(--muted); font-size: 0.85rem; margin-right: 0.25rem; }
@@ -187,16 +186,14 @@ details form { margin-top: 0.75rem; }
 .foot .ghlink:hover { color: var(--text); }
 .foot .ghlink svg { display: block; }
 
-/* dual plan/actual cells in the week grid */
-.cellpair { display: flex; flex-direction: column; gap: 3px; align-items: center; }
-.hcell.plan { width: 64px; }
-.hcell.actual { width: 64px; border-style: dashed; color: #0e7490; background: #f0fbff; }
-.hcell.actual:focus { outline: 2px solid #0891b2; border-color: #0891b2; }
+/* booked (past) day cells in the week grid */
+table.week td.day.past, table.week th.day.past { background: #f8fafc; }
+table.week td.day.past.holiday, table.week th.day.past.holiday { background: var(--holiday); }
+.hcell.booked { color: #0e7490; background: #f6feff; }
+.tag.booked { background: #0891b2; }
 
-/* "Ist" (actual) accent colour */
+/* "Ist" (booked) accent colour in reports */
 small.ist, td.num.ist, .kpi-value.ist { color: #0e7490; }
-.bar.ist { margin-top: 4px; }
-.bar.ist span { background: #0891b2; }
 
 /* goal / fiscal-year target page */
 .goalbar-track { position: relative; height: 22px; background: var(--line); border-radius: 6px; overflow: hidden; }
