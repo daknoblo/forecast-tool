@@ -169,6 +169,7 @@ type FiscalYearSettings struct {
 // fiscal-year start/end respectively, so an unbounded project spans the whole FY.
 type Project struct {
 	ID          string  `json:"id"`
+	TaskID      string  `json:"taskId,omitempty"` // external task identifier, e.g. C.6908461183.001130.01
 	Name        string  `json:"name"`
 	BudgetHours float64 `json:"budgetHours"`
 	Color       string  `json:"color"`
@@ -375,6 +376,9 @@ func Validate(d Data) error {
 		}
 		if p.BudgetHours < 0 {
 			return fmt.Errorf("projects[%d] (%s): budgetHours darf nicht negativ sein", i, p.Name)
+		}
+		if len([]rune(p.TaskID)) > 100 {
+			return fmt.Errorf("projects[%d] (%s): taskId ist zu lang (max. 100 Zeichen)", i, p.Name)
 		}
 		if p.System != "" && p.System != VacationSystem {
 			return fmt.Errorf("projects[%d] (%s): system %q ist ungültig (nur %q erlaubt)", i, p.Name, p.System, VacationSystem)

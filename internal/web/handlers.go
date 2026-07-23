@@ -331,7 +331,8 @@ func (s *Server) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := capLen(trim(r.FormValue("name")), 200)
-	if name == "" {
+	taskID := capLen(trim(r.FormValue("taskId")), 100)
+	if name == "" || taskID == "" {
 		http.Redirect(w, r, "/projects", http.StatusSeeOther)
 		return
 	}
@@ -348,6 +349,7 @@ func (s *Server) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 		}
 		d.Projects = append(d.Projects, models.Project{
 			ID:          newID(),
+			TaskID:      taskID,
 			Name:        name,
 			BudgetHours: budget,
 			Color:       models.RandomColor(used),
@@ -368,6 +370,7 @@ func (s *Server) handleProjectUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	id := r.PathValue("id")
 	name := capLen(trim(r.FormValue("name")), 200)
+	taskID := capLen(trim(r.FormValue("taskId")), 100)
 	budget, _ := strconv.ParseFloat(normalizeNum(r.FormValue("budget")), 64)
 	if budget < 0 {
 		budget = 0
@@ -389,6 +392,9 @@ func (s *Server) handleProjectUpdate(w http.ResponseWriter, r *http.Request) {
 				}
 				if name != "" {
 					d.Projects[i].Name = name
+				}
+				if taskID != "" {
+					d.Projects[i].TaskID = taskID
 				}
 				d.Projects[i].BudgetHours = budget
 				if color != "" {

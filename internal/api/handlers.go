@@ -120,6 +120,7 @@ func (s *Server) handleGetGoal(w http.ResponseWriter, r *http.Request) {
 // GET /api/v1/projects/summary: the same figures shown on the Projects page.
 type projectSummaryOut struct {
 	ID                 string  `json:"id"`
+	TaskID             string  `json:"taskId,omitempty"`
 	Name               string  `json:"name"`
 	FiscalYear         int     `json:"fiscalYear"`
 	BudgetHours        float64 `json:"budgetHours"`
@@ -158,6 +159,7 @@ func (s *Server) handleProjectsSummary(w http.ResponseWriter, r *http.Request) {
 	for _, ps := range ys.Projects {
 		out = append(out, projectSummaryOut{
 			ID:                 ps.Project.ID,
+			TaskID:             ps.Project.TaskID,
 			Name:               ps.Project.Name,
 			FiscalYear:         ps.Project.FiscalYear,
 			BudgetHours:        ps.Project.BudgetHours,
@@ -295,6 +297,7 @@ func (s *Server) handleSyncEntries(w http.ResponseWriter, r *http.Request) {
 // (present, including clearing a date with "").
 type projectInput struct {
 	Name        *string  `json:"name"`
+	TaskID      *string  `json:"taskId"`
 	BudgetHours *float64 `json:"budgetHours"`
 	Color       *string  `json:"color"`
 	Active      *bool    `json:"active"`
@@ -316,6 +319,14 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 	}
 	if name == "" {
 		s.writeError(w, http.StatusBadRequest, "name darf nicht leer sein")
+		return
+	}
+	taskID := ""
+	if in.TaskID != nil {
+		taskID = capLen(strings.TrimSpace(*in.TaskID), 100)
+	}
+	if taskID == "" {
+		s.writeError(w, http.StatusBadRequest, "taskId darf nicht leer sein")
 		return
 	}
 	budget := 0.0
@@ -363,6 +374,7 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 		}
 		created = models.Project{
 			ID:          newID(),
+			TaskID:      taskID,
 			Name:        name,
 			BudgetHours: budget,
 			Color:       c,
@@ -396,6 +408,14 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 		name = capLen(strings.TrimSpace(*in.Name), 200)
 		if name == "" {
 			s.writeError(w, http.StatusBadRequest, "name darf nicht leer sein")
+			return
+		}
+	}
+	var taskID string
+	if in.TaskID != nil {
+		taskID = capLen(strings.TrimSpace(*in.TaskID), 100)
+		if taskID == "" {
+			s.writeError(w, http.StatusBadRequest, "taskId darf nicht leer sein")
 			return
 		}
 	}
@@ -434,6 +454,9 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 			}
 			if in.Name != nil {
 				d.Projects[i].Name = name
+			}
+			if in.TaskID != nil {
+				d.Projects[i].TaskID = taskID
 			}
 			if in.BudgetHours != nil {
 				d.Projects[i].BudgetHours = *in.BudgetHours
