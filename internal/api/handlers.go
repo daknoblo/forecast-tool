@@ -124,6 +124,70 @@ func (s *Server) handleGetGoal(w http.ResponseWriter, r *http.Request) {
 	s.writeJSON(w, http.StatusOK, forecast.BuildGoalSummary(d, cal))
 }
 
+// projectSummaryOut is the computed per-project summary returned by
+// GET /api/v1/projects/summary: the same figures shown on the Projects page.
+type projectSummaryOut struct {
+	ID                 string  `json:"id"`
+	Name               string  `json:"name"`
+	FiscalYear         int     `json:"fiscalYear"`
+	BudgetHours        float64 `json:"budgetHours"`
+	ForecastHours      float64 `json:"forecastHours"`
+	ActualHours        float64 `json:"actualHours"`
+	ConsumedHours      float64 `json:"consumedHours"` // effective: actual where booked, else forecast
+	RemainingHours     float64 `json:"remainingHours"`
+	UtilizationPct     float64 `json:"utilizationPct"`
+	StartDate          string  `json:"startDate,omitempty"`
+	EndDate            string  `json:"endDate,omitempty"`
+	RemainingWorkdays  int     `json:"remainingWorkdays"`
+	RequiredPerWorkday float64 `json:"requiredPerWorkday"`
+	OutOfWindow        float64 `json:"outOfWindow,omitempty"`
+}
+
+// handleProjectsSummary returns the computed hour totals per project for a
+// fiscal year (default active, or ?fiscalYear=YYYY): budget, forecast, actual,
+// effective consumed (actual overrides forecast per day), remaining budget and
+// utilization — the same numbers as the Projects page.
+func (s *Server) handleProjectsSummary(w http.ResponseWriter, r *http.Request) {
+	d := s.store.Snapshot()
+	year := d.Settings.Year
+	if y := strings.TrimSpace(r.URL.Query().Get("fiscalYear")); y != "" {
+		n, err := strconv.Atoi(y)
+		if err != nil || !models.ValidYear(n) {
+			s.writeError(w, http.StatusBadRequest, "fiscalYear ist ungültig")
+			return
+		}
+		year = n
+	}
+	d.Settings.Year = year
+	d.Projects = models.ProjectsForFY(d.Projects, year)
+	cal := holidays.New(year, d.Settings.FederalState)
+	ys := forecast.BuildYearSummary(d, cal)
+	out := make([]projectSummaryOut, 0, len(ys.Projects))
+	for _, ps := range ys.Projects {
+		out = append(out, projectSummaryOut{
+			ID:                 ps.Project.ID,
+			Name:               ps.Project.Name,
+			FiscalYear:         ps.Project.FiscalYear,
+			BudgetHours:        ps.Project.BudgetHours,
+			ForecastHours:      ps.Forecast,
+			ActualHours:        ps.Actual,
+			ConsumedHours:      ps.Consumed,
+			RemainingHours:     ps.Remaining,
+			UtilizationPct:     ps.UtilizationPct,
+			StartDate:          ps.StartDate,
+			EndDate:            ps.EndDate,
+			RemainingWorkdays:  ps.RemainingWorkdays,
+			RequiredPerWorkday: ps.RequiredPerWorkday,
+			OutOfWindow:        ps.OutOfWindow,
+		})
+	}
+	s.writeJSON(w, http.StatusOK, map[string]any{
+		"fiscalYear": year,
+		"projects":   out,
+		"totalHours": ys.TotalHours,
+	})
+}
+
 // --- Write endpoints ---
 
 type syncEntry struct {

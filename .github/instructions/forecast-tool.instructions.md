@@ -292,7 +292,9 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
   `normalize` → `models.Validate` → nur bei Erfolg persistieren+swappen). Reads über
   `Snapshot()`/`Marshal()`. `GET`-Antworten **redigieren** den KI-Key (`AI.APIKey=""`).
 - **Endpunkte:** Read (`GET`): `/data`, `/settings`, `/projects[?fiscalYear=&all=]`,
-  `/projects/{id}`, `/entries[?from=&to=&projectId=&kind=]`, `/goal[?year=]`. Write:
+  `/projects/summary[?fiscalYear=]` (berechnete Verbraucht/Rest/Auslastung je Projekt aus
+  `BuildYearSummary`→`ProjectSummary`), `/projects/{id}`, `/entries[?from=&to=&projectId=&kind=]`,
+  `/goal[?year=]`. Write:
   `POST /entries/sync`, `POST /projects`, `PUT /projects/{id}`, `DELETE /projects/{id}`,
   `PUT /settings`, `PUT /settings/fiscal-years/{year}`.
 - **`POST /entries/sync`** ist der Kern: Upsert je `(date, projectId, kind)`, `hours=0`

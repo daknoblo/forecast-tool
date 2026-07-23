@@ -73,6 +73,7 @@ Web-Oberfläche wird angezeigt, ob die Variablen gesetzt sind.
 | `GET`    | `/api/v1/data` | read | Gesamtes Dokument |
 | `GET`    | `/api/v1/settings` | read | Globale + Pro-FY-Einstellungen |
 | `GET`    | `/api/v1/projects` | read | Projekte (FY-gefiltert) |
+| `GET`    | `/api/v1/projects/summary` | read | Berechnete Stunden je Projekt (Verbraucht/Rest/Auslastung) |
 | `GET`    | `/api/v1/projects/{id}` | read | Einzelnes Projekt |
 | `GET`    | `/api/v1/entries` | read | Einträge (gefiltert) |
 | `GET`    | `/api/v1/goal` | read | Ziel-/Kapazitätsübersicht |
@@ -115,6 +116,35 @@ curl -H "Authorization: Bearer $READ" "https://host/api/v1/projects?fiscalYear=2
 ```json
 { "projects": [ { "id": "…", "name": "…", "budgetHours": 100, "fiscalYear": 2027, … } ] }
 ```
+
+### `GET /api/v1/projects/summary`
+Liefert die **berechneten** Stunden je Projekt für ein Fiskaljahr (Standard:
+aktives FY, oder `?fiscalYear=YYYY`) – dieselben Zahlen wie die Projekte-Seite:
+Budget, Forecast, Ist, **effektiv verbraucht** (Ist überschreibt Forecast pro
+Tag) sowie Restbudget und Auslastung. Damit muss der Client die Einträge nicht
+selbst aggregieren.
+
+```bash
+curl -H "Authorization: Bearer $READ" "https://host/api/v1/projects/summary"
+```
+```json
+{
+  "fiscalYear": 2027,
+  "totalHours": 162,
+  "projects": [
+    {
+      "id": "abc", "name": "Projekt A", "fiscalYear": 2027,
+      "budgetHours": 200, "forecastHours": 120, "actualHours": 42,
+      "consumedHours": 150, "remainingHours": 50, "utilizationPct": 75,
+      "startDate": "2026-07-01", "endDate": "2027-06-30",
+      "remainingWorkdays": 180, "requiredPerWorkday": 0.28, "outOfWindow": 0
+    }
+  ]
+}
+```
+`consumedHours` ist der effektive Verbrauch (Ist wo gebucht, sonst Forecast),
+`remainingHours` = `budgetHours − consumedHours`, `utilizationPct` =
+`consumedHours / budgetHours × 100`.
 
 ### `GET /api/v1/projects/{id}`
 Einzelnes Projekt oder `404`.

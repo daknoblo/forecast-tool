@@ -259,6 +259,62 @@ func TestSettingsAndFY(t *testing.T) {
 	}
 }
 
+func TestProjectsSummary(t *testing.T) {
+	st := newTestStore(t)
+	year := activeYear(t, st)
+	seedProject(t, st, models.Project{ID: "p1", Name: "Projekt 1", BudgetHours: 100, Color: "#3cb44b", Active: true, FiscalYear: year})
+	dayA := fmt.Sprintf("%04d-02-02", year)
+	dayB := fmt.Sprintf("%04d-02-03", year)
+	if err := st.Update(func(d *models.Data) error {
+		// Same day+project: actual overrides forecast -> effective 8 on dayA.
+		d.Entries = append(d.Entries,
+			models.Entry{Date: dayA, ProjectID: "p1", Hours: 8, Kind: models.KindActual},
+			models.Entry{Date: dayA, ProjectID: "p1", Hours: 6, Kind: models.KindForecast},
+			models.Entry{Date: dayB, ProjectID: "p1", Hours: 6, Kind: models.KindForecast},
+		)
+		return nil
+	}); err != nil {
+		t.Fatalf("seed entries: %v", err)
+	}
+	h := newTestServer(t, st, readTok, writeTok)
+
+	rr := do(t, h, http.MethodGet, "/api/v1/projects/summary", readTok, nil)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("summary got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+	type row struct {
+		ID             string  `json:"id"`
+		BudgetHours    float64 `json:"budgetHours"`
+		ForecastHours  float64 `json:"forecastHours"`
+		ActualHours    float64 `json:"actualHours"`
+		ConsumedHours  float64 `json:"consumedHours"`
+		RemainingHours float64 `json:"remainingHours"`
+		UtilizationPct float64 `json:"utilizationPct"`
+	}
+	var resp struct {
+		FiscalYear int   `json:"fiscalYear"`
+		Projects   []row `json:"projects"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode summary: %v", err)
+	}
+	if resp.FiscalYear != year {
+		t.Fatalf("fiscalYear = %d, want %d", resp.FiscalYear, year)
+	}
+	var p1 *row
+	for i := range resp.Projects {
+		if resp.Projects[i].ID == "p1" {
+			p1 = &resp.Projects[i]
+		}
+	}
+	if p1 == nil {
+		t.Fatalf("project p1 missing in summary: %s", rr.Body.String())
+	}
+	if p1.ActualHours != 8 || p1.ForecastHours != 12 || p1.ConsumedHours != 14 || p1.RemainingHours != 86 || p1.UtilizationPct != 14 {
+		t.Fatalf("unexpected p1 summary: %+v", *p1)
+	}
+}
+
 func TestGetDataRedactsAIKey(t *testing.T) {
 	st := newTestStore(t)
 	if err := st.Update(func(d *models.Data) error {
