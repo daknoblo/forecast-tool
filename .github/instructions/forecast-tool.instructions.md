@@ -170,6 +170,19 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
 - **Footer:** `{{appName}} · Fiskaljahr {{Year}}` links, rechts ein Link auf das
   GitHub-Profil `https://github.com/daknoblo/` mit Inline-SVG-Icon (kein externes Asset,
   da `embed`). Kein Wochensoll mehr im Footer.
+- **Dashboard-Auslastungs-Sankey:** Die Dashboard-Seite ist `Wide` (volle Breite) und
+  zeigt – nach den KPI-Karten, vor „Budgets“ – eine Karte „Auslastung“ mit einem
+  serverseitig gerenderten, JS-freien Sankey/Alluvial-Diagramm (`web.sankeySVG` aus
+  `forecast.BuildSankey`). Darüber Zeitraum-Umschalter (`forecast.SankeyRanges`:
+  1 Woche/2 Wochen/4 Wochen/2 Monate/3 Monate/Halbjahr/Fiskaljahr) als `.chip`-Links
+  (`GET /?sankey=<key>`, Default `4w`, unbekannt → Default via `NormalizeSankeyRange`).
+  Buckets sind Wochen (bis 2 Monate) bzw. Monate (ab 3 Monaten, Halbjahr, Fiskaljahr);
+  nur Tage **innerhalb des FY** zählen. Projekte sind farbige, gestapelte Bänder (Höhe ∝
+  geplante Stunden, Ribbons zwischen benachbarten Buckets, Stapelreihenfolge nach
+  Gesamtstunden); das **Urlaubsprojekt ist ausgeschlossen** (Auslastungs-Konvention).
+  Vertikale Trenner grenzen die Wochen/Monate ab, jede Spalte ist mit den **summierten
+  geplanten Projektstunden** beschriftet; Summe und eine Legende (Stunden je Projekt)
+  stehen darunter.
 - Auf der Ziel-Seite werden **Quartals- und Monatsübersicht immer angezeigt**
   (nicht ausklappbar).
 - **Ziel-Seite Reihenfolge (chronologisch):** Gesamt-FY (KPIs, Status inkl.

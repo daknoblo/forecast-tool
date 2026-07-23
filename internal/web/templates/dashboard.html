@@ -17,6 +17,25 @@
   </div>
 </section>
 
+<section class="card sankey-card">
+  <div class="sankey-head">
+    <h2>Auslastung</h2>
+    <span class="sankey-meta">{{.Sankey.RangeLabel}} · Summe {{hours .Sankey.Total}} h</span>
+  </div>
+  <div class="span-ctl sankey-ctl">
+    <span class="span-ctl-label">Zeitraum:</span>
+    {{range .SankeyRanges}}<a class="chip{{if eq .Key $.Sankey.RangeKey}} active{{end}}" href="/?sankey={{.Key}}">{{.Label}}</a>{{end}}
+  </div>
+  <div class="sankey-wrap">{{.SankeySVG}}</div>
+  {{if .Sankey.Projects}}
+  <div class="sankey-legend">
+    {{range .Sankey.Projects}}<span class="sankey-leg"><span class="dot" style="background:{{.Color}}"></span>{{.Name}} · {{hours (index $.Sankey.ProjectTotals .ID)}} h</span>{{end}}
+  </div>
+  {{else}}
+  <p class="hint">Keine geplanten Projektstunden im gewählten Zeitraum.</p>
+  {{end}}
+</section>
+
 <h2>Budgets</h2>
 {{if .Summary.Projects}}
 <table class="grid">
