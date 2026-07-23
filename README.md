@@ -11,7 +11,8 @@ gespeichert – keine Datenbank nötig. Die Datei lässt sich im Browser direkt
 bearbeiten, exportieren und optional per KI-Prompt aktualisieren.
 
 ## Features
-- Projekte mit Stundenbudget (CRUD, Farbe, aktiv/inaktiv), pro Fiskaljahr
+- Projekte mit Stundenbudget (CRUD, Farbe, aktiv/inaktiv), pro Fiskaljahr, mit
+  eindeutiger **TaskID** (Pflichtfeld beim Anlegen, z. B. `C.6908461183.001130.01`)
 - **Buchungszeitraum je Projekt** (Start-/Enddatum, optional): Stunden lassen sich nur
   innerhalb des Zeitraums buchen – Tageszellen außerhalb sind im Forecast gesperrt.
   Daraus abgeleitet werden **Burnrate** (h/Woche bzw. h/Arbeitstag), Resttempo und ein

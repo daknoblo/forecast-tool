@@ -39,7 +39,7 @@ const Blueprint = `{
     }
   },
   "projects": [
-    { "id": "proj-a", "name": "Projekt A", "budgetHours": 200, "color": "#2563eb", "active": true, "fiscalYear": 2027 },
+    { "id": "proj-a", "taskId": "C.6908461183.001130.01", "name": "Projekt A", "budgetHours": 200, "color": "#2563eb", "active": true, "fiscalYear": 2027 },
     { "id": "vacation-2027", "name": "Urlaub", "budgetHours": 240, "color": "#64748b", "active": true, "fiscalYear": 2027, "system": "vacation" }
   ],
   "entries": [
@@ -59,7 +59,7 @@ Wende die Anweisung an und gib AUSSCHLIESSLICH das vollständige, gültige JSON-
 Schema:
 - settings: { year, federalState, weeklyTargetHours, fiscalYearStartMonth, ai{...} } – GLOBAL, NUR ändern wenn der Nutzer es ausdrücklich verlangt.
 - fiscalYears: Objekt mit Jahr-Schlüsseln, je { targetHours, vacationDaysH1, vacationDaysH2, standardTaskLabel, standardTaskHours }.
-- projects: Liste von { id, name, budgetHours, color, active, fiscalYear, system? }. id = kurze eindeutige Kennung; color = Hex (#rrggbb); fiscalYear = das Anker-Jahr (FY 27 => 2027). Ein Projekt mit "system": "vacation" ist das automatisch verwaltete Urlaubsprojekt (id "vacation-<jahr>", Name "Urlaub"): NICHT löschen, umbenennen oder sein budgetHours ändern; seine Stunden zählen nicht aufs Jahresziel. Reguläre Projekte haben kein system-Feld.
+- projects: Liste von { id, taskId, name, budgetHours, color, active, fiscalYear, system? }. id = kurze eindeutige Kennung; taskId = externe Task-Kennung als String (z. B. "C.6908461183.001130.01"), bei regulären Projekten Pflicht; color = Hex (#rrggbb); fiscalYear = das Anker-Jahr (FY 27 => 2027). Ein Projekt mit "system": "vacation" ist das automatisch verwaltete Urlaubsprojekt (id "vacation-<jahr>", Name "Urlaub", ohne taskId): NICHT löschen, umbenennen oder sein budgetHours ändern; seine Stunden zählen nicht aufs Jahresziel. Reguläre Projekte haben kein system-Feld.
 - entries: Liste von { date (YYYY-MM-DD), projectId, hours }. Pro Tag und Projekt gibt es genau EINEN Stundenwert; ob er als gebucht (Ist) oder Forecast zählt, ergibt sich automatisch aus dem Datum (vergangene Tage = gebucht, ab heute = Forecast) – es gibt KEIN kind-Feld mehr. Jede projectId MUSS zu einer projects.id passen.
 - forecastPlan (OPTIONAL): kompakte Liste von { projectId, fiscalYear, hoursPerWeek } für regelmäßige, über ein ganzes Fiskaljahr gleichmäßig verteilte Stunden.
 
