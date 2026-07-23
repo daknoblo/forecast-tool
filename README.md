@@ -62,6 +62,8 @@ Konfiguration über Umgebungsvariablen:
 | `PORT`               | `8080`      | Port (Alias, falls `FORECAST_ADDR` nicht gesetzt) |
 | `DATA_DIR`           | `appdata`   | Daten-Verzeichnis (Alias für `FORECAST_DATA_DIR`) |
 | `FORECAST_AI_API_KEY`| –           | Secret-API-Key für den KI-Endpoint (nicht in `data.json` gespeichert) |
+| `FORECAST_API_READ_TOKEN`  | – | Bearer-Token für **Lesezugriff** (GET) auf die JSON-API (`/api/v1`) |
+| `FORECAST_API_WRITE_TOKEN` | – | Bearer-Token für **Lese- und Schreibzugriff** auf die JSON-API |
 
 ## JSON-Editor & KI-Aktualisierung
 Unter dem Menüpunkt **JSON** (`/data`) lässt sich die komplette Datendatei direkt
@@ -107,6 +109,36 @@ KI keine hunderten Tageseinträge aus (das würde das Token-Limit sprengen), son
 eine kompakte Direktive `forecastPlan` (`projectId`, `fiscalYear`, `hoursPerWeek`,
 `kind`). Der Server expandiert diese automatisch in Mo–Fr-Einträge
 (`hoursPerWeek/5` pro Werktag) für das gesamte Fiskaljahr.
+
+## HTTP-API
+Unter `/api/v1` steht eine JSON-API bereit, um den Forecast von externen Tools
+(z. B. einem Desktop-Client) zu **lesen** und **zu synchronisieren** (Plan- und
+Ist-Stunden), Projekte zu verwalten und Einstellungen zu pflegen. Die
+Web-Oberfläche bleibt bewusst ohne Authentifizierung; **nur `/api/**` ist über
+zwei Bearer-Tokens geschützt**:
+
+| Token-Env-Variable          | Zugriff                         |
+|-----------------------------|---------------------------------|
+| `FORECAST_API_READ_TOKEN`   | nur Lesen (GET)                 |
+| `FORECAST_API_WRITE_TOKEN`  | Lesen **und** Schreiben         |
+
+Ist **keiner** der beiden Tokens gesetzt, ist die API deaktiviert (`503`). Die
+Tokens werden – wie der KI-Key – **nicht** in `data.json` gespeichert, sondern
+nur über Umgebungsvariablen bereitgestellt. In den **Einstellungen** wird
+angezeigt, ob die beiden Variablen gesetzt sind.
+
+```bash
+# Aktuellen Stand lesen
+curl -H "Authorization: Bearer $READ" https://host/api/v1/data
+
+# Ist-Stunden synchronisieren (Upsert; hours=0 löscht)
+curl -X POST https://host/api/v1/entries/sync \
+  -H "Authorization: Bearer $WRITE" -H "Content-Type: application/json" \
+  -d '{"entries":[{"date":"2026-07-01","projectId":"<id>","hours":6,"kind":"actual"}]}'
+```
+
+Die vollständige Referenz aller Endpunkte, Parameter und Beispiele steht in
+[docs/API.md](docs/API.md).
 
 ## Logging
 Die Anwendung schreibt Logs **gleichzeitig** in den Container-Output (`docker logs`)

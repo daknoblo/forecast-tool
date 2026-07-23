@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/daknoblo/forecast-tool/internal/ai"
+	"github.com/daknoblo/forecast-tool/internal/api"
 	"github.com/daknoblo/forecast-tool/internal/forecast"
 	"github.com/daknoblo/forecast-tool/internal/holidays"
 	"github.com/daknoblo/forecast-tool/internal/models"
@@ -117,6 +118,9 @@ func (s *Server) Handler() http.Handler {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
+
+	// JSON API for external clients (token-protected; the HTML UI stays open).
+	mux.Handle("/api/", api.New(s.store, s.logger))
 
 	return mux
 }
@@ -532,6 +536,10 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		"AIKeyEnv":     aiAPIKeyEnv,
 		"AIKeySet":     trim(os.Getenv(aiAPIKeyEnv)) != "",
 		"AIKeyInStore": trim(d.Settings.AI.APIKey) != "",
+		"APIReadEnv":   api.ReadTokenEnv,
+		"APIReadSet":   trim(os.Getenv(api.ReadTokenEnv)) != "",
+		"APIWriteEnv":  api.WriteTokenEnv,
+		"APIWriteSet":  trim(os.Getenv(api.WriteTokenEnv)) != "",
 	})
 }
 
