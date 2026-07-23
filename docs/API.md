@@ -115,7 +115,7 @@ Query-Parameter:
 curl -H "Authorization: Bearer $READ" "https://host/api/v1/projects?fiscalYear=2027"
 ```
 ```json
-{ "projects": [ { "id": "…", "taskId": "C.6908461183.001130.01", "name": "…", "budgetHours": 100, "fiscalYear": 2027, … } ] }
+{ "projects": [ { "id": "…", "assignmentId": "5641245", "name": "…", "budgetHours": 100, "fiscalYear": 2027, … } ] }
 ```
 
 ### `GET /api/v1/projects/summary`
@@ -134,7 +134,7 @@ curl -H "Authorization: Bearer $READ" "https://host/api/v1/projects/summary"
   "totalHours": 162,
   "projects": [
     {
-      "id": "abc", "taskId": "C.6908461183.001130.01", "name": "Projekt A", "fiscalYear": 2027,
+      "id": "abc", "assignmentId": "5641245", "name": "Projekt A", "fiscalYear": 2027,
       "budgetHours": 200, "forecastHours": 120, "actualHours": 42,
       "consumedHours": 150, "remainingHours": 50, "utilizationPct": 75,
       "startDate": "2026-07-01", "endDate": "2027-06-30",
@@ -220,7 +220,7 @@ Die `id` wird **serverseitig** erzeugt und zurückgegeben.
 | Feld | Pflicht | Standard |
 |------|---------|----------|
 | `name` | ja | – |
-| `taskId` | ja | – |
+| `assignmentId` | ja | – |
 | `budgetHours` | nein | `0` |
 | `color` | nein | zufällig aus Palette (`#rrggbb`) |
 | `active` | nein | `true` |
@@ -230,13 +230,13 @@ Die `id` wird **serverseitig** erzeugt und zurückgegeben.
 ```bash
 curl -X POST https://host/api/v1/projects \
   -H "Authorization: Bearer $WRITE" -H "Content-Type: application/json" \
-  -d '{"name":"Neues Projekt","taskId":"C.6908461183.001130.01","budgetHours":120,"fiscalYear":2027}'
+  -d '{"name":"Neues Projekt","assignmentId":"5641245","budgetHours":120,"fiscalYear":2027}'
 ```
 **Response** `201` – das angelegte Projekt inkl. `id`.
 
 ### `PUT /api/v1/projects/{id}` — ändern
 
-Teil-Update: nur mitgeschickte Felder (`name`, `taskId`, `budgetHours`, `color`,
+Teil-Update: nur mitgeschickte Felder (`name`, `assignmentId`, `budgetHours`, `color`,
 `active`, `fiscalYear`, `startDate`, `endDate`) werden geändert. Das automatisch verwaltete
 **Urlaubsprojekt** ist gesperrt → `409`. Unbekannte `id` → `404`.
 

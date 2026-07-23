@@ -89,7 +89,7 @@ func TestAuthMatrix(t *testing.T) {
 		{"read GET", http.MethodGet, "/api/v1/data", readTok, nil, http.StatusOK},
 		{"write GET", http.MethodGet, "/api/v1/data", writeTok, nil, http.StatusOK},
 		{"read cannot write", http.MethodPost, "/api/v1/projects", readTok, map[string]any{"name": "X"}, http.StatusForbidden},
-		{"write can write", http.MethodPost, "/api/v1/projects", writeTok, map[string]any{"name": "X", "taskId": "C.1.2.3"}, http.StatusCreated},
+		{"write can write", http.MethodPost, "/api/v1/projects", writeTok, map[string]any{"name": "X", "assignmentId": "5641245"}, http.StatusCreated},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -184,7 +184,7 @@ func TestProjectsCRUD(t *testing.T) {
 	h := newTestServer(t, st, readTok, writeTok)
 
 	// Create.
-	rr := do(t, h, http.MethodPost, "/api/v1/projects", writeTok, map[string]any{"name": "Neu", "taskId": "C.123.456.01", "budgetHours": 80})
+	rr := do(t, h, http.MethodPost, "/api/v1/projects", writeTok, map[string]any{"name": "Neu", "assignmentId": "5641245", "budgetHours": 80})
 	if rr.Code != http.StatusCreated {
 		t.Fatalf("create got %d (body: %s)", rr.Code, rr.Body.String())
 	}
@@ -192,7 +192,7 @@ func TestProjectsCRUD(t *testing.T) {
 	if err := json.Unmarshal(rr.Body.Bytes(), &created); err != nil {
 		t.Fatalf("decode created: %v", err)
 	}
-	if created.ID == "" || created.Name != "Neu" || created.BudgetHours != 80 || created.TaskID != "C.123.456.01" {
+	if created.ID == "" || created.Name != "Neu" || created.BudgetHours != 80 || created.AssignmentID != "5641245" {
 		t.Fatalf("unexpected created project: %+v", created)
 	}
 
@@ -216,9 +216,9 @@ func TestProjectsCRUD(t *testing.T) {
 		t.Fatalf("deleted project should be 404, got %d", rr.Code)
 	}
 
-	// TaskID is required on create.
-	if rr := do(t, h, http.MethodPost, "/api/v1/projects", writeTok, map[string]any{"name": "Ohne Task", "budgetHours": 10}); rr.Code != http.StatusBadRequest {
-		t.Fatalf("create without taskId should be 400, got %d", rr.Code)
+	// AssignmentID is required on create.
+	if rr := do(t, h, http.MethodPost, "/api/v1/projects", writeTok, map[string]any{"name": "Ohne Assignment", "budgetHours": 10}); rr.Code != http.StatusBadRequest {
+		t.Fatalf("create without assignmentId should be 400, got %d", rr.Code)
 	}
 }
 

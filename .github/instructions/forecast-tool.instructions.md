@@ -23,10 +23,10 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
 
 ## Datenmodell
 
-- `Project`: id, taskId, name, budgetHours, active, color, startDate, endDate.
-  `taskId` (String, externe Task-Kennung z. B. `C.6908461183.001130.01`) identifiziert
+- `Project`: id, assignmentId, name, budgetHours, active, color, startDate, endDate.
+  `assignmentId` (String, externe Assignment-ID z. B. `5641245`) identifiziert
   reale Projekte eindeutig und ist beim Anlegen (Web-Formular + `POST /api/v1/projects`)
-  **Pflicht** (max. 100 Zeichen); das Urlaubsprojekt hat keine `taskId`.
+  **Pflicht** (max. 100 Zeichen); das Urlaubsprojekt hat keine `assignmentId`.
   `startDate`/`endDate` (ISO `YYYY-MM-DD`, inklusiv, beide optional/`omitempty`)
   grenzen den **Buchungszeitraum** ein; leer = ganzes Fiskaljahr. `Project.Bookable(iso)`
   prüft per lexikografischem String-Vergleich, ob ein Datum im Zeitraum liegt.

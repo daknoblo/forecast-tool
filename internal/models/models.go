@@ -168,16 +168,16 @@ type FiscalYearSettings struct {
 // hours may only be planned/booked between them. An empty value defaults to the
 // fiscal-year start/end respectively, so an unbounded project spans the whole FY.
 type Project struct {
-	ID          string  `json:"id"`
-	TaskID      string  `json:"taskId,omitempty"` // external task identifier, e.g. C.6908461183.001130.01
-	Name        string  `json:"name"`
-	BudgetHours float64 `json:"budgetHours"`
-	Color       string  `json:"color"`
-	Active      bool    `json:"active"`
-	FiscalYear  int     `json:"fiscalYear"`
-	StartDate   string  `json:"startDate,omitempty"` // inclusive, empty = FY start
-	EndDate     string  `json:"endDate,omitempty"`   // inclusive, empty = FY end
-	System      string  `json:"system,omitempty"`    // "" or "vacation" (auto-managed, non-deletable)
+	ID           string  `json:"id"`
+	AssignmentID string  `json:"assignmentId,omitempty"` // external assignment identifier, e.g. 5641245
+	Name         string  `json:"name"`
+	BudgetHours  float64 `json:"budgetHours"`
+	Color        string  `json:"color"`
+	Active       bool    `json:"active"`
+	FiscalYear   int     `json:"fiscalYear"`
+	StartDate    string  `json:"startDate,omitempty"` // inclusive, empty = FY start
+	EndDate      string  `json:"endDate,omitempty"`   // inclusive, empty = FY end
+	System       string  `json:"system,omitempty"`    // "" or "vacation" (auto-managed, non-deletable)
 }
 
 // Bookable reports whether the given ISO date lies within the project's booking
@@ -377,8 +377,8 @@ func Validate(d Data) error {
 		if p.BudgetHours < 0 {
 			return fmt.Errorf("projects[%d] (%s): budgetHours darf nicht negativ sein", i, p.Name)
 		}
-		if len([]rune(p.TaskID)) > 100 {
-			return fmt.Errorf("projects[%d] (%s): taskId ist zu lang (max. 100 Zeichen)", i, p.Name)
+		if len([]rune(p.AssignmentID)) > 100 {
+			return fmt.Errorf("projects[%d] (%s): assignmentId ist zu lang (max. 100 Zeichen)", i, p.Name)
 		}
 		if p.System != "" && p.System != VacationSystem {
 			return fmt.Errorf("projects[%d] (%s): system %q ist ungültig (nur %q erlaubt)", i, p.Name, p.System, VacationSystem)

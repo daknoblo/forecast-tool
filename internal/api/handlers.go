@@ -120,7 +120,7 @@ func (s *Server) handleGetGoal(w http.ResponseWriter, r *http.Request) {
 // GET /api/v1/projects/summary: the same figures shown on the Projects page.
 type projectSummaryOut struct {
 	ID                 string  `json:"id"`
-	TaskID             string  `json:"taskId,omitempty"`
+	AssignmentID       string  `json:"assignmentId,omitempty"`
 	Name               string  `json:"name"`
 	FiscalYear         int     `json:"fiscalYear"`
 	BudgetHours        float64 `json:"budgetHours"`
@@ -159,7 +159,7 @@ func (s *Server) handleProjectsSummary(w http.ResponseWriter, r *http.Request) {
 	for _, ps := range ys.Projects {
 		out = append(out, projectSummaryOut{
 			ID:                 ps.Project.ID,
-			TaskID:             ps.Project.TaskID,
+			AssignmentID:       ps.Project.AssignmentID,
 			Name:               ps.Project.Name,
 			FiscalYear:         ps.Project.FiscalYear,
 			BudgetHours:        ps.Project.BudgetHours,
@@ -296,14 +296,14 @@ func (s *Server) handleSyncEntries(w http.ResponseWriter, r *http.Request) {
 // PUT can distinguish "leave unchanged" (absent) from "set to this value"
 // (present, including clearing a date with "").
 type projectInput struct {
-	Name        *string  `json:"name"`
-	TaskID      *string  `json:"taskId"`
-	BudgetHours *float64 `json:"budgetHours"`
-	Color       *string  `json:"color"`
-	Active      *bool    `json:"active"`
-	FiscalYear  *int     `json:"fiscalYear"`
-	StartDate   *string  `json:"startDate"`
-	EndDate     *string  `json:"endDate"`
+	Name         *string  `json:"name"`
+	AssignmentID *string  `json:"assignmentId"`
+	BudgetHours  *float64 `json:"budgetHours"`
+	Color        *string  `json:"color"`
+	Active       *bool    `json:"active"`
+	FiscalYear   *int     `json:"fiscalYear"`
+	StartDate    *string  `json:"startDate"`
+	EndDate      *string  `json:"endDate"`
 }
 
 // handleCreateProject creates a new project with a server-generated id.
@@ -321,12 +321,12 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusBadRequest, "name darf nicht leer sein")
 		return
 	}
-	taskID := ""
-	if in.TaskID != nil {
-		taskID = capLen(strings.TrimSpace(*in.TaskID), 100)
+	assignmentID := ""
+	if in.AssignmentID != nil {
+		assignmentID = capLen(strings.TrimSpace(*in.AssignmentID), 100)
 	}
-	if taskID == "" {
-		s.writeError(w, http.StatusBadRequest, "taskId darf nicht leer sein")
+	if assignmentID == "" {
+		s.writeError(w, http.StatusBadRequest, "assignmentId darf nicht leer sein")
 		return
 	}
 	budget := 0.0
@@ -373,15 +373,15 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 			c = models.RandomColor(used)
 		}
 		created = models.Project{
-			ID:          newID(),
-			TaskID:      taskID,
-			Name:        name,
-			BudgetHours: budget,
-			Color:       c,
-			Active:      active,
-			FiscalYear:  year,
-			StartDate:   startDate,
-			EndDate:     endDate,
+			ID:           newID(),
+			AssignmentID: assignmentID,
+			Name:         name,
+			BudgetHours:  budget,
+			Color:        c,
+			Active:       active,
+			FiscalYear:   year,
+			StartDate:    startDate,
+			EndDate:      endDate,
 		}
 		d.Projects = append(d.Projects, created)
 		return nil
@@ -411,11 +411,11 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	var taskID string
-	if in.TaskID != nil {
-		taskID = capLen(strings.TrimSpace(*in.TaskID), 100)
-		if taskID == "" {
-			s.writeError(w, http.StatusBadRequest, "taskId darf nicht leer sein")
+	var assignmentID string
+	if in.AssignmentID != nil {
+		assignmentID = capLen(strings.TrimSpace(*in.AssignmentID), 100)
+		if assignmentID == "" {
+			s.writeError(w, http.StatusBadRequest, "assignmentId darf nicht leer sein")
 			return
 		}
 	}
@@ -455,8 +455,8 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 			if in.Name != nil {
 				d.Projects[i].Name = name
 			}
-			if in.TaskID != nil {
-				d.Projects[i].TaskID = taskID
+			if in.AssignmentID != nil {
+				d.Projects[i].AssignmentID = assignmentID
 			}
 			if in.BudgetHours != nil {
 				d.Projects[i].BudgetHours = *in.BudgetHours

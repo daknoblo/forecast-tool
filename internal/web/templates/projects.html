@@ -6,20 +6,20 @@
   <h2>Neues Projekt</h2>
   <form method="post" action="/projects" class="form-row">
     <label>Name <input type="text" name="name" required></label>
-    <label>TaskID <input type="text" name="taskId" placeholder="C.6908461183.001130.01" required></label>
+    <label>Assignment ID <input type="text" name="assignmentId" placeholder="5641245" required></label>
     <label>Budget (h) <input type="text" inputmode="decimal" name="budget" value="0"></label>
     <label>Start <input type="date" name="startDate"></label>
     <label>Ende <input type="date" name="endDate"></label>
     <button type="submit" class="btn primary">Anlegen</button>
   </form>
-  <p class="hint">Die <strong>TaskID</strong> identifiziert das Projekt eindeutig (Pflichtfeld, z. B. <code>C.6908461183.001130.01</code>). Die Farbe wird automatisch aus einer kontrastreichen Palette vergeben. Du kannst sie unter „Bearbeiten“ jederzeit ändern. Start/Ende grenzen den Buchungszeitraum ein – ohne Angabe gilt das ganze Fiskaljahr.</p>
+  <p class="hint">Die <strong>Assignment ID</strong> identifiziert das Projekt eindeutig (Pflichtfeld, z. B. <code>5641245</code>). Die Farbe wird automatisch aus einer kontrastreichen Palette vergeben. Du kannst sie unter „Bearbeiten“ jederzeit ändern. Start/Ende grenzen den Buchungszeitraum ein – ohne Angabe gilt das ganze Fiskaljahr.</p>
 </section>
 
 {{if .Views}}
 {{range .Views}}
 <section class="card project">
   <div class="project-head">
-    <h2><span class="dot" style="background:{{.Summary.Project.Color}}"></span>{{.Summary.Project.Name}}{{if .Summary.Project.TaskID}} <code class="taskid">{{.Summary.Project.TaskID}}</code>{{end}}{{if .Summary.Project.IsVacation}} <span class="fy-badge">automatisch · Urlaub</span>{{end}}</h2>
+    <h2><span class="dot" style="background:{{.Summary.Project.Color}}"></span>{{.Summary.Project.Name}}{{if .Summary.Project.AssignmentID}} <code class="assignmentid">{{.Summary.Project.AssignmentID}}</code>{{end}}{{if .Summary.Project.IsVacation}} <span class="fy-badge">automatisch · Urlaub</span>{{end}}</h2>
     <div class="project-kpis">
       <span>Budget <strong>{{hours .Summary.Project.BudgetHours}} h</strong></span>
       <span>Forecast <strong>{{hours .Summary.Forecast}} h</strong></span>
@@ -51,7 +51,7 @@
     <summary>Bearbeiten</summary>
     <form method="post" action="/projects/{{.Summary.Project.ID}}/update" class="form-row">
       <label>Name <input type="text" name="name" value="{{.Summary.Project.Name}}"></label>
-      <label>TaskID <input type="text" name="taskId" value="{{.Summary.Project.TaskID}}" placeholder="C.6908461183.001130.01" required></label>
+      <label>Assignment ID <input type="text" name="assignmentId" value="{{.Summary.Project.AssignmentID}}" placeholder="5641245" required></label>
       <label>Budget (h) <input type="text" inputmode="decimal" name="budget" value="{{hours .Summary.Project.BudgetHours}}"></label>
       <label>Start <input type="date" name="startDate" value="{{.Summary.Project.StartDate}}"></label>
       <label>Ende <input type="date" name="endDate" value="{{.Summary.Project.EndDate}}"></label>
