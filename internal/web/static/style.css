@@ -84,11 +84,11 @@ table.week tfoot td { background: #f8fafc; font-weight: 600; }
 /* Wide multi-week editor */
 .table-scroll { width: 100%; overflow-x: auto; }
 table.week.span { table-layout: fixed; }
-table.week.span th, table.week.span td { padding: 0.35rem 0.3rem; border-right: 1px solid var(--line); }
+table.week.span th, table.week.span td { padding: 0.45rem 0.3rem; border-right: 1px solid var(--line); }
 /* all forecast cells centred; only the project-name column stays left-aligned */
 table.week.span th, table.week.span td { text-align: center; }
 table.week.span th.pname, table.week.span td.pname { text-align: left; }
-table.week.span th.day, table.week.span td.day { min-width: 84px; }
+table.week.span th.day, table.week.span td.day { min-width: 90px; }
 table.week.span td.pname, table.week.span th.pname { position: sticky; left: 0; z-index: 2; background: var(--panel); min-width: 240px; width: 240px; text-align: left; border-right: 2px solid var(--line); }
 table.week.span .budget-left { display: block; margin-top: 2px; font-weight: 400; color: var(--muted); font-size: 0.72rem; }
 table.week.span .budget-left strong { color: var(--text); }
@@ -98,7 +98,7 @@ table.week.span tfoot td.pname { background: #f8fafc; }
 table.week.span .weekgroup { text-align: center; border-left: 2px solid var(--line); border-right: 2px solid var(--line); white-space: nowrap; }
 table.week.span .weekgroup small { font-weight: 400; color: var(--muted); }
 table.week.span .outyear { background: #f8fafc; color: var(--muted); }
-table.week.span .hcell { width: 100%; max-width: 64px; }
+table.week.span .hcell { width: 100%; max-width: 70px; padding: 0.45rem 0.35rem; }
 
 .span-ctl { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; margin: 0.25rem 0 1rem; }
 .span-ctl-label { color: var(--muted); font-size: 0.85rem; margin-right: 0.25rem; }
@@ -295,5 +295,26 @@ table.week tfoot td.center { text-align: center; }
 .sankey-legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1.1rem; margin-top: 0.6rem; color: var(--muted); font-size: 0.82rem; }
 .sankey-leg { display: inline-flex; align-items: center; white-space: nowrap; }
 .sankey-leg .dot { width: 11px; height: 11px; margin-right: 0.4rem; }
+
+/* forecast controls: centred visible-weeks selector flanked by nav buttons */
+.week-controls { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 0.5rem 1rem; margin: 0.25rem 0 1rem; }
+.week-controls .span-ctl { margin: 0; }
+.btn.nav-btn { text-decoration: none; }
+.btn.nav-btn:hover { text-decoration: none; }
+.btn.nav-btn.disabled { opacity: 0.4; pointer-events: none; cursor: default; }
+
+/* forecast auto-save status pill */
+.save-status-wrap { margin-top: 1rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.save-status { font-size: 0.82rem; font-weight: 600; padding: 0.25rem 0.65rem; border-radius: 999px; border: 1px solid var(--line); white-space: nowrap; }
+.save-status.ok { color: #065f46; background: #ecfdf5; border-color: #a7f3d0; }
+.save-status.saving { color: #92400e; background: #fffbeb; border-color: #fde68a; }
+.save-status.error { color: #991b1b; background: #fef2f2; border-color: #fecaca; }
+
+/* spacer row decoupling the footer summary rows from the project rows */
+table.week.span tfoot tr.footspacer td { height: 14px; padding: 0; border: none; background: var(--bg); }
+
+/* vacation row: subtle tint to set it apart from real project rows */
+table.week.span tr.vacrow > td { background: #f4f3fb; }
+table.week.span tr.vacrow > td.pname { background: #ece9f8; }
 
 

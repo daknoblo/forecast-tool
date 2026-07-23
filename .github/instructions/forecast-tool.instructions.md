@@ -220,13 +220,28 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
   ebenfalls Wochen-/Gesamtsummen. Header/Tages-/Footer-Zeilen
   iterieren alle über `.Span.Blocks` → `.Days`, damit Spalten bündig bleiben; die
   Wochensummen-Header sind `rowspan=2`.
-- **Burnrate-Banner (`/week`):** über der Tabelle (neben dem Zeitraum) zeigt `.burnbanner`
+- **Burnrate-Banner (`/week`):** über der Tabelle, direkt **unter** der zentrierten
+  Steuerzeile, zeigt `.burnbanner`
   die kombinierte Burnrate (`{{.Burn.PerWeek}}` h/Woche · `{{.Burn.PerWorkday}}` h/Tag) plus
   Pro-Projekt-Chips für alle **aktiven** Projekte, deren Buchungsfenster den sichtbaren
   Zeitraum überlappt. Quelle: `forecast.BuildSpanBurn(ys.Projects, spanStart, spanEnd)`
   in `handleWeek` (`ys` = `BuildYearSummary(d, cal)`).
+- **Forecast-Steuerung & Auto-Speichern (`/week`):** Über der Tabelle steht eine **zentrierte**
+  Steuerzeile (`.week-controls`): der „Sichtbare Wochen“-Umschalter wird links von einem
+  **«zurück»**- und rechts von einem **weiter»**-Button (`.btn.nav-btn`, an den FY-Rändern
+  deaktiviert) flankiert; darunter das Burnrate-Banner. Es gibt **keinen Speichern-Button** –
+  Änderungen werden **automatisch** gespeichert: Tippen (debounced) bzw. Verlassen/Enter einer
+  Zelle schickt sie per `fetch` (JSON, `keepalive`) an **`POST /week/cells`**
+  (`{cells:[{date,projectId,hours}]}`; `hours<=0` löscht; Projekt-Existenz + `p.Bookable`-Guard,
+  Verworfene werden gezählt; Persistenz über `store.Mutate`). Die Seite wird beim Eintragen
+  **nie neu geladen**; eine Status-Pille (`[data-save-status]`: „Automatisch gespeichert“ /
+  „Speichert…“ / „Gespeichert ✓“ / „Fehler beim Speichern“) gibt Rückmeldung. Grid-Zeilen und
+  Eingabefelder sind ~20 % größer; die **Urlaubszeile** ist dezent eingefärbt (`tr.vacrow`), und
+  eine Leerzeile (`tr.footspacer`) koppelt die Summen-/Auslastungszeilen im `tfoot` optisch vom
+  Rest ab. Der frühere Bulk-`POST /week/{week}` bleibt als Fallback erhalten.
 - **Leeren-Buttons** (`.clearbtn`, `type=button`, `data-clear-dates`) in Wochengruppen- und
-  Tages-Kopfzeilen leeren per JS alle `input.hcell` mit passendem `_<datum>`-Suffix. Eine
+  Tages-Kopfzeilen leeren per JS alle `input.hcell` mit passendem `_<datum>`-Suffix; die
+  geleerten Zellen werden ebenfalls automatisch gespeichert (`hours 0` → löschen). Eine
   **Status-Zeile** im `tfoot` zeigt je Woche (`colspan=6`: 5 Tage + Summenspalte) den
   Ampel-Punkt plus die (urlaubsbereinigten) Wochenstunden.
 - **Projekte-Seite:** KPI-Zeile zeigt Budget, Verbraucht, Rest, **Burnrate** (h/Woche) und
