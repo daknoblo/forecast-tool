@@ -4,12 +4,19 @@
     {{if gt .Span.Weeks 1}}Wochen {{.Span.StartWeek}}–{{.Span.EndWeek}}{{else}}Woche {{.Span.StartWeek}}{{end}}
     · FY {{.Settings.Year}}
   </h1>
-  <div class="week-nav">
-    {{if gt .Span.StartWeek 1}}<a href="/week/{{.Span.PrevStart}}?weeks={{.Span.Weeks}}">&laquo; zurück</a>{{end}}
-    {{if lt .Span.EndWeek .MaxWeek}}<a href="/week/{{.Span.NextStart}}?weeks={{.Span.Weeks}}">weiter &raquo;</a>{{end}}
-  </div>
 </div>
 <p class="hint">Zeitraum {{.Span.RangeLabel}}{{if gt .Span.HolidayHours 0.0}} · Feiertage automatisch {{hours .Span.HolidayHours}} h{{end}}</p>
+
+<div class="week-controls">
+  {{if gt .Span.StartWeek 1}}<a class="btn nav-btn" href="/week/{{.Span.PrevStart}}?weeks={{.Span.Weeks}}">&laquo; zurück</a>{{else}}<span class="btn nav-btn disabled" aria-disabled="true">&laquo; zurück</span>{{end}}
+  <div class="span-ctl">
+    <span class="span-ctl-label">Sichtbare Wochen:</span>
+    {{range $n := .WeekChoices}}<a href="/week/{{$.Span.StartWeek}}?weeks={{$n}}" class="chip{{if eq $n $.Span.Weeks}} active{{end}}">{{$n}}</a>{{end}}
+    <a href="/week/{{.Span.StartWeek}}" class="chip auto" data-autofit>Auto</a>
+  </div>
+  {{if lt .Span.EndWeek .MaxWeek}}<a class="btn nav-btn" href="/week/{{.Span.NextStart}}?weeks={{.Span.Weeks}}">weiter &raquo;</a>{{else}}<span class="btn nav-btn disabled" aria-disabled="true">weiter &raquo;</span>{{end}}
+</div>
+
 {{if .Burn.Items}}
 <div class="burnbanner">
   <span class="burnbanner-total">Burnrate Zeitraum <strong>{{hours .Burn.PerWeek}} h/Woche</strong> · {{hours .Burn.PerWorkday}} h/Tag</span>
@@ -19,18 +26,10 @@
 </div>
 {{end}}
 
-<div class="span-ctl">
-  <span class="span-ctl-label">Sichtbare Wochen:</span>
-  {{range $n := .WeekChoices}}
-    <a href="/week/{{$.Span.StartWeek}}?weeks={{$n}}" class="chip{{if eq $n $.Span.Weeks}} active{{end}}">{{$n}}</a>
-  {{end}}
-  <a href="/week/{{.Span.StartWeek}}" class="chip auto" data-autofit>Auto</a>
-</div>
-
 {{if .Projects}}
-<form method="post" action="/week/{{.Span.StartWeek}}?weeks={{.Span.Weeks}}">
+<div class="week-grid">
 <div class="table-scroll">
-<table class="grid week span" data-day-min="72" data-target="{{.Span.TargetHours}}">
+<table class="grid week span" data-day-min="78" data-target="{{.Span.TargetHours}}">
   <thead>
     <tr class="weekrow">
       <th rowspan="2" class="pname">Projekt</th>
@@ -59,7 +58,7 @@
     {{$totals := .Span.ProjectTotals}}
     {{$budgetLeft := .BudgetLeft}}
     {{range $p := .Projects}}
-    <tr>
+    <tr{{if $p.IsVacation}} class="vacrow"{{end}}>
       <td class="pname">
         <span class="dot" style="background:{{$p.Color}}"></span>{{$p.Name}}
         {{$bl := index $budgetLeft $p.ID}}
@@ -90,6 +89,7 @@
     {{end}}
   </tbody>
   <tfoot>
+    <tr class="footspacer"><td colspan="{{add (add (len .Span.Days) (len .Span.Blocks)) 2}}"></td></tr>
     <tr class="dayfoot">
       <td class="pname">Stunden / Tag</td>
       {{range $b := .Span.Blocks}}
@@ -117,28 +117,33 @@
   </tfoot>
 </table>
 </div>
-<div class="actions">
-  <button type="submit" class="btn primary">Speichern</button>
-  <span class="hint">Trage pro Tag die Stunden ein (Komma oder Punkt). Vergangene Tage sind die <strong>gebuchten</strong> Ist-Stunden, ab heute der <strong>Forecast</strong>. Leere Felder = 0.</span>
+<div class="save-status-wrap">
+  <span class="save-status ok" data-save-status>Automatisch gespeichert</span>
+  <span class="hint">Trage pro Tag die Stunden ein (Komma oder Punkt) – Änderungen werden <strong>automatisch gespeichert</strong>. Vergangene Tage sind die <strong>gebuchten</strong> Ist-Stunden, ab heute der <strong>Forecast</strong>. Leere Felder = 0.</span>
 </div>
-</form>
+</div>
 {{else}}
 <p class="empty">Keine aktiven Projekte. Lege zuerst unter <a href="/projects">Projekte</a> ein Projekt an.</p>
 {{end}}
 
 <script>
 (function () {
-  // Clear buttons: empty all hour inputs for the given date(s).
+  // Clear buttons: empty all hour inputs for the given date(s) and persist them.
   document.querySelectorAll('.clearbtn').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var dates = (btn.getAttribute('data-clear-dates') || '').split(',').filter(Boolean);
       if (!dates.length) return;
+      var cleared = [];
       document.querySelectorAll('input.hcell').forEach(function (inp) {
         for (var i = 0; i < dates.length; i++) {
-          if (inp.name.endsWith('_' + dates[i])) { inp.value = ''; break; }
+          if (inp.name.endsWith('_' + dates[i])) {
+            if (inp.value !== '') { inp.value = ''; cleared.push(inp); }
+            break;
+          }
         }
       });
       recalc();
+      if (cleared.length && window.saveCells) window.saveCells(cleared);
     });
   });
 })();
@@ -241,6 +246,70 @@
     if (e.target && e.target.classList.contains('hcell')) recalc();
   });
   recalc(); // capture the baseline of visible inputs on load
+})();
+(function () {
+  // Auto-save: persist changed cells to the server without reloading the page.
+  var table = document.querySelector('table.week.span');
+  if (!table) return;
+  var statusEl = document.querySelector('[data-save-status]');
+  var timers = {};
+  var inflight = 0;
+
+  function setStatus(state, msg) {
+    if (!statusEl) return;
+    statusEl.textContent = msg;
+    statusEl.className = 'save-status ' + state;
+  }
+  function postCells(cells) {
+    inflight++;
+    setStatus('saving', 'Speichert\u2026');
+    fetch('/week/cells', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cells: cells }),
+      keepalive: true
+    }).then(function (res) {
+      inflight--;
+      if (!res.ok) { setStatus('error', 'Fehler beim Speichern'); return; }
+      if (inflight === 0) setStatus('ok', 'Gespeichert \u2713');
+    }).catch(function () {
+      inflight--;
+      setStatus('error', 'Fehler beim Speichern');
+    });
+  }
+  // Build a payload from inputs: empty -> 0 (delete), invalid -> skipped.
+  window.saveCells = function (inputs) {
+    var cells = [];
+    for (var i = 0; i < inputs.length; i++) {
+      var inp = inputs[i];
+      var raw = (inp.value || '').trim();
+      var hours;
+      if (raw === '') { hours = 0; }
+      else {
+        var n = parseFloat(raw.replace(',', '.'));
+        if (isNaN(n) || n < 0) continue;
+        hours = n;
+      }
+      cells.push({ date: inp.getAttribute('data-date'), projectId: inp.getAttribute('data-project'), hours: hours });
+    }
+    if (cells.length) postCells(cells);
+  };
+  // Debounced save while typing.
+  table.addEventListener('input', function (e) {
+    var t = e.target;
+    if (!t || !t.classList.contains('hcell')) return;
+    var k = t.name;
+    if (timers[k]) clearTimeout(timers[k]);
+    timers[k] = setTimeout(function () { delete timers[k]; window.saveCells([t]); }, 500);
+  });
+  // Immediate save on blur / Enter.
+  table.addEventListener('change', function (e) {
+    var t = e.target;
+    if (!t || !t.classList.contains('hcell')) return;
+    var k = t.name;
+    if (timers[k]) { clearTimeout(timers[k]); delete timers[k]; }
+    window.saveCells([t]);
+  });
 })();
 (function () {
   var url = new URL(window.location.href);

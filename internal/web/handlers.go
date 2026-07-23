@@ -2,6 +2,7 @@ package web
 
 import (
 	"embed"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"io/fs"
@@ -94,6 +95,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /{$}", s.handleDashboard)
 	mux.HandleFunc("GET /week", s.handleWeekRedirect)
 	mux.HandleFunc("GET /week/{week}", s.handleWeek)
+	mux.HandleFunc("POST /week/cells", s.handleWeekCells)
 	mux.HandleFunc("POST /week/{week}", s.handleWeekSave)
 	mux.HandleFunc("GET /projects", s.handleProjects)
 	mux.HandleFunc("POST /projects", s.handleProjectCreate)
@@ -297,6 +299,97 @@ func (s *Server) handleWeekSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, fmt.Sprintf("/week/%d?weeks=%d", start, weeks), http.StatusSeeOther) // #nosec G710 -- path built from integers only, not user-controlled
+}
+
+// cellIn is one auto-saved forecast cell from the week grid.
+type cellIn struct {
+	Date      string  `json:"date"`
+	ProjectID string  `json:"projectId"`
+	Hours     float64 `json:"hours"`
+}
+
+// handleWeekCells upserts a small batch of forecast cells from the week grid's
+// auto-save (so the page never reloads while the user types). Each cell is keyed
+// by (date, projectId); hours <= 0 clears the entry. Cells for unknown projects
+// or outside a project's booking window are skipped and counted, never failing
+// the batch. Writes go through store.Mutate (normalize + validate + persist).
+func (s *Server) handleWeekCells(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	var in struct {
+		Cells []cellIn `json:"cells"`
+	}
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&in); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "ung\u00fcltige Anfrage")
+		return
+	}
+	if len(in.Cells) == 0 || len(in.Cells) > 500 {
+		writeJSONError(w, http.StatusBadRequest, "keine oder zu viele Zellen")
+		return
+	}
+	type key struct{ date, pid string }
+	want := make(map[key]float64, len(in.Cells))
+	for _, c := range in.Cells {
+		date := validISODate(c.Date)
+		pid := trim(c.ProjectID)
+		if date == "" || pid == "" || c.Hours < 0 {
+			writeJSONError(w, http.StatusBadRequest, "ung\u00fcltige Zelle")
+			return
+		}
+		want[key{date, pid}] = c.Hours
+	}
+	skipped := 0
+	err := s.store.Mutate(func(d *models.Data) error {
+		projByID := make(map[string]models.Project, len(d.Projects))
+		for _, p := range d.Projects {
+			projByID[p.ID] = p
+		}
+		// Drop the entries we are replacing, then re-add the non-zero values.
+		kept := d.Entries[:0]
+		for _, e := range d.Entries {
+			if _, ok := want[key{e.Date, e.ProjectID}]; ok {
+				continue
+			}
+			kept = append(kept, e)
+		}
+		d.Entries = append([]models.Entry(nil), kept...)
+		ks := make([]key, 0, len(want))
+		for k := range want {
+			ks = append(ks, k)
+		}
+		sort.Slice(ks, func(i, j int) bool {
+			if ks[i].date != ks[j].date {
+				return ks[i].date < ks[j].date
+			}
+			return ks[i].pid < ks[j].pid
+		})
+		for _, k := range ks {
+			p, ok := projByID[k.pid]
+			if !ok || !p.Bookable(k.date) {
+				skipped++
+				continue // unknown project or outside its booking window
+			}
+			if want[k] > 0 {
+				d.Entries = append(d.Entries, models.Entry{Date: k.date, ProjectID: k.pid, Hours: want[k]})
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "Speichern fehlgeschlagen")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_, _ = fmt.Fprintf(w, `{"ok":true,"skipped":%d}`, skipped)
+}
+
+// writeJSONError writes a minimal JSON error object with the given status code.
+func writeJSONError(w http.ResponseWriter, status int, msg string) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	b, _ := json.Marshal(map[string]string{"error": msg})
+	_, _ = w.Write(b)
 }
 
 // --- Projects ---
