@@ -917,6 +917,242 @@ func BuildGoalSummary(d models.Data, cal *holidays.Calendar) GoalSummary {
 	return gs
 }
 
+// --- Dashboard utilization Sankey (time flow) ---
+
+// SankeyRange defines one selectable horizon for the dashboard Sankey diagram.
+type SankeyRange struct {
+	Key   string // stable query value (see SankeyRanges)
+	Label string // button label
+}
+
+// SankeyRanges lists the horizons offered by the toggles above the dashboard
+// Sankey, in display order.
+var SankeyRanges = []SankeyRange{
+	{Key: "1w", Label: "1 Woche"},
+	{Key: "2w", Label: "2 Wochen"},
+	{Key: "4w", Label: "4 Wochen"},
+	{Key: "2m", Label: "2 Monate"},
+	{Key: "3m", Label: "3 Monate"},
+	{Key: "6m", Label: "Halbjahr"},
+	{Key: "fy", Label: "Fiskaljahr"},
+}
+
+// SankeyDefaultRange is the horizon used when none (or an unknown one) is
+// requested.
+const SankeyDefaultRange = "4w"
+
+// NormalizeSankeyRange returns key when it is a known range, else the default.
+func NormalizeSankeyRange(key string) string {
+	for _, r := range SankeyRanges {
+		if r.Key == key {
+			return key
+		}
+	}
+	return SankeyDefaultRange
+}
+
+// SankeyBucket is one time column (a week or a month) of the utilization flow.
+// Total is the summed planned project hours in the bucket; Hours holds the
+// per-project split that drives the stacked bands.
+type SankeyBucket struct {
+	Label    string             // primary axis label (e.g. "KW30" or "Jul")
+	SubLabel string             // secondary label (start date or year)
+	Total    float64            // summed planned hours over all projects
+	Hours    map[string]float64 // projectID -> planned hours in this bucket
+}
+
+// SankeyData is the dashboard utilization time-flow. Buckets are evenly spaced
+// columns (weeks or months) drawn across the full width; each project forms a
+// coloured band whose height is proportional to its planned hours, connected by
+// ribbons between adjacent buckets. The auto-managed vacation project is
+// excluded, matching the weekly traffic-light and the FY goal.
+type SankeyData struct {
+	RangeKey      string             // selected range key
+	Unit          string             // "week" | "month" bucket granularity
+	Buckets       []SankeyBucket     // time columns, left to right
+	Projects      []models.Project   // projects with hours in the span, in stack order
+	ProjectTotals map[string]float64 // projectID -> total hours over the span
+	Total         float64            // grand total planned hours over the span
+	MaxBucket     float64            // largest single-bucket total (vertical scale)
+	RangeLabel    string             // whole-span range, DD.MM.YYYY – DD.MM.YYYY
+}
+
+// sankeySpan resolves a range key into a fiscal-year week window (1-based start
+// week and week count) and the bucket unit ("week" or "month").
+func sankeySpan(year, startMonth, curWeek int, key string) (startWeek, weeks int, unit string) {
+	maxW := FYWeeks(year, startMonth)
+	switch key {
+	case "1w":
+		return curWeek, 1, "week"
+	case "2w":
+		return curWeek, 2, "week"
+	case "4w":
+		return curWeek, 4, "week"
+	case "2m":
+		return curWeek, 8, "week"
+	case "3m":
+		return curWeek, 13, "month"
+	case "6m":
+		half := (maxW + 1) / 2
+		if curWeek <= half {
+			return 1, half, "month"
+		}
+		return half + 1, maxW - half, "month"
+	case "fy":
+		return 1, maxW, "month"
+	default:
+		return curWeek, 4, "week"
+	}
+}
+
+// BuildSankey aggregates planned project hours into week or month buckets over
+// the horizon selected by rangeKey, for the dashboard utilization Sankey. Only
+// days within the fiscal year are counted; the vacation project is excluded.
+func BuildSankey(d models.Data, rangeKey string) SankeyData {
+	year := d.Settings.Year
+	startMonth := normMonth(d.Settings.FiscalYearStartMonth)
+	rangeKey = NormalizeSankeyRange(rangeKey)
+	cur := CurrentFYWeek(year, startMonth)
+	maxW := FYWeeks(year, startMonth)
+	startWeek, weeks, unit := sankeySpan(year, startMonth, cur, rangeKey)
+	if startWeek < 1 {
+		startWeek = 1
+	}
+	if startWeek > maxW {
+		startWeek = maxW
+	}
+	if weeks < 1 {
+		weeks = 1
+	}
+	if startWeek+weeks-1 > maxW {
+		weeks = maxW - startWeek + 1
+	}
+
+	fyStart, fyEnd := FiscalYear(year, startMonth)
+	fyStartISO := fyStart.Format("2006-01-02")
+	fyEndISO := fyEnd.Format("2006-01-02")
+	hidx := hoursIndex(d.Entries)
+	vac := vacationSet(d.Projects)
+
+	data := SankeyData{
+		RangeKey:      rangeKey,
+		Unit:          unit,
+		ProjectTotals: map[string]float64{},
+	}
+
+	// add accumulates one in-FY day's per-project hours into a bucket and tracks
+	// the visible date span for the range label.
+	var firstISO, lastISO string
+	add := func(b *SankeyBucket, iso string) {
+		if iso < fyStartISO || iso > fyEndISO {
+			return
+		}
+		if firstISO == "" {
+			firstISO = iso
+		}
+		lastISO = iso
+		for _, p := range d.Projects {
+			if vac[p.ID] {
+				continue
+			}
+			h := hidx[iso+"|"+p.ID]
+			if h == 0 {
+				continue
+			}
+			b.Hours[p.ID] += h
+			b.Total += h
+			data.ProjectTotals[p.ID] += h
+		}
+	}
+
+	if unit == "week" {
+		for wi := 0; wi < weeks; wi++ {
+			monday := FYWeekMonday(year, startMonth, startWeek+wi)
+			_, iso := monday.ISOWeek()
+			bucket := SankeyBucket{
+				Label:    fmt.Sprintf("KW%02d", iso),
+				SubLabel: monday.Format("02.01."),
+				Hours:    map[string]float64{},
+			}
+			for i := 0; i < 5; i++ {
+				add(&bucket, monday.AddDate(0, 0, i).Format("2006-01-02"))
+			}
+			bucket.Total = round1(bucket.Total)
+			data.Buckets = append(data.Buckets, bucket)
+		}
+	} else {
+		idxOf := map[string]int{}
+		for wi := 0; wi < weeks; wi++ {
+			monday := FYWeekMonday(year, startMonth, startWeek+wi)
+			for i := 0; i < 5; i++ {
+				day := monday.AddDate(0, 0, i)
+				iso := day.Format("2006-01-02")
+				if iso < fyStartISO || iso > fyEndISO {
+					continue
+				}
+				monthKey := day.Format("2006-01")
+				bi, ok := idxOf[monthKey]
+				if !ok {
+					bi = len(data.Buckets)
+					idxOf[monthKey] = bi
+					sub := ""
+					if day.Month() == time.January || bi == 0 {
+						sub = fmt.Sprintf("%d", day.Year())
+					}
+					data.Buckets = append(data.Buckets, SankeyBucket{
+						Label:    monthShort[int(day.Month())-1],
+						SubLabel: sub,
+						Hours:    map[string]float64{},
+					})
+				}
+				add(&data.Buckets[bi], iso)
+			}
+		}
+		for i := range data.Buckets {
+			data.Buckets[i].Total = round1(data.Buckets[i].Total)
+		}
+	}
+
+	// projects present in the span, ordered by total desc then name (stable
+	// stack order across all buckets)
+	projByID := map[string]models.Project{}
+	for _, p := range d.Projects {
+		projByID[p.ID] = p
+	}
+	present := make([]models.Project, 0, len(data.ProjectTotals))
+	for pid, tot := range data.ProjectTotals {
+		if tot <= 0 {
+			continue
+		}
+		if p, ok := projByID[pid]; ok {
+			present = append(present, p)
+		}
+	}
+	sort.Slice(present, func(i, j int) bool {
+		ti, tj := data.ProjectTotals[present[i].ID], data.ProjectTotals[present[j].ID]
+		if ti != tj {
+			return ti > tj
+		}
+		return present[i].Name < present[j].Name
+	})
+	data.Projects = present
+
+	for pid, tot := range data.ProjectTotals {
+		data.ProjectTotals[pid] = round1(tot)
+	}
+	for _, bk := range data.Buckets {
+		data.Total += bk.Total
+		if bk.Total > data.MaxBucket {
+			data.MaxBucket = bk.Total
+		}
+	}
+	data.Total = round1(data.Total)
+	if firstISO != "" {
+		data.RangeLabel = formatDayDot(firstISO) + " – " + formatDayDot(lastISO)
+	}
+	return data
+}
+
 // SortedProjects returns projects sorted by name for stable display.
 func SortedProjects(ps []models.Project) []models.Project {
 	out := append([]models.Project(nil), ps...)

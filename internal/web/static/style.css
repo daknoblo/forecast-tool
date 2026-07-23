@@ -284,4 +284,16 @@ table.week tfoot td.center { text-align: center; }
 .mini-chart { margin-top: 0.6rem; }
 .progress-chart { width: 100%; height: auto; }
 
+/* dashboard utilization Sankey */
+.sankey-card { padding: 1rem 1.25rem; }
+.sankey-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.sankey-head h2 { margin: 0; }
+.sankey-meta { color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.sankey-ctl { margin: 0.5rem 0 0.75rem; }
+.sankey-wrap { width: 100%; overflow-x: auto; }
+.sankey { width: 100%; height: auto; display: block; }
+.sankey-legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1.1rem; margin-top: 0.6rem; color: var(--muted); font-size: 0.82rem; }
+.sankey-leg { display: inline-flex; align-items: center; white-space: nowrap; }
+.sankey-leg .dot { width: 11px; height: 11px; margin-right: 0.4rem; }
+
 

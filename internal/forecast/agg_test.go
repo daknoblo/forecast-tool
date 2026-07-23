@@ -407,3 +407,67 @@ func TestGoalHalves(t *testing.T) {
 		t.Error("half labels must not be empty")
 	}
 }
+
+func TestSankeySpanUnits(t *testing.T) {
+	maxW := FYWeeks(2026, 1)
+	cases := []struct {
+		key   string
+		unit  string
+		weeks int
+	}{
+		{"1w", "week", 1},
+		{"2w", "week", 2},
+		{"4w", "week", 4},
+		{"2m", "week", 8},
+		{"3m", "month", 13},
+		{"fy", "month", maxW},
+	}
+	for _, c := range cases {
+		_, weeks, unit := sankeySpan(2026, 1, 10, c.key)
+		if unit != c.unit || weeks != c.weeks {
+			t.Errorf("%s: weeks=%d unit=%s, want weeks=%d unit=%s", c.key, weeks, unit, c.weeks, c.unit)
+		}
+	}
+	// An unknown key falls back to the default range.
+	if NormalizeSankeyRange("bogus") != SankeyDefaultRange {
+		t.Errorf("unknown range not normalised to default")
+	}
+}
+
+func TestBuildSankeyFiscalYearExcludesVacation(t *testing.T) {
+	d := vacationData() // FY 2026 (calendar year), all entries in January
+	sk := BuildSankey(d, "fy")
+
+	if sk.Unit != "month" {
+		t.Fatalf("unit = %q, want month", sk.Unit)
+	}
+	// Vacation hours (16h) are excluded; only p1's 8h remain.
+	if sk.Total != 8 {
+		t.Errorf("total = %v, want 8 (vacation excluded)", sk.Total)
+	}
+	if _, ok := sk.ProjectTotals["vacation-2026"]; ok {
+		t.Errorf("vacation must not appear in the Sankey")
+	}
+	if sk.ProjectTotals["p1"] != 8 {
+		t.Errorf("p1 total = %v, want 8", sk.ProjectTotals["p1"])
+	}
+	if len(sk.Projects) != 1 || sk.Projects[0].ID != "p1" {
+		t.Fatalf("projects = %+v, want only p1", sk.Projects)
+	}
+	if sk.MaxBucket != 8 {
+		t.Errorf("max bucket = %v, want 8", sk.MaxBucket)
+	}
+	// The January column carries the hours; every FY month is a bucket.
+	var jan *SankeyBucket
+	for i := range sk.Buckets {
+		if sk.Buckets[i].Label == "Jan" {
+			jan = &sk.Buckets[i]
+		}
+	}
+	if jan == nil || jan.Total != 8 {
+		t.Fatalf("january bucket = %+v, want total 8", jan)
+	}
+	if len(sk.Buckets) != 12 {
+		t.Errorf("fy buckets = %d, want 12 months", len(sk.Buckets))
+	}
+}

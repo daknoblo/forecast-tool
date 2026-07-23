@@ -204,6 +204,135 @@ func progressSVG(labels []string, cumulative []float64, target float64) template
 	return template.HTML(b.String()) // #nosec G203 -- numeric values + controlled month labels only
 }
 
+// sankeySVG renders the dashboard utilization flow as a dependency-free inline
+// SVG. Time buckets (weeks or months) are evenly spaced columns across the full
+// width; each project forms a coloured band whose height is proportional to its
+// planned hours, and adjacent buckets are joined by translucent ribbons.
+// Vertical dividers separate the weeks/months and every column is annotated
+// with its summed planned project hours. Project colours are sanitised and
+// project names are HTML-escaped inside <title> tooltips, so the emitted markup
+// (returned as template.HTML) carries no untrusted content.
+func sankeySVG(data forecast.SankeyData) template.HTML {
+	const (
+		w     = 1200.0
+		h     = 470.0
+		padL  = 42.0
+		padR  = 18.0
+		padT  = 30.0
+		padB  = 48.0
+		nodeW = 18.0
+	)
+	n := len(data.Buckets)
+	plotW := w - padL - padR
+	plotH := h - padT - padB
+	baseY := padT + plotH
+
+	if n == 0 || data.MaxBucket <= 0 {
+		return template.HTML(fmt.Sprintf( // #nosec G203 -- constant SVG shell, numeric values only
+			`<svg viewBox="0 0 %g %g" class="sankey" role="img" aria-label="Auslastung"><text x="%g" y="%g" font-size="13" fill="#94a3b8" text-anchor="middle">Keine geplanten Stunden im gewählten Zeitraum.</text></svg>`,
+			w, h, w/2, padT+plotH/2))
+	}
+
+	yMax := data.MaxBucket * 1.1
+	nodeX := func(i int) float64 {
+		if n == 1 {
+			return padL + (plotW-nodeW)/2
+		}
+		return padL + (plotW-nodeW)*float64(i)/float64(n-1)
+	}
+	scaleY := func(val float64) float64 { return plotH * val / yMax }
+
+	// Per bucket, the top/bottom Y of each project's band (bottom-aligned stack).
+	type band struct{ top, bot float64 }
+	bands := make([]map[string]band, n)
+	for i, bk := range data.Buckets {
+		bands[i] = make(map[string]band, len(bk.Hours))
+		y := baseY
+		for _, p := range data.Projects {
+			hh := bk.Hours[p.ID]
+			if hh <= 0 {
+				continue
+			}
+			bh := scaleY(hh)
+			bands[i][p.ID] = band{top: y - bh, bot: y}
+			y -= bh
+		}
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, `<svg viewBox="0 0 %g %g" class="sankey" role="img" aria-label="Auslastung">`, w, h)
+
+	// y gridlines + hour labels (0, 50%, 100% of the scale)
+	for _, frac := range []float64{0, 0.5, 1} {
+		val := yMax * frac
+		yy := baseY - scaleY(val)
+		fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#eef2f7"/>`, padL, yy, padL+plotW, yy)
+		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="10" fill="#94a3b8" text-anchor="end">%g</text>`, padL-6, yy+3, round1(val))
+	}
+	// left axis + baseline
+	fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#cbd5e1"/>`, padL, padT, padL, baseY)
+	fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#cbd5e1"/>`, padL, baseY, padL+plotW, baseY)
+
+	// vertical dividers between the week/month columns
+	for i := 0; i < n-1; i++ {
+		x := (nodeX(i) + nodeW + nodeX(i+1)) / 2
+		fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#e2e8f0"/>`, x, padT, x, baseY+4)
+	}
+
+	// ribbons between adjacent buckets (behind the nodes)
+	for i := 0; i < n-1; i++ {
+		x0 := nodeX(i) + nodeW
+		x1 := nodeX(i + 1)
+		xc := (x0 + x1) / 2
+		for _, p := range data.Projects {
+			a, okA := bands[i][p.ID]
+			c, okC := bands[i+1][p.ID]
+			if !okA || !okC {
+				continue
+			}
+			col := sanitizeColor(p.Color)
+			fmt.Fprintf(&b,
+				`<path d="M%g %g C%g %g %g %g %g %g L%g %g C%g %g %g %g %g %g Z" fill="%s" fill-opacity="0.3"/>`,
+				x0, a.top, xc, a.top, xc, c.top, x1, c.top,
+				x1, c.bot, xc, c.bot, xc, a.bot, x0, a.bot, col)
+		}
+	}
+
+	// nodes (stacked project bands) + column annotations
+	for i, bk := range data.Buckets {
+		x := nodeX(i)
+		cx := x + nodeW/2
+		for _, p := range data.Projects {
+			bd, ok := bands[i][p.ID]
+			if !ok {
+				continue
+			}
+			col := sanitizeColor(p.Color)
+			fmt.Fprintf(&b,
+				`<rect x="%g" y="%g" width="%g" height="%g" fill="%s" rx="1"><title>%s · %g h</title></rect>`,
+				x, bd.top, nodeW, bd.bot-bd.top, col,
+				template.HTMLEscapeString(p.Name), round1(bk.Hours[p.ID]))
+		}
+		// summed planned hours above the stack (muted when empty)
+		top := baseY - scaleY(bk.Total)
+		fill := "#334155"
+		if bk.Total == 0 {
+			fill = "#cbd5e1"
+			top = baseY
+		}
+		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" font-weight="600" fill="%s" text-anchor="middle">%g</text>`,
+			cx, top-6, fill, round1(bk.Total))
+		// x-axis labels (week/month + sub label)
+		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" fill="#475569" text-anchor="middle">%s</text>`, cx, baseY+16, bk.Label)
+		if bk.SubLabel != "" {
+			fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="9" fill="#94a3b8" text-anchor="middle">%s</text>`, cx, baseY+29, bk.SubLabel)
+		}
+	}
+
+	b.WriteString(`</svg>`)
+	return template.HTML(b.String()) // #nosec G203 -- sanitised colours + escaped names; other values numeric/controlled
+}
+
 // shortLabel trims a label to its first three runes for compact chart axes.
 func shortLabel(s string) string {
 	r := []rune(s)

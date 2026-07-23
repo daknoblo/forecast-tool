@@ -146,15 +146,20 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	ys := forecast.BuildYearSummary(d, s.calendar(d))
 	projects := forecast.SortedProjects(d.Projects)
 	fyStart, fyEnd := forecast.FiscalYear(d.Settings.Year, d.Settings.FiscalYearStartMonth)
+	sankey := forecast.BuildSankey(d, r.URL.Query().Get("sankey"))
 	s.render(w, "dashboard.html", map[string]any{
-		"Active":      "dashboard",
-		"Settings":    d.Settings,
-		"FYYears":     fyYears(d),
-		"Summary":     ys,
-		"Projects":    projects,
-		"CurrentWeek": forecast.CurrentFYWeek(d.Settings.Year, d.Settings.FiscalYearStartMonth),
-		"FYStart":     fyStart.Format("02.01.2006"),
-		"FYEnd":       fyEnd.Format("02.01.2006"),
+		"Active":       "dashboard",
+		"Wide":         true,
+		"Settings":     d.Settings,
+		"FYYears":      fyYears(d),
+		"Summary":      ys,
+		"Projects":     projects,
+		"CurrentWeek":  forecast.CurrentFYWeek(d.Settings.Year, d.Settings.FiscalYearStartMonth),
+		"FYStart":      fyStart.Format("02.01.2006"),
+		"FYEnd":        fyEnd.Format("02.01.2006"),
+		"Sankey":       sankey,
+		"SankeyRanges": forecast.SankeyRanges,
+		"SankeySVG":    sankeySVG(sankey),
 	})
 }
 
