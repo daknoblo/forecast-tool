@@ -125,7 +125,7 @@ table.week.span .hcell { width: 100%; max-width: 64px; }
 .reset-form { margin-top: 0.75rem; border-top: 1px solid var(--line); padding-top: 0.75rem; }
 .hint { color: var(--muted); font-size: 0.85rem; }
 .fy-badge { font-size: 0.7em; vertical-align: middle; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 0.1em 0.6em; color: var(--muted); font-weight: 600; }
-.taskid { font-size: 0.72em; vertical-align: middle; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 0.1em 0.45em; color: var(--muted); font-weight: 500; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.assignmentid { font-size: 0.72em; vertical-align: middle; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 0.1em 0.45em; color: var(--muted); font-weight: 500; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 
 .msg { border-radius: 8px; padding: 0.7rem 1rem; margin: 0 0 1rem; font-size: 0.9rem; border: 1px solid; }
 .msg.error { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
