@@ -109,6 +109,22 @@
 </section>
 
 <section class="card">
+  <h2>API-Zugriff</h2>
+  <p class="hint">Die JSON-API unter <code>/api/v1</code> erlaubt externen Tools (z.&nbsp;B. vom Desktop) das Lesen und Synchronisieren von Forecast- und Ist-Stunden. Die Web-Oberfläche bleibt ohne Authentifizierung; nur <code>/api/**</code> ist über zwei Bearer-Tokens geschützt. Details in der <code>docs/API.md</code>.</p>
+  <table class="kv">
+    <tr>
+      <td>Lese-Token <code>{{.APIReadEnv}}</code></td>
+      <td>{{if .APIReadSet}}<span class="msg ok" style="display:inline-block;padding:0.3rem 0.6rem;margin:0">gesetzt</span>{{else}}<span class="msg error" style="display:inline-block;padding:0.3rem 0.6rem;margin:0">nicht gesetzt</span>{{end}}</td>
+    </tr>
+    <tr>
+      <td>Schreib-Token <code>{{.APIWriteEnv}}</code></td>
+      <td>{{if .APIWriteSet}}<span class="msg ok" style="display:inline-block;padding:0.3rem 0.6rem;margin:0">gesetzt</span>{{else}}<span class="msg error" style="display:inline-block;padding:0.3rem 0.6rem;margin:0">nicht gesetzt</span>{{end}}</td>
+    </tr>
+  </table>
+  <p class="hint">Die Tokens werden <strong>nicht</strong> in der Datendatei gespeichert, sondern über Umgebungsvariablen bereitgestellt (z.&nbsp;B. als Docker-Secret bzw. <code>environment</code>-Eintrag in <code>docker-compose.yml</code>). Der Lese-Token erlaubt nur GET-Zugriffe, der Schreib-Token zusätzlich Änderungen. Ist keiner gesetzt, ist die API deaktiviert.</p>
+</section>
+
+<section class="card">
   <h2>Konfigurationsdatei</h2>
   <table class="kv">
     <tr><td>Pfad</td><td><code>{{.DataPath}}</code></td></tr>

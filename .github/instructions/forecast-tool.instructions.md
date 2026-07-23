@@ -274,6 +274,36 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
 - Abgeschnittene KI-Antworten (`finish_reason: length`) werden erkannt und mit
   deutscher Meldung gemeldet; der Client setzt `max_completion_tokens` (32768).
 
+## HTTP-API (`/api/v1`)
+
+- Eigenes Paket `internal/api` (nur stdlib), gemountet in `web.Handler()` per
+  `mux.Handle("/api/", api.New(store, logger))`. Eigener `ServeMux` mit **vollen**
+  Pfaden `GET /api/v1/...` (kein StripPrefix), umschlossen von der Auth-Middleware.
+- **Zwei Bearer-Tokens** über Umgebungsvariablen (exportierte Konstanten
+  `api.ReadTokenEnv` = `FORECAST_API_READ_TOKEN`, `api.WriteTokenEnv` =
+  `FORECAST_API_WRITE_TOKEN`). Read = nur `GET`; Write = Read + Schreiben. Vergleich
+  konstant-zeitlich (`crypto/subtle`). Kein/ungültiger Token → `401`, Lese-Token auf
+  Schreib-Endpunkt → `403`, **beide** Tokens leer → `503` (fail-closed). Tokens werden
+  **nie** in `data.json` gespeichert und **nie** geloggt. **Die HTML-UI bleibt ohne Auth.**
+- **Einstellungen** zeigen (read-only Karte „API-Zugriff", zwischen KI-Endpoint- und
+  Konfigurationsdatei-Karte) an, ob die beiden Token-Variablen gesetzt sind – analog zur
+  KI-Key-Statusanzeige (`APIReadSet`/`APIWriteSet` in `handleSettings`).
+- **Schreibpfade laufen über `store.Mutate`** (Copy-on-Write: klont → mutiert →
+  `normalize` → `models.Validate` → nur bei Erfolg persistieren+swappen). Reads über
+  `Snapshot()`/`Marshal()`. `GET`-Antworten **redigieren** den KI-Key (`AI.APIKey=""`).
+- **Endpunkte:** Read (`GET`): `/data`, `/settings`, `/projects[?fiscalYear=&all=]`,
+  `/projects/{id}`, `/entries[?from=&to=&projectId=&kind=]`, `/goal[?year=]`. Write:
+  `POST /entries/sync`, `POST /projects`, `PUT /projects/{id}`, `DELETE /projects/{id}`,
+  `PUT /settings`, `PUT /settings/fiscal-years/{year}`.
+- **`POST /entries/sync`** ist der Kern: Upsert je `(date, projectId, kind)`, `hours=0`
+  löscht; Guard über Projekt-Existenz + `p.Bookable(date)`; verworfene Einträge werden in
+  `skipped` gemeldet (Rest wird angewendet). Antwort `{upserted, deleted, skipped}`.
+- Urlaubsprojekt bleibt gesperrt: `PUT`/`DELETE` darauf → `409`. FY-Settings-`PUT`
+  synchronisiert das Urlaubsbudget via `EnsureVacationProject`.
+- Fehlerformat `{ "error": "<deutsch>" }`. Request-Body strikt (`DisallowUnknownFields`),
+  Limit via `http.MaxBytesReader` (2 MiB). Referenz-Doku: `docs/API.md` (bei
+  Schema-/Endpunkt-Änderungen mitpflegen), Env-Variablen in README/`.env.example`/compose.
+
 ## Logging
 
 - Logging-Paket `internal/logging` (nur stdlib): `Setup(dataDir)` liefert einen

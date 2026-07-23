@@ -128,11 +128,18 @@ func (s *Store) persist() error {
 func (s *Store) Snapshot() models.Data {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	d := s.data
-	d.Projects = append([]models.Project(nil), s.data.Projects...)
-	d.Entries = append([]models.Entry(nil), s.data.Entries...)
-	d.FiscalYears = make(map[int]models.FiscalYearSettings, len(s.data.FiscalYears))
-	for k, v := range s.data.FiscalYears {
+	return clone(s.data)
+}
+
+// clone returns a deep-ish copy of a document: the slices and the FiscalYears
+// map are copied so a caller can mutate the result without touching the shared
+// (or another) document. Nested values are all value types, so this is enough.
+func clone(src models.Data) models.Data {
+	d := src
+	d.Projects = append([]models.Project(nil), src.Projects...)
+	d.Entries = append([]models.Entry(nil), src.Entries...)
+	d.FiscalYears = make(map[int]models.FiscalYearSettings, len(src.FiscalYears))
+	for k, v := range src.FiscalYears {
 		d.FiscalYears[k] = v
 	}
 	return d
@@ -214,5 +221,25 @@ func (s *Store) Update(fn func(d *models.Data) error) error {
 	if err := fn(&s.data); err != nil {
 		return err
 	}
+	return s.persist()
+}
+
+// Mutate applies fn to a working copy of the document, normalizes it, validates
+// the result and only then swaps it in and persists. Unlike Update, a failing
+// mutation (either fn returning an error or validation rejecting the result)
+// never leaves the in-memory document in a half-changed state, which makes it
+// the safe workhorse for the JSON API's write endpoints.
+func (s *Store) Mutate(fn func(d *models.Data) error) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	working := clone(s.data)
+	if err := fn(&working); err != nil {
+		return err
+	}
+	normalize(&working)
+	if err := models.Validate(working); err != nil {
+		return err
+	}
+	s.data = working
 	return s.persist()
 }

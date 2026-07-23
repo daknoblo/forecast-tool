@@ -14,6 +14,9 @@ services:
       TZ: "Europe/Berlin"
       # Optional: API-Key für den KI-Endpoint per Host-Env oder .env-Datei setzen.
       # FORECAST_AI_API_KEY: "${FORECAST_AI_API_KEY}"
+      # Optional: Bearer-Tokens für die JSON-API (/api/v1, siehe docs/API.md).
+      # FORECAST_API_READ_TOKEN: "${FORECAST_API_READ_TOKEN}"
+      # FORECAST_API_WRITE_TOKEN: "${FORECAST_API_WRITE_TOKEN}"
     volumes:
       - forecast-data:/appdata
     read_only: true
