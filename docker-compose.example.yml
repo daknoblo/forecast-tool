@@ -1,6 +1,20 @@
 services:
+  # Einmaliger Init-Container: stellt sicher, dass das Daten-Volume dem
+  # Non-Root-User (UID 65532) des Images gehört. Nötig, wenn ein bestehendes
+  # Volume noch root gehört (z. B. aus einer älteren Image-Version). Läuft kurz
+  # als root, korrigiert die Rechte und beendet sich dann.
+  init-permissions:
+    image: alpine:3
+    command: ["chown", "-R", "65532:65532", "/appdata"]
+    volumes:
+      - forecast-data:/appdata
+    restart: "no"
+
   forecast:
     image: ghcr.io/daknoblo/forecast-tool:latest
+    depends_on:
+      init-permissions:
+        condition: service_completed_successfully
     container_name: forecast-tool
     restart: unless-stopped
     ports:
