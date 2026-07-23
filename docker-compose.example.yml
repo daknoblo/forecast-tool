@@ -1,6 +1,6 @@
 services:
   forecast:
-    image: ghcr.io/daknoblo/forecast-tool:stable
+    image: ghcr.io/daknoblo/forecast-tool:latest
     container_name: forecast-tool
     restart: unless-stopped
     ports:

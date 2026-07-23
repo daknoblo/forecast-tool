@@ -2,8 +2,7 @@ name: Release
 
 on:
   push:
-    branches: [main, develop]
-    tags: ["v*"]
+    branches: [main]
 
 env:
   REGISTRY: ghcr.io
@@ -48,11 +47,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=stable,enable=${{ github.ref == 'refs/heads/main' }}
-            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/develop' }}
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha,format=short
+            type=raw,value=latest
 
       - name: Lowercase image name
         id: image

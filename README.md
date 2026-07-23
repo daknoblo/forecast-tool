@@ -172,8 +172,9 @@ statischen Build. [.github/workflows/release.yml](.github/workflows/release.yml)
 baut und pusht Multi-Arch-Images nach GHCR, erzeugt SBOM/Provenance, signiert
 keyless mit cosign und lädt den Trivy-SARIF-Report hoch.
 
-Das Image wird auf `main` als `stable`, auf `develop` als `dev`, zusätzlich mit
-Git-SHA und – bei Tags – mit der Version getaggt.
+Jeder Push auf `main` baut und pusht ein Multi-Arch-Image, das als `latest`
+getaggt wird (`ghcr.io/daknoblo/forecast-tool:latest`). Es gibt keine weiteren
+Stages (kein `stable`/`dev`) mehr.
 
 ### Was du einmalig einrichten musst
 1. **Repository-Berechtigungen**: In *Settings → Actions → General → Workflow
