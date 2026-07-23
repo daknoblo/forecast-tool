@@ -200,6 +200,26 @@ Stages (kein `stable`/`dev`) mehr.
 > `ghcr.io/daknoblo/forecast-tool`. Passe die `image:`-Zeile in
 > `docker-compose.yml` an deinen GitHub-Benutzer/-Organisation an.
 
+### Fehlerbehebung: `open /appdata/data.json: permission denied`
+Das Image läuft als **Non-Root-User (UID 65532)**. Ein **frisch** angelegtes
+Volume erhält automatisch die richtigen Rechte. Ein **bestehendes** Volume aus
+einer älteren Image-Version kann jedoch noch `root` gehören – dann darf der
+Prozess `/appdata` nicht schreiben und der Container beendet sich mit
+`permission denied`.
+
+Die mitgelieferte `docker-compose.yml` behebt das automatisch über einen kleinen
+`init-permissions`-Container, der die Rechte vor dem Start setzt. Es genügt:
+```bash
+docker compose up -d
+```
+Ohne die Compose-Datei (bzw. für einen einmaligen Fix) reicht:
+```bash
+docker compose down
+VOL=$(docker volume ls -q | grep forecast-data | head -1)
+docker run --rm -v "$VOL":/appdata alpine chown -R 65532:65532 /appdata
+docker compose up -d
+```
+
 ## Tests
 ```bash
 go test ./...
