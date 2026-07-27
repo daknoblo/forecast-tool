@@ -1,6 +1,6 @@
 {{template "header" .}}
 <h1>Projekte <span class="fy-badge">FY {{.Settings.Year}}</span></h1>
-<p class="hint">Projekte gehören zum aktiven Fiskaljahr ({{.Settings.Year}}). Über die FY-Auswahl oben rechts wechselst du das Jahr; läuft ein Projekt über das FY hinaus, lege es im neuen FY erneut an.</p>
+<p class="hint">Projekte gehören zum aktiven Fiskaljahr ({{.Settings.Year}}). Über die FY-Auswahl oben rechts wechselst du das Jahr; läuft ein Projekt über das FY hinaus, lege es im neuen FY erneut an – mit <strong>derselben Assignment ID</strong>. Die im Vorjahr bereits gebuchten Stunden werden dann automatisch als „Übertrag“ vom Budget abgezogen.</p>
 
 {{if .Private}}
 <p class="hint">Der <strong>private Modus</strong> ist aktiv: Projektnamen sind durch Platzhalter ersetzt,
@@ -27,6 +27,8 @@
     <h2><span class="dot" style="background:{{.Summary.Project.Color}}"></span>{{.Summary.Project.Name}}{{if .Summary.Project.AssignmentID}} <code class="assignmentid">{{.Summary.Project.AssignmentID}}</code>{{end}}{{if .Summary.Project.IsVacation}} <span class="fy-badge">automatisch · Urlaub</span>{{end}}</h2>
     <div class="project-kpis">
       <span>Budget <strong>{{hours .Summary.Project.BudgetHours}} h</strong></span>
+      {{if gt .Summary.CarryOver 0.0}}<span title="in früheren Fiskaljahren auf dieselbe Assignment ID gebucht">Übertrag <strong>−{{hours .Summary.CarryOver}} h</strong></span>
+      <span>Verfügbar <strong>{{hours .Summary.AvailableBudget}} h</strong></span>{{end}}
       <span>Forecast <strong>{{hours .Summary.Forecast}} h</strong></span>
       <span>Ist gebucht <strong>{{hours .Summary.Actual}} h</strong></span>
       <span class="{{if lt .Summary.Remaining 0.0}}negative{{end}}">Rest <strong>{{hours .Summary.Remaining}} h</strong></span>
@@ -40,7 +42,10 @@
     <span>Arbeitstage <strong>{{.Summary.WindowWorkdays}}</strong></span>
     <span>Burnrate <strong>{{hours .Summary.BurnPerWeek}} h/Woche</strong> · {{hours .Summary.BurnPerWorkday}} h/Tag</span>
     {{if gt .Summary.RemainingWorkdays 0}}
-    <span>Resttempo <strong>{{hours .Summary.RequiredPerWorkday}} h/Tag</strong> <small>({{.Summary.RemainingWorkdays}} Arbeitstage bis Ende)</small></span>
+    <span>Noch zu verplanen <strong>{{hours .Summary.RequiredPerWorkday}} h/Tag</strong> <small>({{.Summary.RemainingWorkdays}} Arbeitstage bis Ende)</small></span>
+    {{end}}
+    {{if gt .Summary.CarryOver 0.0}}
+    <span class="tag">Übertrag aus früheren Fiskaljahren berücksichtigt</span>
     {{end}}
     {{if gt .Summary.OutOfWindow 0.0}}
     <span class="warn">⚠ {{hours .Summary.OutOfWindow}} h außerhalb des Zeitraums gebucht</span>

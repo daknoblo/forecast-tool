@@ -43,21 +43,34 @@
 
 <h2>Budgets</h2>
 {{if .Summary.Projects}}
+{{if .Summary.HasCarryOver}}
+<p class="hint">Ein Assignment kann über mehrere Fiskaljahre laufen. Die Spalte <strong>Übertrag</strong> zeigt die Stunden,
+  die in <em>früheren</em> Fiskaljahren bereits auf dieselbe Assignment ID gebucht wurden – sie werden vom Budget abgezogen,
+  bevor Rest und Burnrate berechnet werden.</p>
+{{end}}
 <table class="grid budgets">
   <thead>
-    <tr><th>Projekt</th><th class="num">Budget</th><th class="num">Forecast</th><th class="num">Gebucht</th><th class="num">Rest</th><th>Zeitraum</th><th class="num burncol">Burnrate</th><th class="utilcol">Auslastung</th></tr>
+    <tr><th>Projekt</th><th class="num">Budget</th>{{if .Summary.HasCarryOver}}<th class="num">Übertrag</th>{{end}}<th class="num">Forecast</th><th class="num">Gebucht</th><th class="num">Rest</th><th>Zeitraum</th><th class="num burncol">Burnrate</th><th class="utilcol">Auslastung</th></tr>
   </thead>
   <tbody>
   {{range .Summary.Projects}}
     <tr>
       <td><span class="dot" style="background:{{.Project.Color}}"></span>{{.Project.Name}}{{if .Project.AssignmentID}} <code class="assignmentid">{{.Project.AssignmentID}}</code>{{end}}{{if not .Project.Active}} <em>(inaktiv)</em>{{end}}</td>
       <td class="num">{{hours .Project.BudgetHours}} h</td>
+      {{if $.Summary.HasCarryOver}}<td class="num carrycol">{{if gt .CarryOver 0.0}}<span title="in früheren Fiskaljahren auf dieselbe Assignment ID gebucht">−{{hours .CarryOver}} h</span>{{else}}<span class="muted">–</span>{{end}}</td>{{end}}
       <td class="num">{{hours .Forecast}} h</td>
       <td class="num ist">{{hours .Actual}} h</td>
       <td class="num {{if lt .Remaining 0.0}}negative{{end}}">{{hours .Remaining}} h</td>
       <td><small>{{.StartLabel}} – {{.EndLabel}} <span class="muted">(noch {{.RemainingLabel}})</span>{{if gt .OutOfWindow 0.0}} <span class="warn" title="außerhalb des Zeitraums gebucht">⚠ {{hours .OutOfWindow}} h</span>{{end}}</small></td>
-      <td class="num burncol"><small>{{hours .BurnPerWeek}} h/Woche{{if gt .RemainingWorkdays 0}}<br>Soll {{hours .RequiredPerWorkday}} h/Tag{{end}}</small></td>
+      <td class="num burncol"><small title="Verfügbares Budget ({{hours .AvailableBudget}} h) gleichmäßig über {{.WindowWorkdays}} Arbeitstage">{{hours .BurnPerWeek}} h/Woche</small>{{if gt .RemainingWorkdays 0}}<small class="muted" title="Noch nicht verplantes Budget über {{.RemainingWorkdays}} verbleibende Arbeitstage">offen {{hours .RequiredPerWeek}} h/Woche</small>{{end}}</td>
       <td class="utilcol">
+        {{if gt .CarryOver 0.0}}
+        <div class="barrow">
+          <span class="barkey">Übertrag</span>
+          <div class="bar"><span style="width:{{barWidth .CarryOverPct}}%;background:{{.Project.Color}};opacity:0.2"></span></div>
+          <small>{{hours .CarryOverPct}} %</small>
+        </div>
+        {{end}}
         <div class="barrow">
           <span class="barkey">Forecast</span>
           <div class="bar"><span style="width:{{barWidth .ForecastPct}}%;background:{{.Project.Color}};opacity:0.45"></span></div>

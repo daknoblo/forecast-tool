@@ -313,6 +313,9 @@ table.week tfoot td.center { text-align: center; }
 
 /* dashboard budgets table */
 .budgets th.burncol, .budgets td.burncol { width: 9.5rem; white-space: nowrap; }
+.budgets td.burncol small { display: block; }
+/* cross-fiscal-year carry-over deducted from an assignment's budget */
+.budgets th.carrycol, .budgets td.carrycol { white-space: nowrap; color: var(--muted); }
 .budgets th.utilcol, .budgets td.utilcol { width: 16rem; }
 .budgets .barrow { display: flex; align-items: center; gap: 0.4rem; }
 .budgets .barrow + .barrow { margin-top: 0.25rem; }

@@ -92,7 +92,9 @@ go.mod
   tables.
 - **Projects**: CRUD per fiscal year, budget, colour, active/inactive, start/end
   date (booking window), burn rate (h/week · h/day) plus required pace,
-  remaining budget and a burn-down SVG.
+  remaining budget and a burn-down SVG. Projects sharing an `assignmentId` with
+  an earlier fiscal year carry that year's consumed hours over, so the budget of
+  a multi-year assignment is only granted once.
 - **Goal/capacity**: FY target, vacation (per half-year), standard tasks,
   available hours, target per week/month/quarter, half-year and quarter roll-ups.
 - **Settings**: FY start month, federal state (holidays), weekly target hours,

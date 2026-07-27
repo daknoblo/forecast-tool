@@ -98,7 +98,9 @@ collects every requirement stated so far as the binding reference.
 - Quarters are ordered from the FY start (e.g. Jul–Sep, Oct–Dec, Jan–Mar, Apr–Jun).
 - Projects always belong to exactly one fiscal year (never across); a project
   running into another FY is created anew there, so projects must be re-created
-  and stored per fiscal year.
+  and stored per fiscal year. Use the **same `assignmentId`** for the new year:
+  that is how the carry-over of already-booked hours is resolved (see
+  "Project booking window & burn rate").
 - Entries always belong to a date, which in turn falls into a fiscal year.
 
 ## Per-fiscal-year settings
@@ -173,13 +175,31 @@ collects every requirement stated so far as the binding reference.
 - Every project has a booking window (`startDate`/`endDate`, inclusive; empty =
   the FY). `forecast` clamps the window to the FY
   (`projectWindow(p, fyStart, fyEnd)`).
+- **Assignments across fiscal years:** a project belongs to exactly one FY, so a
+  continuing assignment is re-created in the new year with the **same
+  `assignmentId`** and the assignment's total budget. `BuildYearSummary`
+  therefore deducts a **carry-over**: `carryOverByAssignment` sums the hours
+  consumed by projects of **earlier** fiscal years (`p.FiscalYear < year`) that
+  share the same (trimmed, lower-cased) `assignmentId`. Later fiscal years never
+  count. Derived fields: `CarryOver`, `AvailableBudget` (= `BudgetHours -
+  CarryOver`, floored at 0), `Remaining` (= `AvailableBudget - Consumed`),
+  `UtilizationPct` (= `(CarryOver + Consumed) / BudgetHours`) and `CarryOverPct`.
+  `YearSummary` carries `TotalCarryOver` and `HasCarryOver`.
+- **Because of that, `BuildYearSummary(d, cal)` must be called with the projects
+  of ALL fiscal years**; it filters to `d.Settings.Year` itself via
+  `models.ProjectsForFY`. Never narrow `d.Projects` before calling it, otherwise
+  the carry-over is silently zero.
 - `ProjectSummary` (from `BuildYearSummary(d, cal)`) additionally carries:
   `StartDate`/`EndDate` + `StartLabel`/`EndLabel` (DD.MM.YYYY),
   `HasCustomWindow`, `WindowWorkdays` (Mon–Fri minus holidays in the window,
-  `cal`-based), `BurnPerWeek` (= budget / (working days / 5)), `BurnPerWorkday`
-  (= budget / working days), `RemainingWorkdays` (from today to the window end),
-  `RequiredPerWorkday` (= remaining budget / remaining working days) and
+  `cal`-based), `BurnPerWeek` (= available budget / (working days / 5)),
+  `BurnPerWorkday` (= available budget / working days), `RemainingWorkdays`
+  (from today to the window end), `RequiredPerWorkday` (= remaining budget /
+  remaining working days), `RequiredPerWeek` (= `RequiredPerWorkday * 5`) and
   `OutOfWindow` (hours booked outside the window – a warning).
+- **The burn rate is always based on `AvailableBudget`, never on `BudgetHours`**,
+  so a continued assignment does not get its already-burned hours back. The same
+  applies to the burn-down chart on the projects page.
 - **`BuildYearSummary` takes `cal *holidays.Calendar`** (for holiday-accurate
   working days). Callers: `handleDashboard`/`handleProjects`/`handleGoal` (all
   have `s.calendar(d)`); tests pass `holidays.New(2026, "BY")`.
@@ -220,12 +240,15 @@ collects every requirement stated so far as the binding reference.
   budget (`Summary.TotalBudget`) · total forecast (`Summary.TotalForecast`) ·
   projects · current FY week.
 - **Budgets table (`table.grid.budgets`), columns in this order:** project
-  (colour dot + name + `assignmentid` badge) · budget · forecast · booked ·
+  (colour dot + name + `assignmentid` badge) · budget · **Übertrag** (only
+  rendered when `Summary.HasCarryOver`, shows `−CarryOver`) · forecast · booked ·
   remaining · window (date + "(noch …)" from `ProjectSummary.RemainingLabel`,
-  e.g. "2 Wochen und 3 Tage" / "3 Monate") · burn rate (`.burncol`, spelled out
-  "h/Woche") · utilization (`.utilcol`, **two bars**: forecast/budget from
-  `ForecastPct` (transparent) and booked/budget from `ActualPct` (opaque)). No
-  "Verbraucht" column.
+  e.g. "2 Wochen und 3 Tage" / "3 Monate") · burn rate (`.burncol`: `BurnPerWeek`
+  plus, when working days are left, the muted line "offen `RequiredPerWeek`" —
+  **both in h/Woche** so they are comparable) · utilization (`.utilcol`, two bars:
+  forecast/budget from `ForecastPct` (transparent) and booked/budget from
+  `ActualPct` (opaque), preceded by a third Übertrag bar when `CarryOver > 0`).
+  No "Verbraucht" column.
 - **Shifting the horizon:** `GET /?sankey=<key>&soff=<n>` shifts the horizon by
   whole spans (negative = into the past); `forecast.shiftSankeySpan` clamps flush
   against the FY borders (`SankeyMaxOffset` bounds the parameter).

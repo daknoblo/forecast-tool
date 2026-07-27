@@ -173,8 +173,10 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, dat
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	private := isPrivate(r)
 	d := maskIfPrivate(s.store.Snapshot(), r)
-	d.Projects = models.ProjectsForFY(d.Projects, d.Settings.Year)
+	// BuildYearSummary needs every fiscal year's projects to resolve the
+	// per-assignment carry-over; it scopes the summary to the active FY itself.
 	ys := forecast.BuildYearSummary(d, s.calendar(d))
+	d.Projects = models.ProjectsForFY(d.Projects, d.Settings.Year)
 	projects := forecast.SortedProjects(d.Projects)
 	fyStart, fyEnd := forecast.FiscalYear(d.Settings.Year, d.Settings.FiscalYearStartMonth)
 	sankeyOffset, _ := strconv.Atoi(trim(r.URL.Query().Get("soff")))
@@ -205,13 +207,15 @@ func (s *Server) handleWeekRedirect(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleWeek(w http.ResponseWriter, r *http.Request) {
 	d := maskIfPrivate(s.store.Snapshot(), r)
+	cal := s.calendar(d)
+	// Built before narrowing the projects: the summary resolves the
+	// per-assignment carry-over across fiscal years itself.
+	ys := forecast.BuildYearSummary(d, cal)
 	d.Projects = models.ProjectsForFY(d.Projects, d.Settings.Year)
 	start := clampWeek(r.PathValue("week"), d.Settings)
 	weeks := spanWeeks(r)
-	cal := s.calendar(d)
 	sv := forecast.BuildSpan(d, cal, start, weeks)
 	projects := forecast.SortedProjects(activeProjects(d.Projects))
-	ys := forecast.BuildYearSummary(d, cal)
 	spanStart, spanEnd := "", ""
 	if len(sv.Days) > 0 {
 		spanStart = sv.Days[0].Date
@@ -434,7 +438,8 @@ func writeJSONError(w http.ResponseWriter, status int, msg string) {
 func (s *Server) handleProjects(w http.ResponseWriter, r *http.Request) {
 	private := isPrivate(r)
 	d := maskIfPrivate(s.store.Snapshot(), r)
-	d.Projects = models.ProjectsForFY(d.Projects, d.Settings.Year)
+	// Pass every fiscal year's projects so the per-assignment carry-over is
+	// resolved; the summary is scoped to the active FY inside.
 	ys := forecast.BuildYearSummary(d, s.calendar(d))
 
 	type projView struct {
@@ -443,10 +448,11 @@ func (s *Server) handleProjects(w http.ResponseWriter, r *http.Request) {
 	}
 	var views []projView
 	for _, ps := range ys.Projects {
-		pts := forecast.BuildBurndown(d, ps.Project.ID, ps.StartDate, ps.EndDate, ps.Project.BudgetHours)
+		// The burn-down starts at the budget still available in this fiscal year.
+		pts := forecast.BuildBurndown(d, ps.Project.ID, ps.StartDate, ps.EndDate, ps.AvailableBudget)
 		views = append(views, projView{
 			Summary:  ps,
-			Burndown: burndownSVG(pts, ps.Project.BudgetHours, ps.Project.Color, private),
+			Burndown: burndownSVG(pts, ps.AvailableBudget, ps.Project.Color, private),
 		})
 	}
 	sort.Slice(views, func(i, j int) bool {
@@ -582,7 +588,6 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 	d := maskIfPrivate(s.store.Snapshot(), r)
 	cal := s.calendar(d)
 	gs := forecast.BuildGoalSummary(d, cal)
-	d.Projects = models.ProjectsForFY(d.Projects, d.Settings.Year)
 	ys := forecast.BuildYearSummary(d, cal)
 
 	// Cumulative projected hours per month drive the progress charts for the

@@ -119,27 +119,34 @@ func (s *Server) handleGetGoal(w http.ResponseWriter, r *http.Request) {
 // projectSummaryOut is the computed per-project summary returned by
 // GET /api/v1/projects/summary: the same figures shown on the Projects page.
 type projectSummaryOut struct {
-	ID                 string  `json:"id"`
-	AssignmentID       string  `json:"assignmentId,omitempty"`
-	Name               string  `json:"name"`
-	FiscalYear         int     `json:"fiscalYear"`
-	BudgetHours        float64 `json:"budgetHours"`
-	ForecastHours      float64 `json:"forecastHours"`
-	ActualHours        float64 `json:"actualHours"`
-	ConsumedHours      float64 `json:"consumedHours"` // all hours (booked + forecast)
-	RemainingHours     float64 `json:"remainingHours"`
-	UtilizationPct     float64 `json:"utilizationPct"`
-	StartDate          string  `json:"startDate,omitempty"`
-	EndDate            string  `json:"endDate,omitempty"`
-	RemainingWorkdays  int     `json:"remainingWorkdays"`
-	RequiredPerWorkday float64 `json:"requiredPerWorkday"`
-	OutOfWindow        float64 `json:"outOfWindow,omitempty"`
+	ID           string  `json:"id"`
+	AssignmentID string  `json:"assignmentId,omitempty"`
+	Name         string  `json:"name"`
+	FiscalYear   int     `json:"fiscalYear"`
+	BudgetHours  float64 `json:"budgetHours"`
+	// CarryOverHours are hours booked on the same assignmentId in EARLIER fiscal
+	// years; AvailableBudgetHours is budgetHours minus that carry-over.
+	CarryOverHours       float64 `json:"carryOverHours"`
+	AvailableBudgetHours float64 `json:"availableBudgetHours"`
+	ForecastHours        float64 `json:"forecastHours"`
+	ActualHours          float64 `json:"actualHours"`
+	ConsumedHours        float64 `json:"consumedHours"` // all hours (booked + forecast)
+	RemainingHours       float64 `json:"remainingHours"`
+	UtilizationPct       float64 `json:"utilizationPct"`
+	StartDate            string  `json:"startDate,omitempty"`
+	EndDate              string  `json:"endDate,omitempty"`
+	BurnPerWeek          float64 `json:"burnPerWeek"`
+	BurnPerWorkday       float64 `json:"burnPerWorkday"`
+	RemainingWorkdays    int     `json:"remainingWorkdays"`
+	RequiredPerWorkday   float64 `json:"requiredPerWorkday"`
+	OutOfWindow          float64 `json:"outOfWindow,omitempty"`
 }
 
 // handleProjectsSummary returns the computed hour totals per project for a
 // fiscal year (default active, or ?fiscalYear=YYYY): budget, forecast (future
-// days), actual (past days), consumed (all hours), remaining budget and
-// utilization — the same numbers as the Projects page.
+// days), actual (past days), consumed (all hours), the carry-over from earlier
+// fiscal years of the same assignment, remaining budget and utilization — the
+// same numbers as the Projects page.
 func (s *Server) handleProjectsSummary(w http.ResponseWriter, r *http.Request) {
 	d := s.store.Snapshot()
 	year := d.Settings.Year
@@ -152,33 +159,39 @@ func (s *Server) handleProjectsSummary(w http.ResponseWriter, r *http.Request) {
 		year = n
 	}
 	d.Settings.Year = year
-	d.Projects = models.ProjectsForFY(d.Projects, year)
+	// The full project list stays in place: BuildYearSummary scopes itself to the
+	// fiscal year and needs the earlier years for the assignment carry-over.
 	cal := holidays.Get(year, d.Settings.FederalState)
 	ys := forecast.BuildYearSummary(d, cal)
 	out := make([]projectSummaryOut, 0, len(ys.Projects))
 	for _, ps := range ys.Projects {
 		out = append(out, projectSummaryOut{
-			ID:                 ps.Project.ID,
-			AssignmentID:       ps.Project.AssignmentID,
-			Name:               ps.Project.Name,
-			FiscalYear:         ps.Project.FiscalYear,
-			BudgetHours:        ps.Project.BudgetHours,
-			ForecastHours:      ps.Forecast,
-			ActualHours:        ps.Actual,
-			ConsumedHours:      ps.Consumed,
-			RemainingHours:     ps.Remaining,
-			UtilizationPct:     ps.UtilizationPct,
-			StartDate:          ps.StartDate,
-			EndDate:            ps.EndDate,
-			RemainingWorkdays:  ps.RemainingWorkdays,
-			RequiredPerWorkday: ps.RequiredPerWorkday,
-			OutOfWindow:        ps.OutOfWindow,
+			ID:                   ps.Project.ID,
+			AssignmentID:         ps.Project.AssignmentID,
+			Name:                 ps.Project.Name,
+			FiscalYear:           ps.Project.FiscalYear,
+			BudgetHours:          ps.Project.BudgetHours,
+			CarryOverHours:       ps.CarryOver,
+			AvailableBudgetHours: ps.AvailableBudget,
+			ForecastHours:        ps.Forecast,
+			ActualHours:          ps.Actual,
+			ConsumedHours:        ps.Consumed,
+			RemainingHours:       ps.Remaining,
+			UtilizationPct:       ps.UtilizationPct,
+			StartDate:            ps.StartDate,
+			EndDate:              ps.EndDate,
+			BurnPerWeek:          ps.BurnPerWeek,
+			BurnPerWorkday:       ps.BurnPerWorkday,
+			RemainingWorkdays:    ps.RemainingWorkdays,
+			RequiredPerWorkday:   ps.RequiredPerWorkday,
+			OutOfWindow:          ps.OutOfWindow,
 		})
 	}
 	s.writeJSON(w, http.StatusOK, map[string]any{
-		"fiscalYear": year,
-		"projects":   out,
-		"totalHours": ys.TotalHours,
+		"fiscalYear":     year,
+		"projects":       out,
+		"totalHours":     ys.TotalHours,
+		"totalCarryOver": ys.TotalCarryOver,
 	})
 }
 

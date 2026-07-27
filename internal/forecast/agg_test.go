@@ -12,8 +12,8 @@ func sampleData() models.Data {
 	return models.Data{
 		Settings: models.Settings{Year: 2026, FederalState: "BY", WeeklyTargetHours: 40, FiscalYearStartMonth: 1},
 		Projects: []models.Project{
-			{ID: "p1", Name: "Alpha", BudgetHours: 100, Active: true},
-			{ID: "p2", Name: "Beta", BudgetHours: 50, Active: true},
+			{ID: "p1", Name: "Alpha", BudgetHours: 100, Active: true, FiscalYear: 2026},
+			{ID: "p2", Name: "Beta", BudgetHours: 50, Active: true, FiscalYear: 2026},
 		},
 		Entries: []models.Entry{
 			// Week 3 of 2026: Mon 2026-01-12 ... Fri 2026-01-16
@@ -70,6 +70,98 @@ func TestYearSummaryRemaining(t *testing.T) {
 	}
 	if beta.Consumed != 10 || beta.Remaining != 40 {
 		t.Errorf("beta consumed/remaining = %v/%v, want 10/40", beta.Consumed, beta.Remaining)
+	}
+}
+
+// An assignment may run across several fiscal years. The project is re-created
+// per fiscal year and carries the assignment's total budget again, so the hours
+// already booked in earlier years must be deducted instead of being granted a
+// second time.
+func TestAssignmentCarryOverAcrossFiscalYears(t *testing.T) {
+	d := models.Data{
+		Settings: models.Settings{Year: 2027, FederalState: "BY", WeeklyTargetHours: 40, FiscalYearStartMonth: 1},
+		Projects: []models.Project{
+			{ID: "old", AssignmentID: "5641245", Name: "Alpha", BudgetHours: 100, Active: true, FiscalYear: 2026},
+			{ID: "new", AssignmentID: "5641245", Name: "Alpha", BudgetHours: 100, Active: true, FiscalYear: 2027},
+			{ID: "solo", AssignmentID: "9999999", Name: "Beta", BudgetHours: 100, Active: true, FiscalYear: 2027},
+		},
+		Entries: []models.Entry{
+			{Date: "2026-01-12", ProjectID: "old", Hours: 40}, // burned in the previous FY
+			{Date: "2027-01-11", ProjectID: "new", Hours: 10},
+			{Date: "2027-01-12", ProjectID: "solo", Hours: 10},
+		},
+	}
+	ys := BuildYearSummary(d, holidays.New(2027, "BY"))
+
+	if len(ys.Projects) != 2 {
+		t.Fatalf("summary covers %d projects, want 2 (only FY 2027)", len(ys.Projects))
+	}
+	if !ys.HasCarryOver {
+		t.Error("HasCarryOver = false, want true")
+	}
+	if ys.TotalCarryOver != 40 {
+		t.Errorf("TotalCarryOver = %v, want 40", ys.TotalCarryOver)
+	}
+
+	var cont, solo ProjectSummary
+	for _, ps := range ys.Projects {
+		switch ps.Project.ID {
+		case "new":
+			cont = ps
+		case "solo":
+			solo = ps
+		}
+	}
+
+	if cont.CarryOver != 40 {
+		t.Errorf("continued CarryOver = %v, want 40", cont.CarryOver)
+	}
+	if cont.AvailableBudget != 60 {
+		t.Errorf("continued AvailableBudget = %v, want 60 (100 - 40)", cont.AvailableBudget)
+	}
+	if cont.Remaining != 50 {
+		t.Errorf("continued Remaining = %v, want 50 (100 - 40 - 10)", cont.Remaining)
+	}
+	if cont.UtilizationPct != 50 {
+		t.Errorf("continued UtilizationPct = %v, want 50", cont.UtilizationPct)
+	}
+	// The burn rate must be derived from the budget still available, not from
+	// the full assignment budget.
+	if cont.BurnPerWeek >= solo.BurnPerWeek {
+		t.Errorf("continued BurnPerWeek = %v, want less than the untouched project's %v",
+			cont.BurnPerWeek, solo.BurnPerWeek)
+	}
+
+	// An assignment that exists in one fiscal year only is unaffected.
+	if solo.CarryOver != 0 || solo.AvailableBudget != 100 || solo.Remaining != 90 {
+		t.Errorf("solo carry/available/remaining = %v/%v/%v, want 0/100/90",
+			solo.CarryOver, solo.AvailableBudget, solo.Remaining)
+	}
+}
+
+// Hours planned in a LATER fiscal year must not reduce the current year's
+// budget: only earlier years are carried over.
+func TestAssignmentCarryOverIgnoresLaterFiscalYears(t *testing.T) {
+	d := models.Data{
+		Settings: models.Settings{Year: 2026, FederalState: "BY", WeeklyTargetHours: 40, FiscalYearStartMonth: 1},
+		Projects: []models.Project{
+			{ID: "cur", AssignmentID: "5641245", Name: "Alpha", BudgetHours: 100, Active: true, FiscalYear: 2026},
+			{ID: "next", AssignmentID: "5641245", Name: "Alpha", BudgetHours: 100, Active: true, FiscalYear: 2027},
+		},
+		Entries: []models.Entry{
+			{Date: "2026-01-12", ProjectID: "cur", Hours: 10},
+			{Date: "2027-01-11", ProjectID: "next", Hours: 40},
+		},
+	}
+	ys := BuildYearSummary(d, holidays.New(2026, "BY"))
+	if len(ys.Projects) != 1 {
+		t.Fatalf("summary covers %d projects, want 1", len(ys.Projects))
+	}
+	if ys.Projects[0].CarryOver != 0 {
+		t.Errorf("CarryOver = %v, want 0 (later fiscal years do not count)", ys.Projects[0].CarryOver)
+	}
+	if ys.Projects[0].Remaining != 90 {
+		t.Errorf("Remaining = %v, want 90", ys.Projects[0].Remaining)
 	}
 }
 
@@ -276,7 +368,7 @@ func TestProjectBookable(t *testing.T) {
 func TestProjectWindowBurnrate(t *testing.T) {
 	d := sampleData()
 	d.Projects = []models.Project{
-		{ID: "p1", Name: "Alpha", BudgetHours: 100, Active: true,
+		{ID: "p1", Name: "Alpha", BudgetHours: 100, Active: true, FiscalYear: 2026,
 			StartDate: "2026-03-02", EndDate: "2026-03-06"}, // a full Mon-Fri week, no BY holidays
 	}
 	d.Entries = []models.Entry{

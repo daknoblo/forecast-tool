@@ -129,8 +129,9 @@ curl -H "Authorization: Bearer $READ" "https://host/api/v1/projects?fiscalYear=2
 ### `GET /api/v1/projects/summary`
 Returns the **computed** hours per project for a fiscal year (default: the
 active FY, or `?fiscalYear=YYYY`) — the same figures the projects page shows:
-budget, forecast, booked, consumed, remaining budget and utilization. This
-saves the client from aggregating the entries itself.
+budget, cross-fiscal-year carry-over, forecast, booked, consumed, remaining
+budget, burn rate and utilization. This saves the client from aggregating the
+entries itself.
 
 ```bash
 curl -H "Authorization: Bearer $READ" "https://host/api/v1/projects/summary"
@@ -139,13 +140,16 @@ curl -H "Authorization: Bearer $READ" "https://host/api/v1/projects/summary"
 {
   "fiscalYear": 2027,
   "totalHours": 162,
+  "totalCarryOver": 40,
   "projects": [
     {
       "id": "abc", "assignmentId": "5641245", "name": "Projekt A", "fiscalYear": 2027,
-      "budgetHours": 200, "forecastHours": 120, "actualHours": 42,
-      "consumedHours": 162, "remainingHours": 38, "utilizationPct": 81,
+      "budgetHours": 200, "carryOverHours": 40, "availableBudgetHours": 160,
+      "forecastHours": 120, "actualHours": 42,
+      "consumedHours": 162, "remainingHours": -2, "utilizationPct": 101,
       "startDate": "2026-07-01", "endDate": "2027-06-30",
-      "remainingWorkdays": 180, "requiredPerWorkday": 0.21, "outOfWindow": 0
+      "burnPerWeek": 3.2, "burnPerWorkday": 0.6,
+      "remainingWorkdays": 180, "requiredPerWorkday": 0, "outOfWindow": 0
     }
   ]
 }
@@ -153,14 +157,23 @@ curl -H "Authorization: Bearer $READ" "https://host/api/v1/projects/summary"
 
 | Field | Meaning |
 |-------|---------|
+| `carryOverHours` | hours booked on the **same `assignmentId` in earlier fiscal years** |
+| `availableBudgetHours` | `budgetHours − carryOverHours` — what is still available in this FY |
 | `forecastHours` | hours on today and future days |
 | `actualHours` | hours on past days (booked) |
-| `consumedHours` | all hours: `forecastHours + actualHours` |
-| `remainingHours` | `budgetHours − consumedHours` |
-| `utilizationPct` | `consumedHours / budgetHours × 100` |
+| `consumedHours` | all hours of this year's project: `forecastHours + actualHours` |
+| `remainingHours` | `availableBudgetHours − consumedHours` |
+| `utilizationPct` | `(carryOverHours + consumedHours) / budgetHours × 100` |
+| `burnPerWeek` / `burnPerWorkday` | `availableBudgetHours` spread evenly over the working days of the booking window |
 | `remainingWorkdays` | working days (Mon–Fri minus holidays) from today to the window end |
-| `requiredPerWorkday` | `remainingHours / remainingWorkdays` |
+| `requiredPerWorkday` | `remainingHours / remainingWorkdays` — what is still left to plan per day |
 | `outOfWindow` | hours booked outside the project's booking window |
+
+> **Assignments across fiscal years:** a project belongs to exactly one fiscal
+> year. An assignment that keeps running is re-created in the new FY with the
+> **same `assignmentId`** and the assignment's total budget. The API then
+> deducts the hours already booked in earlier fiscal years as
+> `carryOverHours`, so budget is never granted twice.
 
 ### `GET /api/v1/projects/{id}`
 A single project, or `404`.

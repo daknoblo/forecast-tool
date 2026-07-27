@@ -378,12 +378,21 @@ func BuildSpanBurn(ps []ProjectSummary, spanStart, spanEnd string) SpanBurn {
 
 // ProjectSummary describes budget consumption for one project.
 type ProjectSummary struct {
-	Project        models.Project
-	Forecast       float64 // hours on today/future days (forecast)
-	Actual         float64 // hours on past days (booked)
-	Consumed       float64 // all hours (forecast + booked)
-	Remaining      float64 // budget - consumed
-	UtilizationPct float64 // consumed / budget * 100
+	Project  models.Project
+	Forecast float64 // hours on today/future days (forecast)
+	Actual   float64 // hours on past days (booked)
+	Consumed float64 // all hours of this fiscal year's project (forecast + booked)
+
+	// An assignment can run across several fiscal years. Because a project is
+	// re-created per fiscal year while it keeps carrying the assignment's total
+	// budget, the hours already consumed on the same assignment in EARLIER
+	// fiscal years have to be deducted, or they would silently be granted again.
+	CarryOver       float64 // hours consumed on this assignment in earlier fiscal years
+	AvailableBudget float64 // BudgetHours - CarryOver (what is left for this FY)
+
+	Remaining      float64 // AvailableBudget - Consumed
+	UtilizationPct float64 // (CarryOver + Consumed) / budget * 100
+	CarryOverPct   float64 // CarryOver / budget * 100
 	ForecastPct    float64 // forecast / budget * 100
 	ActualPct      float64 // booked / budget * 100
 
@@ -396,23 +405,28 @@ type ProjectSummary struct {
 	HasCustomWindow bool   // true if the project sets an explicit start or end
 	RemainingLabel  string // time left until the window end, e.g. "2 Wochen und 3 Tage"
 
-	// Burn-rate over the window (holiday-aware working days, Mon-Fri).
+	// Burn-rate over the window (holiday-aware working days, Mon-Fri). It is
+	// based on AvailableBudget, so an assignment continued from an earlier
+	// fiscal year does not get its already-burned hours back.
 	WindowWorkdays     int     // working days within the window
-	BurnPerWeek        float64 // budget spread evenly per week of the window
-	BurnPerWorkday     float64 // budget spread evenly per working day
+	BurnPerWeek        float64 // available budget spread evenly per week of the window
+	BurnPerWorkday     float64 // available budget spread evenly per working day
 	RemainingWorkdays  int     // working days from today until the window end
 	RequiredPerWorkday float64 // remaining budget / remaining working days
+	RequiredPerWeek    float64 // RequiredPerWorkday * 5, for comparison with BurnPerWeek
 	OutOfWindow        float64 // effective hours booked outside the window (warning)
 }
 
 // YearSummary aggregates all projects and weekly totals for the fiscal year.
 type YearSummary struct {
-	Projects      []ProjectSummary
-	TotalHours    float64 // all hours over all projects
-	TotalBudget   float64 // summed budget of all projects
-	TotalForecast float64 // summed forecast hours (today and later)
-	TotalActual   float64 // summed booked hours (past days)
-	WeekTotals    []WeekTotal
+	Projects       []ProjectSummary
+	TotalHours     float64 // all hours over all projects
+	TotalBudget    float64 // summed budget of all projects
+	TotalCarryOver float64 // summed hours carried over from earlier fiscal years
+	TotalForecast  float64 // summed forecast hours (today and later)
+	TotalActual    float64 // summed booked hours (past days)
+	HasCarryOver   bool    // true when at least one project carries hours over
+	WeekTotals     []WeekTotal
 }
 
 // WeekTotal is the summed hours for a single fiscal-year week.
@@ -491,9 +505,37 @@ func remainingLabel(from, to time.Time) string {
 	}
 }
 
+// assignmentKey normalizes a project's assignment ID so the same assignment is
+// recognised across fiscal years. Projects without an assignment ID (e.g. the
+// vacation project) return "" and are never grouped.
+func assignmentKey(p models.Project) string {
+	return strings.ToLower(strings.TrimSpace(p.AssignmentID))
+}
+
+// carryOverByAssignment sums, per assignment, the hours already consumed by
+// projects of fiscal years BEFORE year. An assignment that runs across fiscal
+// years is re-created per year and carries the assignment's total budget again,
+// so those earlier hours must be deducted from the budget still available.
+func carryOverByAssignment(projects []models.Project, consumed map[string]float64, year int) map[string]float64 {
+	out := map[string]float64{}
+	for _, p := range projects {
+		if p.FiscalYear >= year {
+			continue
+		}
+		if k := assignmentKey(p); k != "" {
+			out[k] += consumed[p.ID]
+		}
+	}
+	return out
+}
+
 // BuildYearSummary computes per-project consumption and weekly totals over the
 // fiscal year. There is a single hours value per day and project; it counts as
 // booked when the day is in the past and as forecast for today and future days.
+//
+// d.Projects may (and should) contain the projects of ALL fiscal years: the
+// summary itself is restricted to d.Settings.Year, while the earlier years are
+// needed to compute the per-assignment carry-over.
 func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 	year := d.Settings.Year
 	startMonth := d.Settings.FiscalYearStartMonth
@@ -524,14 +566,21 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 			outByP[pid] += v
 		}
 	}
+	carry := carryOverByAssignment(d.Projects, consumed, year)
 
 	ys := YearSummary{}
-	for _, p := range d.Projects {
+	for _, p := range models.ProjectsForFY(d.Projects, year) {
 		c := consumed[p.ID]
-		rem := p.BudgetHours - c
-		util, fPct, aPct := 0.0, 0.0, 0.0
+		over := carry[assignmentKey(p)]
+		if over > p.BudgetHours {
+			over = p.BudgetHours // never show a negative available budget
+		}
+		avail := p.BudgetHours - over
+		rem := avail - c
+		util, coPct, fPct, aPct := 0.0, 0.0, 0.0, 0.0
 		if p.BudgetHours > 0 {
-			util = round1(c / p.BudgetHours * 100)
+			util = round1((over + c) / p.BudgetHours * 100)
+			coPct = round1(over / p.BudgetHours * 100)
 			fPct = round1(forecastByP[p.ID] / p.BudgetHours * 100)
 			aPct = round1(actualByP[p.ID] / p.BudgetHours * 100)
 		}
@@ -546,8 +595,8 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 		burnPerWorkday := 0.0
 		burnPerWeek := 0.0
 		if workdays > 0 {
-			burnPerWorkday = round1(p.BudgetHours / float64(workdays))
-			burnPerWeek = round1(p.BudgetHours / (float64(workdays) / 5.0))
+			burnPerWorkday = round1(avail / float64(workdays))
+			burnPerWeek = round1(avail / (float64(workdays) / 5.0))
 		}
 		requiredPerWorkday := 0.0
 		if remWorkdays > 0 && rem > 0 {
@@ -559,8 +608,11 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 			Forecast:           round1(forecastByP[p.ID]),
 			Actual:             round1(actualByP[p.ID]),
 			Consumed:           round1(c),
+			CarryOver:          round1(over),
+			AvailableBudget:    round1(avail),
 			Remaining:          round1(rem),
 			UtilizationPct:     util,
+			CarryOverPct:       coPct,
 			ForecastPct:        fPct,
 			ActualPct:          aPct,
 			StartDate:          wStart.Format("2006-01-02"),
@@ -574,15 +626,21 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 			BurnPerWorkday:     burnPerWorkday,
 			RemainingWorkdays:  remWorkdays,
 			RequiredPerWorkday: requiredPerWorkday,
+			RequiredPerWeek:    round1(requiredPerWorkday * 5),
 			OutOfWindow:        round1(outByP[p.ID]),
 		})
 		ys.TotalHours += c
 		ys.TotalBudget += p.BudgetHours
+		ys.TotalCarryOver += over
 		ys.TotalForecast += forecastByP[p.ID]
 		ys.TotalActual += actualByP[p.ID]
+		if over > 0 {
+			ys.HasCarryOver = true
+		}
 	}
 	ys.TotalHours = round1(ys.TotalHours)
 	ys.TotalBudget = round1(ys.TotalBudget)
+	ys.TotalCarryOver = round1(ys.TotalCarryOver)
 	ys.TotalForecast = round1(ys.TotalForecast)
 	ys.TotalActual = round1(ys.TotalActual)
 
