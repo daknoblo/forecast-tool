@@ -72,7 +72,7 @@
                  value="{{with cellHours $d $p.ID}}{{hours .}}{{end}}"
                  class="hcell{{if $d.Past}} booked{{end}}" autocomplete="off" placeholder="0"
                  title="{{if $d.Past}}Gebuchte Stunden (vergangener Tag){{else}}Forecast (geplante Stunden){{end}}"
-                 data-project="{{$p.ID}}" data-week="{{$b.Week}}" data-date="{{$d.Date}}"{{if not $p.IsVacation}} data-util="1"{{end}}>
+                 data-project="{{$p.ID}}" data-week="{{$b.Week}}" data-date="{{$d.Date}}">
           {{else}}
           <span class="closedmark" title="Außerhalb des Projektzeitraums">–</span>
           {{end}}
@@ -103,7 +103,7 @@
     <tr class="statusrow">
       <td class="pname">Auslastung (Woche)</td>
       {{range .Span.Blocks}}
-        <td colspan="6" class="statuscell">{{template "utilstatus" .Status}} <small><span data-eff-week="{{.Week}}">{{hours .EffectiveTotal}}</span> h</small></td>
+        <td colspan="6" class="statuscell">{{template "utilstatus" .Status}} <small><span data-eff-week="{{.Week}}">{{hours .Total}}</span> h</small></td>
       {{end}}
       <td class="num sumcol grandsum"></td>
     </tr>
@@ -180,9 +180,8 @@
     var pw = {};      // project|week -> hours
     var pg = {};      // project -> hours
     var day = {};     // date -> hours
-    var wk = {};      // week -> hours
-    var effWeek = {}; // week -> hours excluding vacation (utilisation basis)
-    var grand = 0, grandEff = 0;
+    var wk = {};      // week -> hours (utilisation basis, vacation included)
+    var grand = 0;
 
     document.querySelectorAll('input.hcell').forEach(function (inp) {
       var pid = inp.getAttribute('data-project');
@@ -195,10 +194,6 @@
       day[date] = (day[date] || 0) + v;
       wk[week] = (wk[week] || 0) + v;
       grand += v;
-      if (inp.getAttribute('data-util') === '1') {
-        effWeek[week] = (effWeek[week] || 0) + v;
-        grandEff += v;
-      }
     });
 
     // per-project per-week and grand sums
@@ -216,12 +211,12 @@
       el.textContent = fmt(wk[el.getAttribute('data-week')] || 0);
     });
     setText('[data-grand]', grand);
-    // effective per week (status row)
+    // per-week hours next to the status dot
     document.querySelectorAll('[data-eff-week]').forEach(function (el) {
-      el.textContent = fmt(effWeek[el.getAttribute('data-eff-week')] || 0);
+      el.textContent = fmt(wk[el.getAttribute('data-eff-week')] || 0);
     });
     // utilisation over the visible span
-    var util = target > 0 ? (grandEff / target * 100) : 0;
+    var util = target > 0 ? (grand / target * 100) : 0;
     setText('[data-util]', util);
     setWidth('[data-util-bar]', util);
 

@@ -394,7 +394,8 @@ func (s *Server) handleCreateProject(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleUpdateProject updates the provided fields of an existing project. The
-// auto-managed vacation project is locked and cannot be changed here.
+// vacation project can be edited too, except for its budget: that stays derived
+// from the vacation days in the fiscal-year settings.
 func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	var in projectInput
@@ -441,24 +442,22 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var updated models.Project
-	found, locked := false, false
+	found := false
 	err := s.store.Mutate(func(d *models.Data) error {
 		for i := range d.Projects {
 			if d.Projects[i].ID != id {
 				continue
 			}
 			found = true
-			if d.Projects[i].IsVacation() {
-				locked = true
-				return nil
-			}
 			if in.Name != nil {
 				d.Projects[i].Name = name
 			}
 			if in.AssignmentID != nil {
 				d.Projects[i].AssignmentID = assignmentID
 			}
-			if in.BudgetHours != nil {
+			// The vacation budget is derived from the FY settings and therefore
+			// not writable here (normalize would reset it anyway).
+			if in.BudgetHours != nil && !d.Projects[i].IsVacation() {
 				d.Projects[i].BudgetHours = *in.BudgetHours
 			}
 			if in.Color != nil {
@@ -486,10 +485,6 @@ func (s *Server) handleUpdateProject(w http.ResponseWriter, r *http.Request) {
 	}
 	if !found {
 		s.writeError(w, http.StatusNotFound, "Projekt nicht gefunden")
-		return
-	}
-	if locked {
-		s.writeError(w, http.StatusConflict, "Das Urlaubsprojekt ist automatisch verwaltet und kann nicht geändert werden")
 		return
 	}
 	s.writeJSON(w, http.StatusOK, updated)

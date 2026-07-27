@@ -222,18 +222,40 @@ func TestProjectsCRUD(t *testing.T) {
 	}
 }
 
-func TestVacationProjectLocked(t *testing.T) {
+func TestVacationProjectEditableButNotDeletable(t *testing.T) {
 	st := newTestStore(t)
 	year := activeYear(t, st)
 	h := newTestServer(t, st, readTok, writeTok)
 	vacID := models.VacationProjectID(year)
 
-	if rr := do(t, h, http.MethodPut, "/api/v1/projects/"+vacID, writeTok, map[string]any{"name": "Hacked"}); rr.Code != http.StatusConflict {
-		t.Fatalf("vacation update should be 409, got %d (body: %s)", rr.Code, rr.Body.String())
+	budgetBefore := projectByID(t, st, vacID).BudgetHours
+	body := map[string]any{"name": "Urlaub & Frei", "budgetHours": 999}
+	if rr := do(t, h, http.MethodPut, "/api/v1/projects/"+vacID, writeTok, body); rr.Code != http.StatusOK {
+		t.Fatalf("vacation update should be 200, got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+	vac := projectByID(t, st, vacID)
+	if vac.Name != "Urlaub & Frei" {
+		t.Errorf("name = %q, want %q", vac.Name, "Urlaub & Frei")
+	}
+	if vac.BudgetHours != budgetBefore {
+		t.Errorf("budget = %v, want %v (derived from the FY settings)", vac.BudgetHours, budgetBefore)
 	}
 	if rr := do(t, h, http.MethodDelete, "/api/v1/projects/"+vacID, writeTok, nil); rr.Code != http.StatusConflict {
 		t.Fatalf("vacation delete should be 409, got %d", rr.Code)
 	}
+}
+
+// projectByID returns the stored project with the given id, failing the test
+// when it is missing.
+func projectByID(t *testing.T, st *storage.Store, id string) models.Project {
+	t.Helper()
+	for _, p := range st.Snapshot().Projects {
+		if p.ID == id {
+			return p
+		}
+	}
+	t.Fatalf("project %q not found", id)
+	return models.Project{}
 }
 
 func TestSettingsAndFY(t *testing.T) {

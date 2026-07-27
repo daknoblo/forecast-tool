@@ -205,8 +205,10 @@ func ProjectsForFY(ps []Project, year int) []Project {
 }
 
 // VacationSystem marks the auto-managed, non-deletable vacation project of a
-// fiscal year. Its hours are informational: they do not count towards the FY
-// goal or the weekly utilization traffic-light.
+// fiscal year. Apart from its budget (derived from the configured vacation
+// days) it behaves like any other project: it is editable, bookable in the
+// forecast grid and counts towards the weekly utilization. Only the FY goal
+// ignores it.
 const VacationSystem = "vacation"
 
 // VacationColor is the fixed colour of the vacation project so it is visually
@@ -232,8 +234,9 @@ func (fy FiscalYearSettings) VacationBudgetHours() float64 {
 
 // EnsureVacationProject makes sure a non-deletable vacation project exists for
 // the given fiscal year and keeps its budget in sync with the FY settings
-// (vacation days * 8h). It returns true when it created or changed anything so
-// callers can decide whether to persist.
+// (vacation days * 8h). All other fields stay under the user's control. It
+// returns true when it created or changed anything so callers can decide
+// whether to persist.
 func EnsureVacationProject(d *Data, year int) bool {
 	if !ValidYear(year) {
 		return false
@@ -245,10 +248,6 @@ func EnsureVacationProject(d *Data, year int) bool {
 			changed := false
 			if p.BudgetHours != budget {
 				p.BudgetHours = budget
-				changed = true
-			}
-			if !p.Active {
-				p.Active = true
 				changed = true
 			}
 			if p.Name == "" {

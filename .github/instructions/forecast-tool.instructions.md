@@ -95,27 +95,33 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
   zwei Kalenderjahre. Daher Eingabe **getrennt für H1 und H2** (Tage à 8 h).
 - In der Kapazität getrennt als „Urlaub 1. Halbjahr“ / „Urlaub 2. Halbjahr“ ausweisen.
 
-## Urlaub als Projekt (auto-verwaltet)
+## Urlaub als Projekt
 
-- Pro Fiskaljahr existiert genau **ein automatisch verwaltetes Urlaubs­projekt**
+- Pro Fiskaljahr existiert genau **ein Urlaubs­projekt**
   (`Project.System == "vacation"`, `models.VacationSystem`), stabile ID
-  `vacation-<Jahr>` (`models.VacationProjectID`), Name „Urlaub“, feste Farbe
+  `vacation-<Jahr>` (`models.VacationProjectID`), Name „Urlaub“, Standardfarbe
   `models.VacationColor` (#64748b). Es wird über `models.EnsureVacationProject(d, year)`
   angelegt/synchronisiert – aufgerufen in `storage.normalize` (Laden + JSON-Editor +
   Erststart via `load()`), beim FY-Wechsel (`handleSetActiveFY`) und beim Speichern der
   Einstellungen (`handleSettingsSave`).
 - **Budget = (VacationDaysH1 + VacationDaysH2) × 8 h** aus den FY-Einstellungen
-  (`FiscalYearSettings.VacationBudgetHours`). Es ist **gesperrt** (kein Bearbeiten/
-  Umbenennen über `handleProjectUpdate`) und **nicht löschbar** (`handleProjectDelete`-Guard;
-  auch im JSON-Editor wird es durch `normalize` wiederhergestellt).
-- Urlaubsstunden sind **rein informativ**: Sie zählen **nicht aufs FY-Ziel**
-  (`BuildGoalSummary` überspringt Urlaub) und **nicht in die Wochen-Auslastungs-Ampel**
-  (`BuildWeek`/`BuildSpan` `EffectiveTotal`, `BuildYearSummary` `WeekTotals`). Urlaub
-  bleibt aber ein **normales Projekt** (buchbar im Forecast-Grid,
-  eigenes Budget/Burndown, eigene Zeilen-/Wochensummen). Projekte-Seite zeigt Badge
-  „automatisch · Urlaub“ statt der Bearbeiten/Löschen-Steuerung.
+  (`FiscalYearSettings.VacationBudgetHours`) – das ist der **einzige** automatisch
+  verwaltete Wert: `EnsureVacationProject` synchronisiert ausschließlich das Budget
+  (und den Namen, wenn er leer ist).
+- Ansonsten ist es ein **ganz normales Projekt**: Name, Assignment ID, Farbe, Aktiv-Flag
+  und Buchungszeitraum sind über `handleProjectUpdate` bzw. `PUT /api/v1/projects/{id}`
+  frei editierbar; das Budgetfeld ist in der UI schreibgeschützt und wird von beiden
+  Handlern ignoriert. **Nicht löschbar** (`handleProjectDelete`-Guard bzw. `409`; im
+  JSON-Editor stellt `normalize` es wieder her).
+- Urlaubsstunden werden **tageweise im Forecast-Grid geplant** (kein automatisches
+  Verteilen). Sie **zählen in die Wochen-Auslastungs-Ampel** (`BuildWeek`/`BuildSpan`
+  `Total`, `BuildYearSummary` `WeekTotals`), weil Urlaub verfügbare Arbeitszeit
+  verbraucht, aber **nicht aufs FY-Ziel** (`BuildGoalSummary` überspringt Urlaub via
+  `vacationSet`). Im Dashboard-Sankey ist Urlaub (vorerst) ebenfalls ausgeschlossen.
+  Der pauschale Urlaubsabzug in der FY-Kapazität (Ziele-Seite) bleibt bestehen.
+  Projekte-Seite zeigt zusätzlich das Badge „automatisch · Urlaub“.
 - AI-Blueprint (`internal/ai`) enthält das Urlaubsprojekt inkl. `system`-Feld; die KI darf
-  es nicht löschen, umbenennen oder sein Budget ändern.
+  es nicht löschen und sein Budget nicht ändern.
 
 ## Standard Tasks
 
@@ -337,8 +343,8 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
 - **`POST /entries/sync`** ist der Kern: Upsert je `(date, projectId)`, `hours=0`
   löscht; Guard über Projekt-Existenz + `p.Bookable(date)`; verworfene Einträge werden in
   `skipped` gemeldet (Rest wird angewendet). Antwort `{upserted, deleted, skipped}`.
-- Urlaubsprojekt bleibt gesperrt: `PUT`/`DELETE` darauf → `409`. FY-Settings-`PUT`
-  synchronisiert das Urlaubsbudget via `EnsureVacationProject`.
+- Urlaubsprojekt: `PUT` ist erlaubt (nur `budgetHours` wird ignoriert), `DELETE` → `409`.
+  FY-Settings-`PUT` synchronisiert das Urlaubsbudget via `EnsureVacationProject`.
 - Fehlerformat `{ "error": "<deutsch>" }`. Request-Body strikt (`DisallowUnknownFields`),
   Limit via `http.MaxBytesReader` (2 MiB). Referenz-Doku: `docs/API.md` (bei
   Schema-/Endpunkt-Änderungen mitpflegen), Env-Variablen in README/`.env.example`/compose.

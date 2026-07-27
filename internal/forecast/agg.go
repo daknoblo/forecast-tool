@@ -35,8 +35,7 @@ type WeekView struct {
 	RangeLabel     string
 	Days           []DayCell
 	ProjectTotals  map[string]float64 // projectID -> hours over the week
-	Total          float64            // hours sum over all projects
-	EffectiveTotal float64            // hours excluding vacation (status/utilization basis)
+	Total          float64            // hours sum over all projects (status/utilization basis)
 	HolidayHours   float64
 	TargetHours    float64
 	UtilizationPct float64
@@ -156,9 +155,10 @@ func hoursIndex(entries []models.Entry) map[string]float64 {
 	return idx
 }
 
-// vacationSet returns the set of vacation project IDs. Their hours are
-// informational: excluded from the weekly utilization traffic-light and the FY
-// goal, but still shown as a normal project with its own budget/burn-down.
+// vacationSet returns the set of vacation project IDs. Vacation is a normal,
+// editable project: its hours count towards the weekly utilization because they
+// consume available working time. They are only excluded from the FY goal (they
+// are not billable work) and from the dashboard sankey.
 func vacationSet(ps []models.Project) map[string]bool {
 	set := map[string]bool{}
 	for _, p := range ps {
@@ -176,7 +176,6 @@ func BuildWeek(d models.Data, cal *holidays.Calendar, week int) WeekView {
 	monday := FYWeekMonday(year, startMonth, week)
 	fyStart, fyEnd := FiscalYear(year, startMonth)
 	hidx := hoursIndex(d.Entries)
-	vac := vacationSet(d.Projects)
 	today := todayISO()
 
 	_, isoWeek := monday.ISOWeek()
@@ -225,21 +224,15 @@ func BuildWeek(d models.Data, cal *holidays.Calendar, week int) WeekView {
 				cell.Total += h
 				wv.ProjectTotals[p.ID] += h
 			}
-			// Vacation is informational: excluded from utilization and status.
-			if vac[p.ID] {
-				continue
-			}
-			wv.EffectiveTotal += h
 		}
 		wv.Total += cell.Total
 		wv.Days = append(wv.Days, cell)
 	}
 
 	wv.Total = round1(wv.Total)
-	wv.EffectiveTotal = round1(wv.EffectiveTotal)
-	wv.Status = d.Settings.ClassifyUtilization(wv.EffectiveTotal)
+	wv.Status = d.Settings.ClassifyUtilization(wv.Total)
 	if wv.TargetHours > 0 {
-		wv.UtilizationPct = round1(wv.EffectiveTotal / wv.TargetHours * 100)
+		wv.UtilizationPct = round1(wv.Total / wv.TargetHours * 100)
 	}
 	return wv
 }
@@ -267,7 +260,6 @@ type SpanView struct {
 	Days           []DayCell          // all days flattened across the visible weeks
 	ProjectTotals  map[string]float64 // projectID -> hours over the span
 	Total          float64
-	EffectiveTotal float64 // hours excluding vacation over the span (utilization basis)
 	HolidayHours   float64
 	TargetHours    float64 // weekly target * number of visible weeks
 	UtilizationPct float64
@@ -314,15 +306,13 @@ func BuildSpan(d models.Data, cal *holidays.Calendar, startWeek, weeks int) Span
 			sv.ProjectTotals[pid] += h
 		}
 		sv.Total += wv.Total
-		sv.EffectiveTotal += wv.EffectiveTotal
 		sv.HolidayHours += wv.HolidayHours
 	}
 	sv.Total = round1(sv.Total)
-	sv.EffectiveTotal = round1(sv.EffectiveTotal)
 	sv.HolidayHours = round1(sv.HolidayHours)
 	sv.TargetHours = round1(d.Settings.WeeklyTargetHours * float64(weeks))
 	if sv.TargetHours > 0 {
-		sv.UtilizationPct = round1(sv.EffectiveTotal / sv.TargetHours * 100)
+		sv.UtilizationPct = round1(sv.Total / sv.TargetHours * 100)
 	}
 	sv.PrevStart = startWeek - weeks
 	if sv.PrevStart < 1 {
@@ -477,7 +467,6 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 	for _, p := range d.Projects {
 		projByID[p.ID] = p
 	}
-	vac := vacationSet(d.Projects)
 	for k, v := range hidx {
 		sep := strings.IndexByte(k, '|')
 		dateStr := k[:sep]
@@ -551,9 +540,6 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 	weekActual := make(map[int]float64)
 	for k, v := range hidx {
 		sep := strings.IndexByte(k, '|')
-		if vac[k[sep+1:]] {
-			continue // vacation is excluded from weekly utilization
-		}
 		dateStr := k[:sep]
 		t, err := time.Parse("2006-01-02", dateStr)
 		if err != nil {

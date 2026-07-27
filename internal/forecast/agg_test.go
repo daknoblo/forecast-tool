@@ -330,27 +330,28 @@ func vacationData() models.Data {
 	}
 }
 
-func TestVacationExcludedFromWeek(t *testing.T) {
+func TestVacationCountsTowardsUtilization(t *testing.T) {
 	d := vacationData()
 	wv := BuildWeek(d, holidays.New(2026, "BY"), 3)
 
-	// The vacation project is still displayed with its own per-project sum.
+	// The vacation project is displayed with its own per-project sum.
 	if wv.ProjectTotals["vacation-2026"] != 16 {
 		t.Errorf("vacation total = %v, want 16 (still displayed)", wv.ProjectTotals["vacation-2026"])
 	}
 	if wv.ProjectTotals["p1"] != 8 {
 		t.Errorf("p1 total = %v, want 8", wv.ProjectTotals["p1"])
 	}
-	// ...but vacation is excluded from the utilization/status basis.
-	if wv.EffectiveTotal != 8 {
-		t.Errorf("effective total = %v, want 8 (vacation excluded)", wv.EffectiveTotal)
+	// Vacation consumes available working time, so it counts towards the
+	// utilization/status basis.
+	if wv.Total != 24 {
+		t.Errorf("week total = %v, want 24 (vacation included)", wv.Total)
 	}
 	if wv.Status.Key != "min" {
-		t.Errorf("status = %q, want min (8h effective work)", wv.Status.Key)
+		t.Errorf("status = %q, want min (24h <= 26h minimum)", wv.Status.Key)
 	}
 }
 
-func TestVacationExcludedFromYearAndGoal(t *testing.T) {
+func TestVacationExcludedFromGoalOnly(t *testing.T) {
 	d := vacationData()
 	cal := holidays.New(2026, "BY")
 	ys := BuildYearSummary(d, cal)
@@ -369,18 +370,18 @@ func TestVacationExcludedFromYearAndGoal(t *testing.T) {
 	if vac.Consumed != 16 { // 8 + 8, both days count
 		t.Errorf("vacation consumed = %v, want 16", vac.Consumed)
 	}
-	// Weekly totals (the Ampel) exclude vacation: week 3 = only p1's 8h.
+	// Weekly totals (the Ampel) include vacation: week 3 = 8h p1 + 16h vacation.
 	var w3 WeekTotal
 	for _, wt := range ys.WeekTotals {
 		if wt.Week == 3 {
 			w3 = wt
 		}
 	}
-	if w3.Hours != 8 {
-		t.Errorf("week 3 effective hours = %v, want 8 (vacation excluded)", w3.Hours)
+	if w3.Hours != 24 {
+		t.Errorf("week 3 hours = %v, want 24 (vacation included)", w3.Hours)
 	}
 
-	// Goal excludes vacation entirely.
+	// The FY goal still excludes vacation entirely.
 	gs := BuildGoalSummary(d, cal)
 	if gs.ActualTotal != 8 {
 		t.Errorf("goal actual total = %v, want 8 (vacation excluded)", gs.ActualTotal)

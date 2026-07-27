@@ -237,8 +237,9 @@ curl -X POST https://host/api/v1/projects \
 ### `PUT /api/v1/projects/{id}` — ändern
 
 Teil-Update: nur mitgeschickte Felder (`name`, `assignmentId`, `budgetHours`, `color`,
-`active`, `fiscalYear`, `startDate`, `endDate`) werden geändert. Das automatisch verwaltete
-**Urlaubsprojekt** ist gesperrt → `409`. Unbekannte `id` → `404`.
+`active`, `fiscalYear`, `startDate`, `endDate`) werden geändert. Beim **Urlaubsprojekt**
+wird `budgetHours` ignoriert (es ergibt sich aus den Urlaubstagen der FY-Einstellungen),
+alle anderen Felder sind änderbar. Unbekannte `id` → `404`.
 
 ```bash
 curl -X PUT https://host/api/v1/projects/abc \

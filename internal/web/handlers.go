@@ -483,18 +483,17 @@ func (s *Server) handleProjectUpdate(w http.ResponseWriter, r *http.Request) {
 	_ = s.store.Update(func(d *models.Data) error {
 		for i := range d.Projects {
 			if d.Projects[i].ID == id {
-				// The vacation project is auto-managed: its budget comes from the
-				// FY settings and it must not be renamed or reconfigured here.
-				if d.Projects[i].IsVacation() {
-					return nil
-				}
 				if name != "" {
 					d.Projects[i].Name = name
 				}
 				if assignmentID != "" {
 					d.Projects[i].AssignmentID = assignmentID
 				}
-				d.Projects[i].BudgetHours = budget
+				// The vacation project's budget is derived from the vacation days
+				// in the FY settings, so it is not editable here.
+				if !d.Projects[i].IsVacation() {
+					d.Projects[i].BudgetHours = budget
+				}
 				if color != "" {
 					d.Projects[i].Color = color
 				}
