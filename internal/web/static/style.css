@@ -60,6 +60,9 @@ h2 { font-size: 1.1rem; margin: 1.5rem 0 0.75rem; }
 .kpi { text-align: center; }
 .kpi-value { font-size: 1.8rem; font-weight: 700; }
 .kpi-label { color: var(--muted); font-size: 0.85rem; }
+/* dashboard KPI row: always split evenly across the full width */
+.kpi-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 760px) { .kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 table.grid { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
 table.grid th, table.grid td { padding: 0.55rem 0.75rem; border-bottom: 1px solid var(--line); text-align: left; }
@@ -289,13 +292,23 @@ table.week tfoot td.center { text-align: center; }
 .sankey-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
 .sankey-head h2 { margin: 0; }
 .sankey-meta { color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
-.sankey-ctl { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 0.5rem 1rem; margin: 0.5rem 0 0.75rem; }
-.sankey-ctl .span-ctl { margin: 0; flex: 1 1 auto; justify-content: center; }
+.sankey-nav { display: flex; align-items: center; justify-content: center; gap: 0.75rem; margin: 0.6rem 0 0.35rem; }
+.sankey-ctl { justify-content: center; margin: 0 0 0.75rem; }
 .sankey-shift { margin: -0.35rem 0 0.6rem; text-align: center; }
 .sankey-wrap { width: 100%; overflow-x: auto; }
 .sankey, .freetime { width: 100%; height: auto; display: block; }
 .chart-sub { margin: 1rem 0 0.2rem; font-size: 0.95rem; }
 .chart-sub small { font-weight: 400; color: var(--muted); font-size: 0.8rem; margin-left: 0.4rem; }
+
+/* dashboard budgets table */
+.budgets th.burncol, .budgets td.burncol { width: 9.5rem; white-space: nowrap; }
+.budgets th.utilcol, .budgets td.utilcol { width: 16rem; }
+.budgets .barrow { display: flex; align-items: center; gap: 0.4rem; }
+.budgets .barrow + .barrow { margin-top: 0.25rem; }
+.budgets .barkey { color: var(--muted); font-size: 0.72rem; width: 4.2rem; flex: none; }
+.budgets .barrow .bar { flex: 1 1 auto; }
+.budgets .barrow small { width: 3.2rem; text-align: right; flex: none; font-variant-numeric: tabular-nums; }
+.budgets .muted { color: var(--muted); }
 
 /* forecast controls: centred visible-weeks selector flanked by nav buttons */
 .week-controls { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 0.5rem 1rem; margin: 0.25rem 0 1rem; }

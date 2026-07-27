@@ -2,10 +2,14 @@
 <h1>Dashboard · Fiskaljahr {{.Settings.Year}}</h1>
 <p class="hint">Zeitraum {{.FYStart}} – {{.FYEnd}}</p>
 
-<section class="cards">
+<section class="cards kpi-row">
   <div class="card kpi">
-    <div class="kpi-value">{{hours .Summary.TotalHours}} h</div>
-    <div class="kpi-label">Stunden gesamt</div>
+    <div class="kpi-value">{{hours .Summary.TotalBudget}} h</div>
+    <div class="kpi-label">Budget gesamt</div>
+  </div>
+  <div class="card kpi">
+    <div class="kpi-value">{{hours .Summary.TotalForecast}} h</div>
+    <div class="kpi-label">Forecast gesamt</div>
   </div>
   <div class="card kpi">
     <div class="kpi-value">{{len .Projects}}</div>
@@ -22,41 +26,48 @@
     <h2>Auslastung</h2>
     <span class="sankey-meta">{{.Sankey.RangeLabel}} · Summe {{hours .Sankey.Total}} h · frei {{hours .Sankey.FreeTotal}} h</span>
   </div>
-  <div class="sankey-ctl">
+  <div class="sankey-nav">
     {{if .Sankey.CanPrev}}<a class="btn nav-btn" href="/?sankey={{.Sankey.RangeKey}}&amp;soff={{.Sankey.PrevOffset}}" title="Zeitraum zurück">‹ zurück</a>{{else}}<span class="btn nav-btn disabled">‹ zurück</span>{{end}}
-    <span class="span-ctl">
-      <span class="span-ctl-label">Zeitraum:</span>
-      {{range .SankeyRanges}}<a class="chip{{if eq .Key $.Sankey.RangeKey}} active{{end}}" href="/?sankey={{.Key}}">{{.Label}}</a>{{end}}
-    </span>
     {{if .Sankey.CanNext}}<a class="btn nav-btn" href="/?sankey={{.Sankey.RangeKey}}&amp;soff={{.Sankey.NextOffset}}" title="Zeitraum weiter">weiter ›</a>{{else}}<span class="btn nav-btn disabled">weiter ›</span>{{end}}
+  </div>
+  <div class="span-ctl sankey-ctl">
+    <span class="span-ctl-label">Zeitraum:</span>
+    {{range .SankeyRanges}}<a class="chip{{if eq .Key $.Sankey.RangeKey}} active{{end}}" href="/?sankey={{.Key}}">{{.Label}}</a>{{end}}
   </div>
   {{if ne .Sankey.Offset 0}}<p class="hint sankey-shift">Verschobener Zeitraum · <a href="/?sankey={{.Sankey.RangeKey}}">zurück zum aktuellen</a></p>{{end}}
   <div class="sankey-wrap">{{.SankeySVG}}</div>
   {{if not .Sankey.Projects}}<p class="hint">Keine geplanten Projektstunden im gewählten Zeitraum.</p>{{end}}
-  <h3 class="chart-sub">Freie Zeit <small>Kapazität (Wochentage − Feiertage − Urlaub) − geplante Stunden</small></h3>
+  <h3 class="chart-sub">Freie Kapazität</h3>
   <div class="sankey-wrap">{{.FreeTimeSVG}}</div>
 </section>
 
 <h2>Budgets</h2>
 {{if .Summary.Projects}}
-<table class="grid">
+<table class="grid budgets">
   <thead>
-    <tr><th>Projekt</th><th class="num">Budget</th><th class="num">Forecast</th><th class="num">Ist</th><th class="num">Verbraucht</th><th class="num">Rest</th><th>Zeitraum</th><th class="num">Burnrate</th><th>Auslastung</th></tr>
+    <tr><th>Projekt</th><th class="num">Budget</th><th class="num">Forecast</th><th class="num">Gebucht</th><th class="num">Rest</th><th>Zeitraum</th><th class="num burncol">Burnrate</th><th class="utilcol">Auslastung</th></tr>
   </thead>
   <tbody>
   {{range .Summary.Projects}}
     <tr>
-      <td><span class="dot" style="background:{{.Project.Color}}"></span>{{.Project.Name}}{{if not .Project.Active}} <em>(inaktiv)</em>{{end}}</td>
+      <td><span class="dot" style="background:{{.Project.Color}}"></span>{{.Project.Name}}{{if .Project.AssignmentID}} <code class="assignmentid">{{.Project.AssignmentID}}</code>{{end}}{{if not .Project.Active}} <em>(inaktiv)</em>{{end}}</td>
       <td class="num">{{hours .Project.BudgetHours}} h</td>
       <td class="num">{{hours .Forecast}} h</td>
       <td class="num ist">{{hours .Actual}} h</td>
-      <td class="num">{{hours .Consumed}} h</td>
       <td class="num {{if lt .Remaining 0.0}}negative{{end}}">{{hours .Remaining}} h</td>
-      <td><small>{{.StartLabel}} – {{.EndLabel}}{{if gt .OutOfWindow 0.0}} <span class="warn" title="außerhalb des Zeitraums gebucht">⚠ {{hours .OutOfWindow}} h</span>{{end}}</small></td>
-      <td class="num"><small>{{hours .BurnPerWeek}} h/Wo{{if gt .RemainingWorkdays 0}}<br>Soll {{hours .RequiredPerWorkday}} h/Tag{{end}}</small></td>
-      <td>
-        <div class="bar"><span style="width:{{barWidth .UtilizationPct}}%;background:{{.Project.Color}}"></span></div>
-        <small>{{hours .UtilizationPct}} %</small>
+      <td><small>{{.StartLabel}} – {{.EndLabel}} <span class="muted">(noch {{.RemainingLabel}})</span>{{if gt .OutOfWindow 0.0}} <span class="warn" title="außerhalb des Zeitraums gebucht">⚠ {{hours .OutOfWindow}} h</span>{{end}}</small></td>
+      <td class="num burncol"><small>{{hours .BurnPerWeek}} h/Woche{{if gt .RemainingWorkdays 0}}<br>Soll {{hours .RequiredPerWorkday}} h/Tag{{end}}</small></td>
+      <td class="utilcol">
+        <div class="barrow">
+          <span class="barkey">Forecast</span>
+          <div class="bar"><span style="width:{{barWidth .ForecastPct}}%;background:{{.Project.Color}};opacity:0.45"></span></div>
+          <small>{{hours .ForecastPct}} %</small>
+        </div>
+        <div class="barrow">
+          <span class="barkey">Gebucht</span>
+          <div class="bar"><span style="width:{{barWidth .ActualPct}}%;background:{{.Project.Color}}"></span></div>
+          <small>{{hours .ActualPct}} %</small>
+        </div>
       </td>
     </tr>
   {{end}}

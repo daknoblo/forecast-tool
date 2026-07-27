@@ -180,11 +180,20 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
 - **Dashboard-Auslastungs-Sankey:** Die Dashboard-Seite ist `Wide` (volle Breite) und
   zeigt – nach den KPI-Karten, vor „Budgets“ – eine Karte „Auslastung“ mit einem
   serverseitig gerenderten, JS-freien Sankey/Alluvial-Diagramm (`web.sankeySVG` aus
-  `forecast.BuildSankey`). Darüber eine zentrierte Steuerzeile (`.sankey-ctl`):
-  `‹ zurück` / `weiter ›` als `.btn.nav-btn` flankieren die Zeitraum-Umschalter
-  (`forecast.SankeyRanges`: 1 Woche/2 Wochen/4 Wochen/2 Monate/3 Monate/Halbjahr/
-  Fiskaljahr) als `.chip`-Links (`GET /?sankey=<key>`, Default `4w`, unbekannt →
-  Default via `NormalizeSankeyRange`).
+  `forecast.BuildSankey`). Darüber **zwei zentrierte Zeilen**: `.sankey-nav` mit
+  `‹ zurück` / `weiter ›` (`.btn.nav-btn`), darunter `.span-ctl.sankey-ctl` mit den
+  Zeitraum-Umschaltern (`forecast.SankeyRanges`: 1 Woche/2 Wochen/4 Wochen/2 Monate/
+  3 Monate/Halbjahr/Fiskaljahr) als `.chip`-Links (`GET /?sankey=<key>`, Default `4w`,
+  unbekannt → Default via `NormalizeSankeyRange`).
+- **KPI-Kacheln (`.cards.kpi-row`, immer gleichmäßig über die Breite):** Budget gesamt
+  (`Summary.TotalBudget`) · Forecast gesamt (`Summary.TotalForecast`) · Projekte ·
+  Aktuelle FY-Woche.
+- **Budgets-Tabelle (`table.grid.budgets`), Spalten in dieser Reihenfolge:** Projekt
+  (Farbpunkt + Name + `assignmentid`-Badge) · Budget · Forecast · Gebucht · Rest ·
+  Zeitraum (Datum + „(noch …)“ aus `ProjectSummary.RemainingLabel`, z. B. „2 Wochen und
+  3 Tage“ / „3 Monate“) · Burnrate (`.burncol`, ausgeschrieben „h/Woche“) · Auslastung
+  (`.utilcol`, **zwei Balken**: Forecast/Budget aus `ForecastPct` (transparent) und
+  Gebucht/Budget aus `ActualPct` (deckend)). Keine „Verbraucht“-Spalte.
 - **Zeitraum verschieben:** `GET /?sankey=<key>&soff=<n>` verschiebt den Zeitraum um
   ganze Spannen (negativ = rückwirkend), `forecast.shiftSankeySpan` klemmt bündig an die
   FY-Grenzen (`SankeyMaxOffset` begrenzt den Parameter). `SankeyData.CanPrev/CanNext`
@@ -198,9 +207,9 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
   beschriftet. Die **Legende steht im Diagramm** (oben links, max. 2 Zeilen, danach
   „+N weitere“), nicht mehr als HTML darunter. **Geplanter Urlaub** erscheint als
   **grauer Block in der Achsenzone** direkt über dem KW-/Monatslabel (`web.vacationBlocks`).
-- **Freie-Zeit-Diagramm:** Unter dem Sankey liegt – auf **derselben Zeitachse**
-  (gemeinsame Geometrie `web.sankeyGeom`) – ein Säulendiagramm `web.freeTimeSVG`:
-  je Bucket `FreeHours = CapacityHours − Total` mit
+- **Freie-Kapazität-Diagramm:** Unter dem Sankey liegt – auf **derselben Zeitachse**
+  (gemeinsame Geometrie `web.sankeyGeom`) – ein Säulendiagramm `web.freeTimeSVG` unter
+  der Überschrift „Freie Kapazität“: je Bucket `FreeHours = CapacityHours − Total` mit
   `CapacityHours = Wochentage×8h − Feiertage − Urlaub`. Säulen über der Nulllinie =
   freie Zeit (blau), darunter = überbucht (rot).
 - `BuildSankey(d, cal, rangeKey, offset)` braucht daher den Feiertagskalender.

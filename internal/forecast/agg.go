@@ -376,6 +376,8 @@ type ProjectSummary struct {
 	Consumed       float64 // all hours (forecast + booked)
 	Remaining      float64 // budget - consumed
 	UtilizationPct float64 // consumed / budget * 100
+	ForecastPct    float64 // forecast / budget * 100
+	ActualPct      float64 // booked / budget * 100
 
 	// Booking window (clamped to the fiscal year). Empty project dates default
 	// to the FY bounds.
@@ -384,6 +386,7 @@ type ProjectSummary struct {
 	StartLabel      string // DD.MM.YYYY
 	EndLabel        string // DD.MM.YYYY
 	HasCustomWindow bool   // true if the project sets an explicit start or end
+	RemainingLabel  string // time left until the window end, e.g. "2 Wochen und 3 Tage"
 
 	// Burn-rate over the window (holiday-aware working days, Mon-Fri).
 	WindowWorkdays     int     // working days within the window
@@ -396,9 +399,12 @@ type ProjectSummary struct {
 
 // YearSummary aggregates all projects and weekly totals for the fiscal year.
 type YearSummary struct {
-	Projects   []ProjectSummary
-	TotalHours float64 // all hours over all projects
-	WeekTotals []WeekTotal
+	Projects      []ProjectSummary
+	TotalHours    float64 // all hours over all projects
+	TotalBudget   float64 // summed budget of all projects
+	TotalForecast float64 // summed forecast hours (today and later)
+	TotalActual   float64 // summed booked hours (past days)
+	WeekTotals    []WeekTotal
 }
 
 // WeekTotal is the summed hours for a single fiscal-year week.
@@ -448,6 +454,35 @@ func countWorkdays(start, end time.Time, cal *holidays.Calendar) int {
 	return n
 }
 
+// remainingLabel renders the calendar time left until the inclusive end date in
+// a compact German form, e.g. "7 Tage", "2 Wochen und 3 Tage" or "3 Monate".
+func remainingLabel(from, to time.Time) string {
+	days := int(to.Sub(from).Hours()/24) + 1
+	switch {
+	case days <= 0:
+		return "abgelaufen"
+	case days == 1:
+		return "1 Tag"
+	case days < 7:
+		return fmt.Sprintf("%d Tage", days)
+	case days < 60:
+		weeks, rest := days/7, days%7
+		out := fmt.Sprintf("%d Wochen", weeks)
+		if weeks == 1 {
+			out = "1 Woche"
+		}
+		switch {
+		case rest == 1:
+			out += " und 1 Tag"
+		case rest > 1:
+			out += fmt.Sprintf(" und %d Tage", rest)
+		}
+		return out
+	default:
+		return fmt.Sprintf("%d Monate", (days+15)/30)
+	}
+}
+
 // BuildYearSummary computes per-project consumption and weekly totals over the
 // fiscal year. There is a single hours value per day and project; it counts as
 // booked when the day is in the past and as forecast for today and future days.
@@ -486,9 +521,11 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 	for _, p := range d.Projects {
 		c := consumed[p.ID]
 		rem := p.BudgetHours - c
-		util := 0.0
+		util, fPct, aPct := 0.0, 0.0, 0.0
 		if p.BudgetHours > 0 {
 			util = round1(c / p.BudgetHours * 100)
+			fPct = round1(forecastByP[p.ID] / p.BudgetHours * 100)
+			aPct = round1(actualByP[p.ID] / p.BudgetHours * 100)
 		}
 
 		wStart, wEnd := projectWindow(p, fyStart, fyEnd)
@@ -516,11 +553,14 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 			Consumed:           round1(c),
 			Remaining:          round1(rem),
 			UtilizationPct:     util,
+			ForecastPct:        fPct,
+			ActualPct:          aPct,
 			StartDate:          wStart.Format("2006-01-02"),
 			EndDate:            wEnd.Format("2006-01-02"),
 			StartLabel:         wStart.Format("02.01.2006"),
 			EndLabel:           wEnd.Format("02.01.2006"),
 			HasCustomWindow:    p.StartDate != "" || p.EndDate != "",
+			RemainingLabel:     remainingLabel(today, wEnd),
 			WindowWorkdays:     workdays,
 			BurnPerWeek:        burnPerWeek,
 			BurnPerWorkday:     burnPerWorkday,
@@ -529,8 +569,14 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 			OutOfWindow:        round1(outByP[p.ID]),
 		})
 		ys.TotalHours += c
+		ys.TotalBudget += p.BudgetHours
+		ys.TotalForecast += forecastByP[p.ID]
+		ys.TotalActual += actualByP[p.ID]
 	}
 	ys.TotalHours = round1(ys.TotalHours)
+	ys.TotalBudget = round1(ys.TotalBudget)
+	ys.TotalForecast = round1(ys.TotalForecast)
+	ys.TotalActual = round1(ys.TotalActual)
 
 	// weekly totals over the fiscal year (all hours; split into booked/forecast
 	// by date for the derived columns)
