@@ -213,6 +213,35 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
   `CapacityHours = Wochentage×8h − Feiertage − Urlaub`. Säulen über der Nulllinie =
   freie Zeit (blau), darunter = überbucht (rot).
 - `BuildSankey(d, cal, rangeKey, offset)` braucht daher den Feiertagskalender.
+
+## Privater Modus (Präsentationsmodus)
+
+- Umschalter **oben rechts im Header, direkt vor dem FY-Dropdown** (`.privbtn`,
+  Augen-Icon + „Privat“). Route `POST /private` (`handlePrivateToggle`) kippt das
+  Cookie `forecast_private` (HttpOnly, SameSite=Lax) und kehrt via `refererPath(r)`
+  zur Ausgangsseite zurück. Es ist eine **Anzeigeeinstellung pro Browser** und landet
+  daher bewusst **nicht** in `data.json`.
+- Umsetzung: `web.render(w, r, name, data)` **klont** das Basis-Template pro Request und
+  legt `privacyFuncs(private)` darüber. Damit maskiert `hours`/`pct` **jede** Zahl in
+  **allen** Templates als `•••` und `barWidth` liefert `0` – ohne Änderung an den
+  Aufrufstellen. Das Basis-Set wird nie selbst ausgeführt (sonst schlägt `Clone` fehl).
+  Formularfelder nutzen `hoursRaw` (nie maskiert), damit Einstellungen editierbar bleiben.
+- Projektnamen: `maskIfPrivate(d, r)` ersetzt sie durch stabile Platzhalter
+  („Projekt A/B/…“, sortiert nach Projekt-ID) und leert die `assignmentId`. Wird in
+  `handleDashboard`/`handleProjects`/`handleWeek`/`handleGoal` **auf dem Snapshot**
+  angewandt – Schreibpfade nutzen weiterhin `store.Update`/`Mutate`, es kann also nie
+  ein maskierter Name persistiert werden.
+- Diagramme dürfen auch über **Höhen** nichts verraten: `sankeySVG` normalisiert jede
+  Spalte auf dieselbe Höhe (nur der Projektmix bleibt sichtbar) und blendet die Y-Achse
+  aus; `freeTimeSVG` zeigt nur noch Richtung (frei/überbucht) mit fester Höhe;
+  `burndownSVG`/`progressSVG` maskieren ihre Achsen- und Ziel-Beschriftungen.
+  `body.private .bar span { display: none }` neutralisiert zusätzlich alle HTML-Balken.
+- Gesperrt, solange der Modus an ist: **JSON-Editor + Export** (`/data` zeigt nur einen
+  Hinweis), **Projekt-Formulare** (Anlegen/Bearbeiten/Löschen) und das **Forecast-Grid**
+  (Zellen `readonly`, keine „Leeren“-Buttons; das Live-Summen- und Auto-Save-JS steigt
+  über `table[data-private]` früh aus).
+- Die JSON-API (`/api/v1`) ist bewusst **nicht** betroffen (Maschinen-Schnittstelle).
+
 - Auf der Ziel-Seite werden **Quartals- und Monatsübersicht immer angezeigt**
   (nicht ausklappbar).
 - **Ziel-Seite Reihenfolge (chronologisch):** Gesamt-FY (KPIs, Status inkl.
@@ -225,8 +254,7 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
   zentriert (außer `.pname`), Projektzeilen durch einen horizontalen Rahmen getrennt
   (`tbody td` border-bottom 2px), Wochensummen-Spalte (`.weeksum`) schmal an den Inhalt
   angepasst. Diese Vorgaben liegen in `static/style.css` (kein Markup in `week.html` nötig).
-- **Zentrales FY-Dropdown oben rechts im Header** (dort, wo Jahr/Bundesland stehen):
-  schaltet das aktive Fiskaljahr global um, funktioniert von **jeder** Seite und kehrt
+- **Zentrales FY-Dropdown oben rechts im Header** (dort, wo Jahr/Bundesland stehen):  schaltet das aktive Fiskaljahr global um, funktioniert von **jeder** Seite und kehrt
   nach dem Wechsel zur Ursprungsseite zurück (Route `POST /fy`, Redirect auf Referer). Sofern man hier das FY wechselt müssen auch auf allen seiten die passenden FY angezeigt werden
 - In den Einstellungen **Pfad und Größe der Konfigurationsdatei** (JSON) anzeigen
   (Größe als B/KB/MB). Diese Karte steht **ganz unten** auf der Einstellungsseite

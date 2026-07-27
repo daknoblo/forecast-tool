@@ -1,5 +1,10 @@
 {{template "header" .}}
 <h1>JSON-Editor</h1>
+{{if .Private}}
+<p class="hint">Der <strong>private Modus</strong> ist aktiv. Das Rohdokument enthält alle Projektnamen,
+  Budgets und gebuchten Stunden im Klartext und wird deshalb hier nicht angezeigt. Schalte den
+  privaten Modus oben rechts aus, um den Editor zu öffnen.</p>
+{{else}}
 <p class="hint">
   Hier kannst du die komplette Datendatei direkt als JSON bearbeiten und speichern – z. B. mit
   JSON, das du dir von einer KI generieren lässt. Vor dem Speichern werden die Daten geprüft;
@@ -45,8 +50,9 @@
     Jede <code>entries.projectId</code> muss zu einer existierenden <code>projects.id</code> passen.
   </p>
 </section>
+{{end}}
 
-{{if .AIConfigured}}
+{{if and .AIConfigured (not .Private)}}
 <script>
   // Send the editor's current (possibly edited) content to the AI endpoint
   // instead of the last server-rendered version.

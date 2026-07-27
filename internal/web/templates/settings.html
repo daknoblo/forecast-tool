@@ -28,12 +28,12 @@
       </select>
     </label>
     <label>Wochensollstunden
-      <input type="text" inputmode="decimal" name="weekly" value="{{hours .Settings.WeeklyTargetHours}}" placeholder="40">
+      <input type="text" inputmode="decimal" name="weekly" value="{{hoursRaw .Settings.WeeklyTargetHours}}" placeholder="40">
     </label>
 
     <h2>Pro Fiskaljahr (FY {{.ViewYear}})</h2>
     <label>Fiskaljahresziel (Stunden gesamt)
-      <input type="text" inputmode="decimal" name="fyTarget" value="{{hours .FY.TargetHours}}">
+      <input type="text" inputmode="decimal" name="fyTarget" value="{{hoursRaw .FY.TargetHours}}">
     </label>
     <label>Urlaub 1. Halbjahr ({{.H1Label}}) – Tage à 8 h
       <input type="number" name="vacationH1" min="0" max="366" value="{{.FY.VacationDaysH1}}">
@@ -43,7 +43,7 @@
     </label>
     <p class="hint">Urlaub wird pro Halbjahr angegeben, da sich das Fiskaljahr über zwei Kalenderjahre erstreckt und der Urlaubsanspruch pro Kalenderjahr zählt.</p>
     <label>Standard Tasks (Stunden gesamt fürs FY)
-      <input type="text" inputmode="decimal" name="standardTaskHours" value="{{hours .FY.StandardTaskHours}}">
+      <input type="text" inputmode="decimal" name="standardTaskHours" value="{{hoursRaw .FY.StandardTaskHours}}">
     </label>
     <p class="hint">Standard Tasks werden – wie Feiertage und Urlaub – von den FY-Gesamtstunden abgezogen.</p>
 
@@ -59,13 +59,13 @@
     <input type="hidden" name="year" value="{{.ViewYear}}">
     <input type="hidden" name="section" value="utilization">
     <label><span class="util util-min"><span class="util-dot">↓</span></span> Burnrate Minimum – Stunden (≤)
-      <input type="text" inputmode="decimal" name="utilMin" value="{{hours .Settings.Utilization.MinHours}}" placeholder="26">
+      <input type="text" inputmode="decimal" name="utilMin" value="{{hoursRaw .Settings.Utilization.MinHours}}" placeholder="26">
     </label>
     <label>Label „Minimum“
       <input type="text" name="utilMinLabel" value="{{.Settings.Utilization.MinLabel}}" placeholder="Burnrate Minimum">
     </label>
     <label><span class="util util-optimal"><span class="util-dot">OK</span></span> Optimal – Stunden (≤)
-      <input type="text" inputmode="decimal" name="utilOptimal" value="{{hours .Settings.Utilization.OptimalHours}}" placeholder="40">
+      <input type="text" inputmode="decimal" name="utilOptimal" value="{{hoursRaw .Settings.Utilization.OptimalHours}}" placeholder="40">
     </label>
     <label>Label „Optimal“
       <input type="text" name="utilOptimalLabel" value="{{.Settings.Utilization.OptimalLabel}}" placeholder="Optimal">
@@ -74,7 +74,7 @@
       <input type="text" name="utilHighLabel" value="{{.Settings.Utilization.HighLabel}}" placeholder="Zu hoch">
     </label>
     <label><span class="util util-over"><span class="util-dot">✕</span></span> Überbucht – Stunden (≥)
-      <input type="text" inputmode="decimal" name="utilOver" value="{{hours .Settings.Utilization.OverHours}}" placeholder="60">
+      <input type="text" inputmode="decimal" name="utilOver" value="{{hoursRaw .Settings.Utilization.OverHours}}" placeholder="60">
     </label>
     <label>Label „Überbucht“
       <input type="text" name="utilOverLabel" value="{{.Settings.Utilization.OverLabel}}" placeholder="Überbucht">

@@ -6,7 +6,7 @@
   <title>{{appName}}</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
-<body>
+<body{{if .Private}} class="private"{{end}}>
 <header class="topbar">
   <div class="brand">📊 {{appName}}</div>
   <nav>
@@ -18,6 +18,17 @@
     <a href="/settings" class="{{if eq .Active "settings"}}active{{end}}">Einstellungen</a>
   </nav>
   <div class="year">
+    <form method="post" action="/private" class="privswitch">
+      <button type="submit" class="privbtn{{if .Private}} on{{end}}" aria-pressed="{{if .Private}}true{{else}}false{{end}}"
+              title="{{if .Private}}Privater Modus aktiv – Namen und Zahlen sind verborgen. Klicken zum Ausschalten.{{else}}Privater Modus: Projektnamen, Budgets und Stunden verbergen{{end}}">
+        {{if .Private}}
+        <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" fill="currentColor"><path d="M8 3.2c3.5 0 6.3 2.1 7.4 4.8-.5 1.2-1.3 2.2-2.3 3l-1.1-1.1c.7-.5 1.3-1.2 1.7-1.9C12.6 6 10.5 4.7 8 4.7c-.6 0-1.2.1-1.7.2L5.1 3.7c.9-.3 1.9-.5 2.9-.5zM2.6 2.3l11.1 11.1-1 1-2.1-2.1c-.8.3-1.7.4-2.6.4-3.5 0-6.3-2.1-7.4-4.8.5-1.4 1.5-2.6 2.7-3.4L1.6 3.3l1-1zM4.4 5.5c-.9.6-1.7 1.4-2.1 2.5C3.4 10 5.5 11.3 8 11.3c.5 0 1-.1 1.4-.2l-1-1a2.1 2.1 0 0 1-2.5-2.5l-1.5-1.1z"/></svg>
+        {{else}}
+        <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" fill="currentColor"><path d="M8 3C4.5 3 1.7 5.1.6 8c1.1 2.9 3.9 5 7.4 5s6.3-2.1 7.4-5c-1.1-2.9-3.9-5-7.4-5zm0 8.3A3.3 3.3 0 1 1 8 4.7a3.3 3.3 0 0 1 0 6.6zm0-1.6a1.7 1.7 0 1 0 0-3.4 1.7 1.7 0 0 0 0 3.4z"/></svg>
+        {{end}}
+        <span>Privat</span>
+      </button>
+    </form>
     <form method="post" action="/fy" class="fyswitch">
       <label for="fySelect">FY</label>
       <select id="fySelect" name="year" onchange="this.form.submit()">

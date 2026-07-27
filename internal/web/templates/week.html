@@ -29,13 +29,13 @@
 {{if .Projects}}
 <div class="week-grid">
 <div class="table-scroll">
-<table class="grid week span" data-day-min="78" data-target="{{.Span.TargetHours}}">
+<table class="grid week span" data-day-min="78" data-target="{{.Span.TargetHours}}"{{if .Private}} data-private="1"{{end}}>
   <thead>
     <tr class="weekrow">
       <th rowspan="2" class="pname">Projekt</th>
       {{range .Span.Blocks}}
         <th colspan="5" class="weekgroup">W{{.Week}} · KW{{printf "%02d" .ISOWeek}}
-          <button type="button" class="clearbtn" data-clear-dates="{{range .Days}}{{.Date}},{{end}}" title="Woche leeren">✕</button>
+          {{if not $.Private}}<button type="button" class="clearbtn" data-clear-dates="{{range .Days}}{{.Date}},{{end}}" title="Woche leeren">✕</button>{{end}}
           <br><small>{{.RangeLabel}}</small></th>
         <th rowspan="2" class="num sumcol weeksum">Summe<br><small>W{{.Week}}</small></th>
       {{end}}
@@ -46,7 +46,7 @@
         {{range $i, $d := $b.Days}}
         <th class="day{{if $d.IsHoliday}} holiday{{end}}{{if not $d.InYear}} outyear{{end}}{{if $d.Past}} past{{end}}{{if eq $i 0}} weekstart{{end}}{{if $d.MonthEnd}} monthend{{end}}">
           {{$d.WeekdayName}}<br><small>{{slice $d.Date 8 10}}.{{slice $d.Date 5 7}}.</small>
-          <button type="button" class="clearbtn" data-clear-dates="{{$d.Date}}" title="Tag leeren">✕</button>
+          {{if not $.Private}}<button type="button" class="clearbtn" data-clear-dates="{{$d.Date}}" title="Tag leeren">✕</button>{{end}}
           {{if $d.IsHoliday}}<br><span class="tag" title="{{$d.HolidayName}}">Feiertag</span>{{else if $d.Past}}<br><span class="tag booked" title="Vergangener Tag – gebuchte Stunden">gebucht</span>{{end}}
         </th>
         {{end}}
@@ -72,7 +72,7 @@
                  value="{{with cellHours $d $p.ID}}{{hours .}}{{end}}"
                  class="hcell{{if $d.Past}} booked{{end}}" autocomplete="off" placeholder="0"
                  title="{{if $d.Past}}Gebuchte Stunden (vergangener Tag){{else}}Forecast (geplante Stunden){{end}}"
-                 data-project="{{$p.ID}}" data-week="{{$b.Week}}" data-date="{{$d.Date}}">
+                 data-project="{{$p.ID}}" data-week="{{$b.Week}}" data-date="{{$d.Date}}"{{if $.Private}} readonly{{end}}>
           {{else}}
           <span class="closedmark" title="Außerhalb des Projektzeitraums">–</span>
           {{end}}
@@ -118,8 +118,13 @@
 </table>
 </div>
 <div class="save-status-wrap">
+  {{if .Private}}
+  <span class="save-status" data-save-status>Privater Modus – nur Ansicht</span>
+  <span class="hint">Zahlen sind verborgen und das Raster ist gesperrt. Schalte den privaten Modus oben rechts aus, um Stunden zu erfassen.</span>
+  {{else}}
   <span class="save-status ok" data-save-status>Automatisch gespeichert</span>
   <span class="hint">Trage pro Tag die Stunden ein (Komma oder Punkt) – Änderungen werden <strong>automatisch gespeichert</strong>. Vergangene Tage sind die <strong>gebuchten</strong> Ist-Stunden, ab heute der <strong>Forecast</strong>. Leere Felder = 0.</span>
+  {{end}}
 </div>
 </div>
 {{else}}
@@ -150,7 +155,7 @@
 (function () {
   // Live totals: recompute all sums while the user types, without a save round-trip.
   var table = document.querySelector('table.week.span');
-  if (!table) return;
+  if (!table || table.hasAttribute('data-private')) return;
   var target = parseFloat(table.getAttribute('data-target')) || 0;
 
   function num(v) {
@@ -245,7 +250,7 @@
 (function () {
   // Auto-save: persist changed cells to the server without reloading the page.
   var table = document.querySelector('table.week.span');
-  if (!table) return;
+  if (!table || table.hasAttribute('data-private')) return;
   var statusEl = document.querySelector('[data-save-status]');
   var timers = {};
   var inflight = 0;

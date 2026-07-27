@@ -52,9 +52,10 @@ func NewServer(store *storage.Store, logger *slog.Logger) (*Server, error) {
 		logger = slog.Default()
 	}
 	funcs := template.FuncMap{
-		"hours":   formatHours,
-		"appName": func() string { return AppName },
-		"pct":     func(f float64) string { return formatHours(f) + " %" },
+		"hours":    formatHours,
+		"hoursRaw": formatHours,
+		"appName":  func() string { return AppName },
+		"pct":      func(f float64) string { return formatHours(f) + " %" },
 		"cellName": func(projectID, date string) string {
 			return "h_" + projectID + "_" + date
 		},
@@ -67,16 +68,8 @@ func NewServer(store *storage.Store, logger *slog.Logger) (*Server, error) {
 		"bookable": func(p models.Project, date string) bool {
 			return p.Bookable(date)
 		},
-		"add": func(a, b int) int { return a + b },
-		"barWidth": func(pct float64) string {
-			if pct > 100 {
-				pct = 100
-			}
-			if pct < 0 {
-				pct = 0
-			}
-			return formatHours(pct)
-		},
+		"add":      func(a, b int) int { return a + b },
+		"barWidth": barWidth,
 	}
 	tpl, err := template.New("").Funcs(funcs).ParseFS(templateFS, "templates/*.html")
 	if err != nil {
@@ -110,6 +103,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /data/ai", s.handleDataAI)
 	mux.HandleFunc("POST /data/reset", s.handleDataReset)
 	mux.HandleFunc("POST /fy", s.handleSetActiveFY)
+	mux.HandleFunc("POST /private", s.handlePrivateToggle)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
@@ -132,9 +126,23 @@ func (s *Server) calendar(d models.Data) *holidays.Calendar {
 	return s.calData
 }
 
-func (s *Server) render(w http.ResponseWriter, name string, data any) {
+// render executes a template with the request's private-mode settings applied.
+// The base template set is never executed itself: it is cloned per request so
+// the privacy-aware functions (masking every figure) can be layered on top
+// without touching a single call site in the templates.
+func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, data any) {
+	private := isPrivate(r)
+	if m, ok := data.(map[string]any); ok {
+		m["Private"] = private
+	}
+	tpl, err := s.tpl.Clone()
+	if err != nil {
+		log.Printf("template clone %s: %v", name, err)
+		http.Error(w, "render error", http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.tpl.ExecuteTemplate(w, name, data); err != nil {
+	if err := tpl.Funcs(privacyFuncs(private)).ExecuteTemplate(w, name, data); err != nil {
 		log.Printf("template %s: %v", name, err)
 		http.Error(w, "render error", http.StatusInternalServerError)
 	}
@@ -143,14 +151,15 @@ func (s *Server) render(w http.ResponseWriter, name string, data any) {
 // --- Dashboard ---
 
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
-	d := s.store.Snapshot()
+	private := isPrivate(r)
+	d := maskIfPrivate(s.store.Snapshot(), r)
 	d.Projects = models.ProjectsForFY(d.Projects, d.Settings.Year)
 	ys := forecast.BuildYearSummary(d, s.calendar(d))
 	projects := forecast.SortedProjects(d.Projects)
 	fyStart, fyEnd := forecast.FiscalYear(d.Settings.Year, d.Settings.FiscalYearStartMonth)
 	sankeyOffset, _ := strconv.Atoi(trim(r.URL.Query().Get("soff")))
 	sankey := forecast.BuildSankey(d, s.calendar(d), r.URL.Query().Get("sankey"), sankeyOffset)
-	s.render(w, "dashboard.html", map[string]any{
+	s.render(w, r, "dashboard.html", map[string]any{
 		"Active":       "dashboard",
 		"Wide":         true,
 		"Settings":     d.Settings,
@@ -162,8 +171,8 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		"FYEnd":        fyEnd.Format("02.01.2006"),
 		"Sankey":       sankey,
 		"SankeyRanges": forecast.SankeyRanges,
-		"SankeySVG":    sankeySVG(sankey),
-		"FreeTimeSVG":  freeTimeSVG(sankey),
+		"SankeySVG":    sankeySVG(sankey, private),
+		"FreeTimeSVG":  freeTimeSVG(sankey, private),
 	})
 }
 
@@ -175,7 +184,7 @@ func (s *Server) handleWeekRedirect(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleWeek(w http.ResponseWriter, r *http.Request) {
-	d := s.store.Snapshot()
+	d := maskIfPrivate(s.store.Snapshot(), r)
 	d.Projects = models.ProjectsForFY(d.Projects, d.Settings.Year)
 	start := clampWeek(r.PathValue("week"), d.Settings)
 	weeks := spanWeeks(r)
@@ -191,9 +200,15 @@ func (s *Server) handleWeek(w http.ResponseWriter, r *http.Request) {
 	burn := forecast.BuildSpanBurn(ys.Projects, spanStart, spanEnd)
 	budgetLeft := map[string]float64{}
 	for _, p := range ys.Projects {
+		// The remaining budget is fed into the live JS totals; in private mode it
+		// must not leak the real figure through the data attribute.
+		if isPrivate(r) {
+			budgetLeft[p.Project.ID] = 0
+			continue
+		}
 		budgetLeft[p.Project.ID] = round1(p.Project.BudgetHours - p.Consumed)
 	}
-	s.render(w, "week.html", map[string]any{
+	s.render(w, r, "week.html", map[string]any{
 		"Active":      "week",
 		"Wide":        true,
 		"Settings":    d.Settings,
@@ -397,7 +412,8 @@ func writeJSONError(w http.ResponseWriter, status int, msg string) {
 // --- Projects ---
 
 func (s *Server) handleProjects(w http.ResponseWriter, r *http.Request) {
-	d := s.store.Snapshot()
+	private := isPrivate(r)
+	d := maskIfPrivate(s.store.Snapshot(), r)
 	d.Projects = models.ProjectsForFY(d.Projects, d.Settings.Year)
 	ys := forecast.BuildYearSummary(d, s.calendar(d))
 
@@ -410,14 +426,14 @@ func (s *Server) handleProjects(w http.ResponseWriter, r *http.Request) {
 		pts := forecast.BuildBurndown(d, ps.Project.ID, ps.StartDate, ps.EndDate, ps.Project.BudgetHours)
 		views = append(views, projView{
 			Summary:  ps,
-			Burndown: burndownSVG(pts, ps.Project.BudgetHours, ps.Project.Color),
+			Burndown: burndownSVG(pts, ps.Project.BudgetHours, ps.Project.Color, private),
 		})
 	}
 	sort.Slice(views, func(i, j int) bool {
 		return views[i].Summary.Project.Name < views[j].Summary.Project.Name
 	})
 
-	s.render(w, "projects.html", map[string]any{
+	s.render(w, r, "projects.html", map[string]any{
 		"Active":   "projects",
 		"Settings": d.Settings,
 		"FYYears":  fyYears(d),
@@ -542,7 +558,8 @@ func (s *Server) handleProjectDelete(w http.ResponseWriter, r *http.Request) {
 // --- Goal (fiscal year target) ---
 
 func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
-	d := s.store.Snapshot()
+	private := isPrivate(r)
+	d := maskIfPrivate(s.store.Snapshot(), r)
 	cal := s.calendar(d)
 	gs := forecast.BuildGoalSummary(d, cal)
 	d.Projects = models.ProjectsForFY(d.Projects, d.Settings.Year)
@@ -558,12 +575,12 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 			labels[i] = m.Label
 			proj[i] = m.Projected
 		}
-		fyChart = progressSVG(labels, cumulative(proj), gs.TargetHours)
-		h1Chart = progressSVG(labels[:6], cumulative(proj[:6]), round1(gs.TargetHours/2))
-		h2Chart = progressSVG(labels[6:], cumulative(proj[6:]), round1(gs.TargetHours/2))
+		fyChart = progressSVG(labels, cumulative(proj), gs.TargetHours, private)
+		h1Chart = progressSVG(labels[:6], cumulative(proj[:6]), round1(gs.TargetHours/2), private)
+		h2Chart = progressSVG(labels[6:], cumulative(proj[6:]), round1(gs.TargetHours/2), private)
 	}
 
-	s.render(w, "goal.html", map[string]any{
+	s.render(w, r, "goal.html", map[string]any{
 		"Active":     "goal",
 		"Settings":   d.Settings,
 		"FYYears":    fyYears(d),
@@ -589,7 +606,7 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 	fyStart, fyEnd := forecast.FiscalYear(viewYear, d.Settings.FiscalYearStartMonth)
 	h2Start := fyStart.AddDate(0, 6, 0)
 	h1End := h2Start.AddDate(0, 0, -1)
-	s.render(w, "settings.html", map[string]any{
+	s.render(w, r, "settings.html", map[string]any{
 		"Active":       "settings",
 		"Settings":     d.Settings,
 		"FYYears":      fyYears(d),
@@ -733,14 +750,19 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleData shows the raw JSON editor so the whole document can be edited in
-// the browser (e.g. with JSON generated by an AI assistant).
+// the browser (e.g. with JSON generated by an AI assistant). In private mode the
+// editor stays hidden: the raw document would expose every name and figure.
 func (s *Server) handleData(w http.ResponseWriter, r *http.Request) {
+	if isPrivate(r) {
+		s.renderData(w, r, "", "", "", "")
+		return
+	}
 	b, err := s.store.Marshal()
 	if err != nil {
 		http.Error(w, "render error", http.StatusInternalServerError)
 		return
 	}
-	s.renderData(w, string(b), "", "", "")
+	s.renderData(w, r, string(b), "", "", "")
 }
 
 // handleDataReset removes all projects and bookings (entries) while keeping
@@ -757,7 +779,7 @@ func (s *Server) handleDataReset(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "render error", http.StatusInternalServerError)
 		return
 	}
-	s.renderData(w, string(b), "", "", "Alle Daten wurden zurückgesetzt. Es wurde eine leere JSON geschrieben.")
+	s.renderData(w, r, string(b), "", "", "Alle Daten wurden zurückgesetzt. Es wurde eine leere JSON geschrieben.")
 }
 
 // handleDataSave validates the submitted JSON and replaces the whole document
@@ -770,7 +792,7 @@ func (s *Server) handleDataSave(w http.ResponseWriter, r *http.Request) {
 	}
 	raw := r.FormValue("json")
 	if err := s.store.ReplaceJSON([]byte(raw)); err != nil {
-		s.renderData(w, raw, "", err.Error(), "")
+		s.renderData(w, r, raw, "", err.Error(), "")
 		return
 	}
 	// Re-marshal to show the normalized, canonical form after a successful save.
@@ -778,7 +800,7 @@ func (s *Server) handleDataSave(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		b = []byte(raw)
 	}
-	s.renderData(w, string(b), "", "", "Daten gespeichert und validiert.")
+	s.renderData(w, r, string(b), "", "", "Daten gespeichert und validiert.")
 }
 
 // handleDataAI sends the prompt together with the current JSON to the configured
@@ -798,7 +820,7 @@ func (s *Server) handleDataAI(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if prompt == "" {
-		s.renderData(w, currentJSON, prompt, "Bitte gib einen Prompt ein.", "")
+		s.renderData(w, r, currentJSON, prompt, "Bitte gib einen Prompt ein.", "")
 		return
 	}
 
@@ -808,7 +830,7 @@ func (s *Server) handleDataAI(w http.ResponseWriter, r *http.Request) {
 	result, err := ai.Generate(r.Context(), cfg, prompt, currentJSON, s.logger)
 	if err != nil {
 		s.logger.Error("ai update failed", "error", err)
-		s.renderData(w, currentJSON, prompt, err.Error(), "")
+		s.renderData(w, r, currentJSON, prompt, err.Error(), "")
 		return
 	}
 
@@ -818,7 +840,7 @@ func (s *Server) handleDataAI(w http.ResponseWriter, r *http.Request) {
 	expanded, exErr := ai.ExpandPlan([]byte(result), startMonth)
 	if exErr != nil {
 		s.logger.Warn("ai forecastPlan expansion failed", "error", exErr)
-		s.renderData(w, result, prompt, "KI-Antwort konnte nicht verarbeitet werden: "+exErr.Error(), "")
+		s.renderData(w, r, result, prompt, "KI-Antwort konnte nicht verarbeitet werden: "+exErr.Error(), "")
 		return
 	}
 	result = string(expanded)
@@ -827,17 +849,17 @@ func (s *Server) handleDataAI(w http.ResponseWriter, r *http.Request) {
 	// can review and fix it before saving.
 	if vErr := s.store.ValidateJSON([]byte(result)); vErr != nil {
 		s.logger.Warn("ai update returned invalid json", "error", vErr, "resultChars", len(result))
-		s.renderData(w, result, prompt, "KI-Antwort ist noch nicht gültig – bitte prüfen und korrigieren: "+vErr.Error(), "")
+		s.renderData(w, r, result, prompt, "KI-Antwort ist noch nicht gültig – bitte prüfen und korrigieren: "+vErr.Error(), "")
 		return
 	}
 	s.logger.Info("ai update succeeded", "resultChars", len(result))
-	s.renderData(w, result, "", "", "KI-Antwort eingefügt und validiert. Prüfe das Ergebnis und klicke auf „Speichern“, um es zu übernehmen.")
+	s.renderData(w, r, result, "", "", "KI-Antwort eingefügt und validiert. Prüfe das Ergebnis und klicke auf „Speichern“, um es zu übernehmen.")
 }
 
 // renderData renders the JSON editor page with optional error/success messages.
-func (s *Server) renderData(w http.ResponseWriter, jsonText, prompt, errMsg, okMsg string) {
+func (s *Server) renderData(w http.ResponseWriter, r *http.Request, jsonText, prompt, errMsg, okMsg string) {
 	d := s.store.Snapshot()
-	s.render(w, "data.html", map[string]any{
+	s.render(w, r, "data.html", map[string]any{
 		"Active":       "data",
 		"Settings":     d.Settings,
 		"FYYears":      fyYears(d),

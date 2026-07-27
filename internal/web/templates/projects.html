@@ -2,6 +2,10 @@
 <h1>Projekte <span class="fy-badge">FY {{.Settings.Year}}</span></h1>
 <p class="hint">Projekte gehören zum aktiven Fiskaljahr ({{.Settings.Year}}). Über die FY-Auswahl oben rechts wechselst du das Jahr; läuft ein Projekt über das FY hinaus, lege es im neuen FY erneut an.</p>
 
+{{if .Private}}
+<p class="hint">Der <strong>private Modus</strong> ist aktiv: Projektnamen sind durch Platzhalter ersetzt,
+  Zahlen verborgen und das Bearbeiten ist gesperrt. Schalte ihn oben rechts aus, um Projekte zu pflegen.</p>
+{{else}}
 <section class="card">
   <h2>Neues Projekt</h2>
   <form method="post" action="/projects" class="form-row">
@@ -14,6 +18,7 @@
   </form>
   <p class="hint">Die <strong>Assignment ID</strong> identifiziert das Projekt eindeutig (Pflichtfeld, z. B. <code>5641245</code>). Die Farbe wird automatisch aus einer kontrastreichen Palette vergeben. Du kannst sie unter „Bearbeiten“ jederzeit ändern. Start/Ende grenzen den Buchungszeitraum ein – ohne Angabe gilt das ganze Fiskaljahr.</p>
 </section>
+{{end}}
 
 {{if .Views}}
 {{range .Views}}
@@ -44,15 +49,16 @@
 
   <div class="burndown-wrap">{{.Burndown}}</div>
 
+  {{if not $.Private}}
   <details>
     <summary>Bearbeiten</summary>
     <form method="post" action="/projects/{{.Summary.Project.ID}}/update" class="form-row">
       <label>Name <input type="text" name="name" value="{{.Summary.Project.Name}}"></label>
       <label>Assignment ID <input type="text" name="assignmentId" value="{{.Summary.Project.AssignmentID}}" placeholder="5641245" {{if not .Summary.Project.IsVacation}}required{{end}}></label>
       {{if .Summary.Project.IsVacation}}
-      <label>Budget (h) <input type="text" value="{{hours .Summary.Project.BudgetHours}}" readonly title="Ergibt sich aus den Urlaubstagen in den Einstellungen"></label>
+      <label>Budget (h) <input type="text" value="{{hoursRaw .Summary.Project.BudgetHours}}" readonly title="Ergibt sich aus den Urlaubstagen in den Einstellungen"></label>
       {{else}}
-      <label>Budget (h) <input type="text" inputmode="decimal" name="budget" value="{{hours .Summary.Project.BudgetHours}}"></label>
+      <label>Budget (h) <input type="text" inputmode="decimal" name="budget" value="{{hoursRaw .Summary.Project.BudgetHours}}"></label>
       {{end}}
       <label>Start <input type="date" name="startDate" value="{{.Summary.Project.StartDate}}"></label>
       <label>Ende <input type="date" name="endDate" value="{{.Summary.Project.EndDate}}"></label>
@@ -69,6 +75,7 @@
     </form>
     {{end}}
   </details>
+  {{end}}
 </section>
 {{end}}
 {{else}}

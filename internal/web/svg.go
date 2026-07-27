@@ -24,8 +24,9 @@ func sanitizeColor(c string) string {
 
 // burndownSVG renders a simple, dependency-free burn-down chart as inline SVG.
 // The X axis is the calendar week (with month labels), the Y axis is the
-// remaining budget in hours.
-func burndownSVG(points []forecast.BurnPoint, budget float64, color string) template.HTML {
+// remaining budget in hours. In private mode the axis figures are masked, so
+// only the shape of the curve remains visible.
+func burndownSVG(points []forecast.BurnPoint, budget float64, color string, private bool) template.HTML {
 	const (
 		w    = 720.0
 		h    = 256.0
@@ -70,7 +71,7 @@ func burndownSVG(points []forecast.BurnPoint, budget float64, color string) temp
 		val := budget * frac
 		yy := y(val)
 		fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#eef2f7"/>`, padL, yy, padL+plotW, yy)
-		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="10" fill="#64748b" text-anchor="end">%g</text>`, padL-6, yy+3, round1(val))
+		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="10" fill="#64748b" text-anchor="end">%s</text>`, padL-6, yy+3, chartHours(round1(val), private))
 	}
 
 	// ideal line (full budget at the start -> 0 at the end)
@@ -117,8 +118,9 @@ func burndownSVG(points []forecast.BurnPoint, budget float64, color string) temp
 // towards the target, plus a horizontal target line. Slope conveys the burn
 // rate, the gap to the ideal line conveys progress and the fill relative to the
 // target line conveys utilization. Inputs are numeric plus controlled month
-// labels, so the inline SVG carries no untrusted markup.
-func progressSVG(labels []string, cumulative []float64, target float64) template.HTML {
+// labels, so the inline SVG carries no untrusted markup. In private mode the
+// axis and target figures are masked.
+func progressSVG(labels []string, cumulative []float64, target float64, private bool) template.HTML {
 	const (
 		w    = 640.0
 		h    = 220.0
@@ -168,14 +170,14 @@ func progressSVG(labels []string, cumulative []float64, target float64) template
 		val := yMax * frac
 		yy := y(val)
 		fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#eef2f7"/>`, padL, yy, padL+plotW, yy)
-		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="10" fill="#64748b" text-anchor="end">%g</text>`, padL-6, yy+3, round1(val))
+		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="10" fill="#64748b" text-anchor="end">%s</text>`, padL-6, yy+3, chartHours(round1(val), private))
 	}
 
 	// target line (green, dashed)
 	if target > 0 && target <= yMax {
 		ty := y(target)
 		fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#16a34a" stroke-dasharray="5 4"/>`, padL, ty, padL+plotW, ty)
-		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="10" fill="#16a34a" text-anchor="end">Ziel %g</text>`, padL+plotW, ty-4, round1(target))
+		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="10" fill="#16a34a" text-anchor="end">Ziel %s</text>`, padL+plotW, ty-4, chartHours(round1(target), private))
 	}
 
 	// ideal even-pace line (0 at the start -> target at the end)
@@ -267,11 +269,11 @@ type sankeyLegEntry struct {
 	text   string
 }
 
-func sankeyLegend(g sankeyGeom, data forecast.SankeyData, maxRows int) ([]sankeyLegEntry, int) {
+func sankeyLegend(g sankeyGeom, data forecast.SankeyData, maxRows int, private bool) ([]sankeyLegEntry, int) {
 	var out []sankeyLegEntry
 	x, row := g.padL, 0
 	for i, p := range data.Projects {
-		text := fmt.Sprintf("%s · %s h", p.Name, formatHours(data.ProjectTotals[p.ID]))
+		text := fmt.Sprintf("%s · %s h", p.Name, chartHours(data.ProjectTotals[p.ID], private))
 		ew := 13 + estTextWidth(text, 11)
 		if x > g.padL && x+ew > g.padL+g.plotW {
 			if row+1 >= maxRows {
@@ -299,7 +301,11 @@ func sankeyLegend(g sankeyGeom, data forecast.SankeyData, maxRows int) ([]sankey
 // above the week/month label. Project colours are sanitised and project names
 // are HTML-escaped, so the emitted markup (returned as template.HTML) carries
 // no untrusted content.
-func sankeySVG(data forecast.SankeyData) template.HTML {
+//
+// In private mode every figure is masked AND each column is normalised to the
+// same height, so neither the labels nor the band heights reveal how many hours
+// are planned or booked - only the project mix per column stays visible.
+func sankeySVG(data forecast.SankeyData, private bool) template.HTML {
 	const (
 		h        = 376.0 // ~20 % shorter than the original 470
 		headroom = 22.0  // room above the tallest column for its value label
@@ -316,7 +322,7 @@ func sankeySVG(data forecast.SankeyData) template.HTML {
 
 	// The legend sits inside the chart, so lay it out first: it governs how much
 	// vertical room is left for the plot itself.
-	legend, legRows := sankeyLegend(g, data, 2)
+	legend, legRows := sankeyLegend(g, data, 2, private)
 	legendH := 0.0
 	if len(legend) > 0 {
 		legendH = 6 + float64(legRows)*legRowH + 6
@@ -328,19 +334,30 @@ func sankeySVG(data forecast.SankeyData) template.HTML {
 	yMax := data.MaxBucket * 1.1
 	nodeX := g.nodeX
 	scaleY := func(val float64) float64 { return plotH * val / yMax }
+	// bucketScale normalises a column to a fixed height in private mode.
+	bucketScale := func(bk forecast.SankeyBucket) func(float64) float64 {
+		if !private {
+			return scaleY
+		}
+		if bk.Total <= 0 {
+			return func(float64) float64 { return 0 }
+		}
+		return func(val float64) float64 { return plotH * 0.9 * val / bk.Total }
+	}
 
 	// Per bucket, the top/bottom Y of each project's band (bottom-aligned stack).
 	type band struct{ top, bot float64 }
 	bands := make([]map[string]band, g.n)
 	for i, bk := range data.Buckets {
 		bands[i] = make(map[string]band, len(bk.Hours))
+		scale := bucketScale(bk)
 		y := baseY
 		for _, p := range data.Projects {
 			hh := bk.Hours[p.ID]
 			if hh <= 0 {
 				continue
 			}
-			bh := scaleY(hh)
+			bh := scale(hh)
 			bands[i][p.ID] = band{top: y - bh, bot: y}
 			y -= bh
 		}
@@ -359,12 +376,15 @@ func sankeySVG(data forecast.SankeyData) template.HTML {
 			e.x+13, ly+11, template.HTMLEscapeString(e.text))
 	}
 
-	// y gridlines + hour labels (0, 50%, 100% of the scale)
-	for _, frac := range []float64{0, 0.5, 1} {
-		val := yMax * frac
-		yy := baseY - scaleY(val)
-		fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#eef2f7"/>`, g.padL, yy, g.padL+g.plotW, yy)
-		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="10" fill="#94a3b8" text-anchor="end">%g</text>`, g.padL-6, yy+3, round1(val))
+	// y gridlines + hour labels (0, 50%, 100% of the scale). Private mode drops
+	// the scale entirely: a labelled axis would give the column heights meaning.
+	if !private {
+		for _, frac := range []float64{0, 0.5, 1} {
+			val := yMax * frac
+			yy := baseY - scaleY(val)
+			fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#eef2f7"/>`, g.padL, yy, g.padL+g.plotW, yy)
+			fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="10" fill="#94a3b8" text-anchor="end">%g</text>`, g.padL-6, yy+3, round1(val))
+		}
 	}
 	// left axis + baseline
 	fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#cbd5e1"/>`, g.padL, plotTop, g.padL, baseY)
@@ -399,6 +419,7 @@ func sankeySVG(data forecast.SankeyData) template.HTML {
 	for i, bk := range data.Buckets {
 		x := nodeX(i)
 		cx := g.centerX(i)
+		scale := bucketScale(bk)
 		for _, p := range data.Projects {
 			bd, ok := bands[i][p.ID]
 			if !ok {
@@ -406,23 +427,23 @@ func sankeySVG(data forecast.SankeyData) template.HTML {
 			}
 			col := sanitizeColor(p.Color)
 			fmt.Fprintf(&b,
-				`<rect x="%g" y="%g" width="%g" height="%g" fill="%s" rx="1"><title>%s · %g h</title></rect>`,
+				`<rect x="%g" y="%g" width="%g" height="%g" fill="%s" rx="1"><title>%s · %s h</title></rect>`,
 				x, bd.top, g.nodeW, bd.bot-bd.top, col,
-				template.HTMLEscapeString(p.Name), round1(bk.Hours[p.ID]))
+				template.HTMLEscapeString(p.Name), chartHours(bk.Hours[p.ID], private))
 		}
 		// summed planned hours above the stack (muted when empty)
-		top := baseY - scaleY(bk.Total)
+		top := baseY - scale(bk.Total)
 		fill := "#334155"
 		if bk.Total == 0 {
 			fill = "#cbd5e1"
 			top = baseY
 		}
-		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" font-weight="600" fill="%s" text-anchor="middle">%g</text>`,
-			cx, top-6, fill, round1(bk.Total))
+		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" font-weight="600" fill="%s" text-anchor="middle">%s</text>`,
+			cx, top-6, fill, chartHours(bk.Total, private))
 	}
 
 	// planned vacation: a grey block in the axis strip, right above the label
-	vacationBlocks(&b, g, data.Buckets, baseY+5, 15)
+	vacationBlocks(&b, g, data.Buckets, baseY+5, 15, private)
 	axisLabels(&b, g, data.Buckets, baseY+34)
 
 	b.WriteString(`</svg>`)
@@ -430,8 +451,9 @@ func sankeySVG(data forecast.SankeyData) template.HTML {
 }
 
 // vacationBlocks draws a grey block per bucket that has planned vacation, laid
-// out like the week/month label right below it.
-func vacationBlocks(b *strings.Builder, g sankeyGeom, buckets []forecast.SankeyBucket, y, height float64) {
+// out like the week/month label right below it. In private mode the block only
+// says "Urlaub" - the number of hours stays hidden.
+func vacationBlocks(b *strings.Builder, g sankeyGeom, buckets []forecast.SankeyBucket, y, height float64, private bool) {
 	bw := g.colWidth() * 0.86
 	if bw > 130 {
 		bw = 130
@@ -441,6 +463,14 @@ func vacationBlocks(b *strings.Builder, g sankeyGeom, buckets []forecast.SankeyB
 			continue
 		}
 		cx := g.centerX(i)
+		if private {
+			fmt.Fprintf(b, `<rect x="%g" y="%g" width="%g" height="%g" rx="3" fill="#cbd5e1"><title>Urlaub geplant</title></rect>`,
+				cx-bw/2, y, bw, height)
+			if estTextWidth("Urlaub", 9) <= bw-4 {
+				fmt.Fprintf(b, `<text x="%g" y="%g" font-size="9" fill="#334155" text-anchor="middle">Urlaub</text>`, cx, y+height-4)
+			}
+			continue
+		}
 		fmt.Fprintf(b, `<rect x="%g" y="%g" width="%g" height="%g" rx="3" fill="#cbd5e1"><title>Urlaub geplant: %s h (%s Tage)</title></rect>`,
 			cx-bw/2, y, bw, height, formatHours(bk.VacationHours), formatHours(bk.VacationDays))
 		label := "Urlaub " + formatHours(bk.VacationHours) + " h"
@@ -458,7 +488,10 @@ func vacationBlocks(b *strings.Builder, g sankeyGeom, buckets []forecast.SankeyB
 // chart on the same time axis as the Sankey above it: capacity (weekdays minus
 // public holidays and planned vacation) minus the planned project hours.
 // Columns below the zero line mark an overbooked bucket.
-func freeTimeSVG(data forecast.SankeyData) template.HTML {
+//
+// In private mode the columns only carry the sign (free vs. overbooked) at a
+// fixed height and all figures are dropped, so no amount of hours leaks.
+func freeTimeSVG(data forecast.SankeyData, private bool) template.HTML {
 	const (
 		h    = 190.0
 		padT = 26.0
@@ -470,18 +503,38 @@ func freeTimeSVG(data forecast.SankeyData) template.HTML {
 
 	if g.n == 0 {
 		return template.HTML(fmt.Sprintf( // #nosec G203 -- constant SVG shell, numeric values only
-			`<svg viewBox="0 0 %g %g" class="freetime" role="img" aria-label="Freie Zeit"><text x="%g" y="%g" font-size="13" fill="#94a3b8" text-anchor="middle">Kein Zeitraum gewählt.</text></svg>`,
+			`<svg viewBox="0 0 %g %g" class="freetime" role="img" aria-label="Freie Kapazität"><text x="%g" y="%g" font-size="13" fill="#94a3b8" text-anchor="middle">Kein Zeitraum gewählt.</text></svg>`,
 			g.w, h, g.w/2, h/2))
+	}
+
+	// value returns the plotted magnitude: the real hours, or just the direction
+	// while the private mode hides the amounts.
+	value := func(v float64) float64 {
+		if !private {
+			return v
+		}
+		switch {
+		case v > 0:
+			return 1
+		case v < 0:
+			return -1
+		default:
+			return 0
+		}
 	}
 
 	maxPos, maxNeg := 0.0, 0.0
 	for _, bk := range data.Buckets {
-		if bk.FreeHours > maxPos {
-			maxPos = bk.FreeHours
+		v := value(bk.FreeHours)
+		if v > maxPos {
+			maxPos = v
 		}
-		if -bk.FreeHours > maxNeg {
-			maxNeg = -bk.FreeHours
+		if -v > maxNeg {
+			maxNeg = -v
 		}
+	}
+	if private {
+		maxPos, maxNeg = 1, 1 // symmetric axis so the sign is all that shows
 	}
 	span := (maxPos + maxNeg) * 1.15
 	if span <= 0 {
@@ -502,7 +555,7 @@ func freeTimeSVG(data forecast.SankeyData) template.HTML {
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, `<svg viewBox="0 0 %g %g" class="freetime" role="img" aria-label="Freie Zeit">`, g.w, h)
+	fmt.Fprintf(&b, `<svg viewBox="0 0 %g %g" class="freetime" role="img" aria-label="Freie Kapazität">`, g.w, h)
 
 	// legend (top left) + zero line
 	b.WriteString(`<rect x="42" y="4" width="9" height="9" rx="2" fill="#38bdf8"/>` +
@@ -510,11 +563,13 @@ func freeTimeSVG(data forecast.SankeyData) template.HTML {
 		`<rect x="134" y="4" width="9" height="9" rx="2" fill="#ef4444"/>` +
 		`<text x="147" y="13" font-size="11" fill="#475569">Überbucht</text>`)
 	fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#cbd5e1"/>`, g.padL, zeroY, g.padL+g.plotW, zeroY)
-	fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="10" fill="#94a3b8" text-anchor="end">0</text>`, g.padL-6, zeroY+3)
+	if !private {
+		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="10" fill="#94a3b8" text-anchor="end">0</text>`, g.padL-6, zeroY+3)
+	}
 
 	for i, bk := range data.Buckets {
 		cx := g.centerX(i)
-		v := bk.FreeHours
+		v := value(bk.FreeHours)
 		bh := scale(v)
 		if bh < 0 {
 			bh = -bh
@@ -525,6 +580,11 @@ func freeTimeSVG(data forecast.SankeyData) template.HTML {
 			y, col, labelY = zeroY, "#ef4444", zeroY+bh+12
 		case v == 0:
 			bh, y, col, labelY = 2, zeroY-1, "#e2e8f0", zeroY-6
+		}
+		if private {
+			fmt.Fprintf(&b, `<rect x="%g" y="%g" width="%g" height="%g" rx="2" fill="%s"><title>%s</title></rect>`,
+				cx-barW/2, y, barW, bh, col, template.HTMLEscapeString(bk.Label))
+			continue
 		}
 		fmt.Fprintf(&b, `<rect x="%g" y="%g" width="%g" height="%g" rx="2" fill="%s"><title>%s · %s h frei (Kapazität %s h, geplant %s h)</title></rect>`,
 			cx-barW/2, y, barW, bh, col,
