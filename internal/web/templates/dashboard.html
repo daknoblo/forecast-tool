@@ -91,19 +91,21 @@
 {{end}}
 
 <h2>Wochenauslastung</h2>
-<table class="grid compact">
-  <thead><tr><th>Woche</th><th class="num">Stunden</th><th class="num">Soll</th><th>Status</th><th>Auslastung</th></tr></thead>
+<table class="grid compact weekly">
+  <thead><tr><th>Woche</th><th class="num">Soll Stunden</th><th class="num">Gebuchte Stunden</th><th>Status</th><th class="weekutil">Auslastung</th></tr></thead>
   <tbody>
   {{range .Summary.WeekTotals}}
     {{if gt .Hours 0.0}}
     <tr>
-      <td><a href="/week/{{.Week}}">{{.Label}}</a></td>
-      <td class="num">{{hours .Hours}} h</td>
+      <td><a href="/week/{{.Week}}">{{.Label}}</a> <span class="weekrange">{{.RangeLabel}}</span></td>
       <td class="num">{{hours .TargetHours}} h</td>
+      <td class="num">{{hours .Hours}} h</td>
       <td>{{template "utilstatus" .Status}}</td>
-      <td>
-        <div class="bar"><span style="width:{{barWidth .UtilizationPct}}%"></span></div>
-        <small>{{hours .UtilizationPct}} %</small>
+      <td class="weekutil">
+        <div class="barrow">
+          <div class="bar"><span style="width:{{barWidth .UtilizationPct}}%"></span></div>
+          <small>{{hours .UtilizationPct}} %</small>
+        </div>
       </td>
     </tr>
     {{end}}

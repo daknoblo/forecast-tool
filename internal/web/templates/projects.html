@@ -57,27 +57,30 @@
   {{if not $.Private}}
   <details>
     <summary>Bearbeiten</summary>
-    <form method="post" action="/projects/{{.Summary.Project.ID}}/update" class="form-row">
-      <label>Name <input type="text" name="name" value="{{.Summary.Project.Name}}"></label>
-      <label>Assignment ID <input type="text" name="assignmentId" value="{{.Summary.Project.AssignmentID}}" placeholder="5641245" {{if not .Summary.Project.IsVacation}}required{{end}}></label>
-      {{if .Summary.Project.IsVacation}}
-      <label>Budget (h) <input type="text" value="{{hoursRaw .Summary.Project.BudgetHours}}" readonly title="Ergibt sich aus den Urlaubstagen in den Einstellungen"></label>
-      {{else}}
-      <label>Budget (h) <input type="text" inputmode="decimal" name="budget" value="{{hoursRaw .Summary.Project.BudgetHours}}"></label>
-      {{end}}
-      <label>Start <input type="date" name="startDate" value="{{.Summary.Project.StartDate}}"></label>
-      <label>Ende <input type="date" name="endDate" value="{{.Summary.Project.EndDate}}"></label>
-      <label>Farbe <input type="color" name="color" value="{{.Summary.Project.Color}}"></label>
-      <label class="check"><input type="checkbox" name="active" value="1" {{if .Summary.Project.Active}}checked{{end}}> aktiv</label>
-      <button type="submit" class="btn">Speichern</button>
+    <form method="post" action="/projects/{{.Summary.Project.ID}}/update" class="form-stack edit-form" data-autosave>
+      <div class="form-row">
+        <label>Name <input type="text" name="name" value="{{.Summary.Project.Name}}"></label>
+        <label>Assignment ID <input type="text" name="assignmentId" value="{{.Summary.Project.AssignmentID}}" placeholder="5641245" {{if not .Summary.Project.IsVacation}}required{{end}}></label>
+        {{if .Summary.Project.IsVacation}}
+        <label>Budget (h) <input type="text" value="{{hoursRaw .Summary.Project.BudgetHours}}" readonly title="Ergibt sich aus den Urlaubstagen in den Einstellungen"></label>
+        {{else}}
+        <label>Budget (h) <input type="text" inputmode="decimal" name="budget" value="{{hoursRaw .Summary.Project.BudgetHours}}"></label>
+        {{end}}
+      </div>
+      <div class="form-row">
+        <label>Start <input type="date" name="startDate" value="{{.Summary.Project.StartDate}}"></label>
+        <label>Ende <input type="date" name="endDate" value="{{.Summary.Project.EndDate}}"></label>
+        <label>Farbe <input type="color" name="color" value="{{.Summary.Project.Color}}"></label>
+        <label class="check"><input type="checkbox" name="active" value="1" {{if .Summary.Project.Active}}checked{{end}}> aktiv</label>
+        {{if not .Summary.Project.IsVacation}}
+        <button type="submit" class="btn danger" formaction="/projects/{{.Summary.Project.ID}}/delete" formnovalidate
+                onclick="return confirm('Projekt und alle erfassten Stunden löschen?');">Löschen</button>
+        {{end}}
+        <span class="save-status ok" data-save-status>Automatisch gespeichert</span>
+      </div>
     </form>
     {{if .Summary.Project.IsVacation}}
     <p class="hint">Das Urlaubsprojekt ist ein normales Projekt: Trage Urlaub im <a href="/week">Forecast</a> tageweise ein – die Stunden zählen in die Wochen-Auslastung, aber nicht aufs Jahresziel. Nur das <strong>Budget</strong> ist fest: Es ergibt sich aus den Urlaubstagen (H1 + H2) in den <a href="/settings">Einstellungen</a> (Tage à 8 h). Löschen ist nicht möglich.</p>
-    {{else}}
-    <form method="post" action="/projects/{{.Summary.Project.ID}}/delete"
-          onsubmit="return confirm('Projekt und alle erfassten Stunden löschen?');">
-      <button type="submit" class="btn danger">Löschen</button>
-    </form>
     {{end}}
   </details>
   {{end}}
@@ -86,5 +89,7 @@
 {{else}}
 <p class="empty">Noch keine Projekte angelegt.</p>
 {{end}}
+
+{{if not .Private}}{{template "autosave" .}}{{end}}
 
 {{template "footer" .}}

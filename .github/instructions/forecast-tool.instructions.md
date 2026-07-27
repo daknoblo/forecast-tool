@@ -108,8 +108,10 @@ collects every requirement stated so far as the binding reference.
 - Target, vacation and standard tasks are stored **per fiscal year** (the values
   change from year to year). Global values (start month, federal state, weekly
   target) apply to all fiscal years.
-- The settings page allows switching the fiscal year under review (`?year=`);
-  saving makes the reviewed FY the active FY.
+- The settings page allows switching the fiscal year under review (`?year=`).
+  The per-FY block is written to **that** year, but saving does **not** change
+  the active fiscal year — that stays the job of the header dropdown
+  (`POST /fy`).
 
 ## Vacation (per half-year)
 
@@ -226,8 +228,11 @@ collects every requirement stated so far as the binding reference.
   remain technically `dashboard`/`projects`/`week`/`goal`/`data`/`settings`
   (display and order only).
 - **Footer:** `{{appName}} · Fiskaljahr {{Year}}` on the left, on the right a
-  link to the GitHub profile `https://github.com/daknoblo/` with an inline SVG
-  icon (no external asset, because of `embed`). No weekly target in the footer.
+  link to the **project repository** `https://github.com/daknoblo/forecast-tool`
+  with an inline SVG icon (no external asset, because of `embed`). The footer
+  always spans the **same width as the page's `main`**: it carries the same
+  `wide` class (`<footer class="foot{{if .Wide}} wide{{end}}">`) and the CSS
+  mirrors the `main`/`main.wide` widths. No weekly target in the footer.
 - **Dashboard utilization Sankey:** the dashboard page is `Wide` (full width) and
   shows – after the KPI cards, before "Budgets" – a card "Auslastung" with a
   server-rendered, JavaScript-free Sankey/alluvial diagram (`web.sankeySVG` from
@@ -249,6 +254,12 @@ collects every requirement stated so far as the binding reference.
   forecast/budget from `ForecastPct` (transparent) and booked/budget from
   `ActualPct` (opaque), preceded by a third Übertrag bar when `CarryOver > 0`).
   No "Verbraucht" column.
+- **Weekly utilization table (dashboard, `table.grid.compact.weekly`), columns in
+  this order:** Woche (link `W1 · KW27` plus the grey `.weekrange` Mon–Fri range
+  from `WeekTotal.RangeLabel`, e.g. "Mo. 29.06.2026 – Fr. 03.07.2026", on **one**
+  line) · "Soll Stunden" · "Gebuchte Stunden" · Status (directly next to the
+  hours) · Auslastung (`.weekutil`, 28rem wide, bar + percentage in a `.barrow`
+  flex row so the bar fills the column).
 - **Shifting the horizon:** `GET /?sankey=<key>&soff=<n>` shifts the horizon by
   whole spans (negative = into the past); `forecast.shiftSankeySpan` clamps flush
   against the FY borders (`SankeyMaxOffset` bounds the parameter).
@@ -374,6 +385,22 @@ collects every requirement stated so far as the binding reference.
 - **Projects page:** the KPI row shows budget, consumed, remaining, **burn rate**
   (h/week) and utilization; below it the window/burn-rate block
   (`.project-window`).
+- **No save buttons – everything saves itself.** Beside the forecast grid, the
+  **project edit form** and all three **settings forms** are marked
+  `data-autosave` and have no submit button. The shared `{{template "autosave"}}`
+  block in `partials.html` posts the whole form via `fetch` (URL-encoded, so
+  `r.ParseForm` can read it) whenever a field fires `change` (blur, select,
+  checkbox, date/colour picker) and reports the result in a `.save-status` pill.
+  A field marked `data-reload` also changes server-rendered text on the page
+  (FY start month, the three traffic-light thresholds), so the page is reloaded
+  after its save. The handlers answer such a request with `204` instead of a
+  redirect (`web.isAutoSave`). The **JSON editor keeps its explicit save button**
+  – replacing the whole document must stay a deliberate action.
+- **Project edit form (`form.edit-form`), two rows:** first row Name · Assignment
+  ID · Budget; second row Start · Ende · Farbe · aktiv · **Löschen** · status
+  pill. Delete is a submit button inside the same form using
+  `formaction="/projects/{id}/delete"` + `formnovalidate` (no nested forms) and
+  keeps its confirmation dialog. The vacation project has no delete button.
 - **Traffic-light dots** are rendered through the template partial
   `{{define "utilstatus"}}` (in `partials.html`): a coloured circle (`.util-dot`)
   with a white symbol (↓ / OK / ↑ / ✕) plus label. They appear in the forecast

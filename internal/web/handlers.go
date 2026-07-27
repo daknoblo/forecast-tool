@@ -548,6 +548,10 @@ func (s *Server) handleProjectUpdate(w http.ResponseWriter, r *http.Request) {
 		}
 		return nil
 	})
+	if isAutoSave(r) {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	http.Redirect(w, r, "/projects", http.StatusSeeOther)
 }
 
@@ -676,7 +680,7 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 			d.Settings.AI.APIKey = ""
 			return nil
 		})
-		http.Redirect(w, r, "/settings", http.StatusSeeOther)
+		s.settingsSaved(w, r)
 		return
 	}
 	if trim(r.FormValue("section")) == "utilization" {
@@ -711,7 +715,7 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 			}
 			return nil
 		})
-		http.Redirect(w, r, "/settings", http.StatusSeeOther)
+		s.settingsSaved(w, r)
 		return
 	}
 	year, _ := strconv.Atoi(trim(r.FormValue("year")))
@@ -723,8 +727,12 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	vacH2, vacH2Err := strconv.Atoi(trim(r.FormValue("vacationH2")))
 	stdHours, stdErr := strconv.ParseFloat(normalizeNum(r.FormValue("standardTaskHours")), 64)
 	_ = s.store.Update(func(d *models.Data) error {
+		// The page can edit a fiscal year other than the active one (?year=).
+		// Only the per-FY block is written to that year; switching the ACTIVE
+		// fiscal year stays the job of the header dropdown (POST /fy).
+		target := d.Settings.Year
 		if models.ValidYear(year) {
-			d.Settings.Year = year
+			target = year
 		}
 		if state != "" {
 			d.Settings.FederalState = state
@@ -738,7 +746,7 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 		if d.FiscalYears == nil {
 			d.FiscalYears = map[int]models.FiscalYearSettings{}
 		}
-		fy := d.FYFor(d.Settings.Year)
+		fy := d.FYFor(target)
 		if fyErr == nil && fyTarget >= 0 {
 			fy.TargetHours = fyTarget
 		}
@@ -751,11 +759,21 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 		if stdErr == nil && stdHours >= 0 {
 			fy.StandardTaskHours = stdHours
 		}
-		d.FiscalYears[d.Settings.Year] = fy
+		d.FiscalYears[target] = fy
 		// Keep the vacation project's budget in sync with the vacation days.
-		models.EnsureVacationProject(d, d.Settings.Year)
+		models.EnsureVacationProject(d, target)
 		return nil
 	})
+	s.settingsSaved(w, r)
+}
+
+// settingsSaved ends a settings write: the background auto-save just needs a
+// status code, a plain form submit is sent back to the settings page.
+func (s *Server) settingsSaved(w http.ResponseWriter, r *http.Request) {
+	if isAutoSave(r) {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	http.Redirect(w, r, "/settings", http.StatusSeeOther)
 }
 

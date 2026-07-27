@@ -179,6 +179,9 @@ table.week.span .hcell { width: 100%; max-width: 70px; padding: 0.45rem 0.35rem;
 
 .form-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 1rem; }
 .form-stack { display: flex; flex-direction: column; gap: 1rem; max-width: 420px; }
+/* project edit form: two full-width rows instead of one narrow column */
+.edit-form { max-width: none; gap: 0.9rem; }
+.edit-form .save-status { margin-left: auto; }
 .form-stack.json-form { max-width: none; }
 .form-row label, .form-stack label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; color: var(--muted); }
 .form-row input, .form-stack input, .form-stack select {
@@ -197,6 +200,8 @@ details form { margin-top: 0.75rem; }
 .empty { color: var(--muted); background: var(--panel); border: 1px dashed var(--line); border-radius: 10px; padding: 1.5rem; text-align: center; }
 
 .foot { max-width: 1080px; margin: 2rem auto; padding: 1rem 1.25rem; color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+/* the footer always spans the same width as the page's main area */
+.foot.wide { max-width: 90vw; width: 90vw; }
 .foot .ghlink { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--muted); text-decoration: none; }
 .foot .ghlink:hover { color: var(--text); }
 .foot .ghlink svg { display: block; }
@@ -317,6 +322,14 @@ table.week tfoot td.center { text-align: center; }
 /* cross-fiscal-year carry-over deducted from an assignment's budget */
 .budgets th.carrycol, .budgets td.carrycol { white-space: nowrap; color: var(--muted); }
 .budgets th.utilcol, .budgets td.utilcol { width: 16rem; }
+
+/* dashboard weekly utilization table: wide bars, grey Mon-Fri date range */
+.weekly th.weekutil, .weekly td.weekutil { width: 28rem; }
+.weekly th:first-child, .weekly td:first-child { white-space: nowrap; }
+.weekly .barrow { display: flex; align-items: center; gap: 0.6rem; }
+.weekly .barrow .bar { flex: 1 1 auto; height: 12px; }
+.weekly .barrow small { width: 3.6rem; text-align: right; flex: none; font-variant-numeric: tabular-nums; }
+.weekly .weekrange { color: var(--muted); font-size: 0.78rem; white-space: nowrap; margin-left: 0.5rem; }
 .budgets .barrow { display: flex; align-items: center; gap: 0.4rem; }
 .budgets .barrow + .barrow { margin-top: 0.25rem; }
 .budgets .barkey { color: var(--muted); font-size: 0.72rem; width: 4.2rem; flex: none; }

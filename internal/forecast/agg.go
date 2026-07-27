@@ -251,6 +251,16 @@ func formatDayDot(iso string) string {
 	return t.Format("02.01.2006")
 }
 
+// shortWeekdays are the abbreviated German weekday names, indexed by
+// time.Weekday (Sunday = 0).
+var shortWeekdays = []string{"So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"}
+
+// formatDayWithWeekday renders a date with its short weekday, e.g.
+// "Mo. 01.07.2027".
+func formatDayWithWeekday(t time.Time) string {
+	return shortWeekdays[int(t.Weekday())] + ". " + t.Format("02.01.2006")
+}
+
 // SpanView aggregates several consecutive fiscal-year weeks into one Mon-Fri
 // grid so wide screens can show as many days as fit at once.
 type SpanView struct {
@@ -434,6 +444,7 @@ type WeekTotal struct {
 	Week           int // fiscal-year week index
 	ISOWeek        int
 	Label          string
+	RangeLabel     string  // Mon-Fri range, e.g. "Mo. 01.07.2027 – Fr. 05.07.2027"
 	Hours          float64 // all hours in this week (booked + forecast)
 	Forecast       float64 // hours on today/future days in this week
 	Actual         float64 // hours on past days in this week (booked)
@@ -673,12 +684,14 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 		if d.Settings.WeeklyTargetHours > 0 {
 			util = round1(weekSum[w] / d.Settings.WeeklyTargetHours * 100)
 		}
-		_, isoWeek := FYWeekMonday(year, startMonth, w).ISOWeek()
+		monday := FYWeekMonday(year, startMonth, w)
+		_, isoWeek := monday.ISOWeek()
 		hrs := round1(weekSum[w])
 		ys.WeekTotals = append(ys.WeekTotals, WeekTotal{
 			Week:           w,
 			ISOWeek:        isoWeek,
 			Label:          fmt.Sprintf("W%d · KW%02d", w, isoWeek),
+			RangeLabel:     formatDayWithWeekday(monday) + " – " + formatDayWithWeekday(monday.AddDate(0, 0, 4)),
 			Hours:          hrs,
 			Forecast:       round1(weekForecast[w]),
 			Actual:         round1(weekActual[w]),

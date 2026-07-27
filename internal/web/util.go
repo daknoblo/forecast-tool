@@ -1,10 +1,18 @@
 package web
 
 import (
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
 )
+
+// isAutoSave reports whether the request comes from the background auto-save
+// (a fetch call) rather than a normal form submit. Those callers stay on the
+// page, so the handler answers with a bare status code instead of a redirect.
+func isAutoSave(r *http.Request) bool {
+	return strings.EqualFold(r.Header.Get("X-Requested-With"), "fetch")
+}
 
 // capLen truncates s to at most n runes, bounding how long user-supplied
 // strings (names, labels) can grow in the stored document and rendered UI.
