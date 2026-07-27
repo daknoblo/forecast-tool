@@ -1,418 +1,518 @@
 ---
-description: "Fachliche Anforderungen und Konventionen für das Forecast-Tool (Go-Webapp, Fiskaljahr, Kapazitäts-/Zielrechnung). Verwenden bei jeder Änderung an Datenmodell, Aggregation, Handlern oder Templates."
+description: "Domain requirements and conventions for the forecast tool (Go web app, fiscal year, capacity/goal calculation). Use for every change to the data model, aggregation, handlers or templates."
 applyTo: "internal/**,cmd/**"
 ---
 
-# Forecast-Tool – Anforderungen & Konventionen
+# forecast-tool – requirements & conventions
 
-Persönliches Single-User-Forecast-Tool (Go-Webapp → Docker → GHCR). Diese Datei
-sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
+A personal single-user forecast tool (Go web app → Docker → GHCR). This file
+collects every requirement stated so far as the binding reference.
 
-## Grundlagen / Stack
+## Language policy
 
-- **Sprache der UI: Deutsch.** Antworten an den Nutzer ebenfalls auf Deutsch.
-- Go (Standardbibliothek): `net/http` ServeMux (Methode+Pattern-Routing, `r.PathValue`),
-  `html/template` + `embed`. Modulpfad `github.com/daknoblo/forecast-tool`.
-- Speicher: **eine JSON-Datei** unter `appdata/data.json` (atomar via temp + rename,
-  `sync.RWMutex`). Pfad über `FORECAST_DATA_DIR` überschreibbar (`DATA_DIR` nur Legacy-Alias).
-- Feiertage automatisch via `github.com/rickar/cal/v2` (deutsche Bundesländer wählbar);
-  Abdeckung year-1..year+2, da das Fiskaljahr zwei Kalenderjahre umspannt.
-- Keine Authentifizierung (nur intern). Server lauscht auf `:8080` (`FORECAST_ADDR`).
-- Deployment: Dockerfile (distroless, non-root, multi-arch, Healthcheck) + GitHub Actions → `ghcr.io/daknoblo/forecast-tool`.
-- Vorgschaltete reverse-proxy mit traefik, port 8080 ist also intern
+- **The user interface is German**: all template text, form labels and
+  user-facing error/validation messages (web handlers, `models.Validate`,
+  `storage`, `api`, `ai`) stay German.
+- **Everything else is English**: code, identifiers, comments, doc comments,
+  README, `docs/**`, workflow files, Dockerfile/compose comments and this
+  instructions file.
+- Chat with the user is held in German.
 
-## Datenmodell
+## Foundations / stack
 
-- `Project`: id, assignmentId, name, budgetHours, active, color, startDate, endDate.
-  `assignmentId` (String, externe Assignment-ID z. B. `5641245`) identifiziert
-  reale Projekte eindeutig und ist beim Anlegen (Web-Formular + `POST /api/v1/projects`)
-  **Pflicht** (max. 100 Zeichen); das Urlaubsprojekt hat keine `assignmentId`.
-  `startDate`/`endDate` (ISO `YYYY-MM-DD`, inklusiv, beide optional/`omitempty`)
-  grenzen den **Buchungszeitraum** ein; leer = ganzes Fiskaljahr. `Project.Bookable(iso)`
-  prüft per lexikografischem String-Vergleich, ob ein Datum im Zeitraum liegt.
-  `Validate` prüft Datumsformat und `startDate <= endDate`.
-- `Entry`: date (YYYY-MM-DD), projectId, hours. Pro Tag und Projekt gibt es genau
-  **einen** Stundenwert; ob er als gebucht (Ist) oder Forecast zählt, ergibt sich aus
-  dem Datum (vergangene Tage = gebucht, heute und später = Forecast). Das frühere
-  `kind`-Feld ist nur noch ein Migrations-Altfeld (wird beim Laden in `storage.normalize`
-  über `mergeEntries` kollabiert: pro (date, projectId) ein Wert, Ist gewinnt) und wird
-  nicht mehr geschrieben.
-- `Settings` (global): year (= aktives Fiskaljahr), federalState, weeklyTargetHours,
-  fiscalYearStartMonth, `ai` (AISettings), `utilization` (UtilizationSettings).
-- `UtilizationSettings` (global, in `Settings.Utilization`): die Auslastungs-Ampel.
-  Drei Schwellen (`minHours` 26, `optimalHours` 40, `overHours` 60) und vier frei
-  editierbare Labels (`minLabel` „Burnrate Minimum“, `optimalLabel` „Optimal“,
-  `highLabel` „Zu hoch“, `overLabel` „Überbucht“). `Settings.ClassifyUtilization(h)`
-  ordnet Wochenstunden einem `UtilStatus{Key,Label,Hours}` zu: `h<=min`→`min`
-  (blau, Pfeil runter) · `min<h<=optimal`→`optimal` (grün, OK) ·
-  `optimal<h<over`→`high` (orange, Pfeil hoch) · `h>=over`→`over` (rot, ✕).
-  Basis ist die Wochenbuchung (Summe der Stundenwerte, ohne Urlaub).
-- `AISettings` (in `Settings.AI`): endpoint, deployment, apiVersion. Konfiguriert
-  einen entfernten, Azure-OpenAI-kompatiblen Chat-Completions-Endpoint (z. B. Azure AI
-  Foundry Model-Router). Der **API-Key wird NICHT in der JSON gespeichert**, sondern
-  ausschließlich über die Umgebungsvariable `FORECAST_AI_API_KEY` bereitgestellt
-  (`AISettings.APIKey` ist `omitempty` und nur noch Legacy-Fallback beim Lesen).
-- `FiscalYearSettings` (pro FY, in `Data.FiscalYears map[int]...`): targetHours,
+- Go (standard library): `net/http` ServeMux (method + pattern routing,
+  `r.PathValue`), `html/template` + `embed`. Module path
+  `github.com/daknoblo/forecast-tool`.
+- Storage: **a single JSON file** at `appdata/data.json` (atomic write via temp
+  file + `fsync` + rename, `sync.RWMutex`). The path is overridable with
+  `FORECAST_DATA_DIR` (`DATA_DIR` is a legacy alias only).
+- Public holidays automatically via `github.com/rickar/cal/v2` (German federal
+  states selectable); coverage year-1..year+2, because a fiscal year spans two
+  calendar years. Calendars are memoized process-wide via `holidays.Get`.
+- No authentication for the HTML UI (internal use only). The server listens on
+  `:8080` (`FORECAST_ADDR`).
+- Deployment: Dockerfile (distroless, non-root, multi-arch, healthcheck) +
+  GitHub Actions → `ghcr.io/daknoblo/forecast-tool`.
+- A Traefik reverse proxy sits in front, so port 8080 is internal.
+
+## Data model
+
+- `Project`: id, assignmentId, name, budgetHours, active, color, startDate,
+  endDate. `assignmentId` (string, external assignment ID, e.g. `5641245`)
+  identifies real projects uniquely and is **required** on creation (web form +
+  `POST /api/v1/projects`, max. 100 characters); the vacation project has no
+  `assignmentId`. `startDate`/`endDate` (ISO `YYYY-MM-DD`, inclusive, both
+  optional/`omitempty`) bound the **booking window**; empty = the whole fiscal
+  year. `Project.Bookable(iso)` checks membership with a lexicographic string
+  comparison. `Validate` checks the date format and `startDate <= endDate`.
+- `Entry`: date (YYYY-MM-DD), projectId, hours. There is exactly **one** hours
+  value per day and project; whether it counts as booked (actual) or forecast
+  follows from the date (past days = booked, today and later = forecast). The
+  former `kind` field is a migration-only legacy field (collapsed on load in
+  `storage.normalize` via `mergeEntries`: one value per (date, projectId),
+  actual wins) and is never written again.
+- `Settings` (global): year (= active fiscal year), federalState,
+  weeklyTargetHours, fiscalYearStartMonth, `ai` (AISettings), `utilization`
+  (UtilizationSettings).
+- `UtilizationSettings` (global, in `Settings.Utilization`): the utilization
+  traffic light. Three thresholds (`minHours` 26, `optimalHours` 40, `overHours`
+  60) and four freely editable labels (`minLabel` "Burnrate Minimum",
+  `optimalLabel` "Optimal", `highLabel` "Zu hoch", `overLabel` "Überbucht").
+  `Settings.ClassifyUtilization(h)` maps weekly hours to a
+  `UtilStatus{Key,Label,Hours}`: `h<=min`→`min` (blue, arrow down) ·
+  `min<h<=optimal`→`optimal` (green, OK) · `optimal<h<over`→`high` (orange,
+  arrow up) · `h>=over`→`over` (red, ✕). The basis is the week's booking (sum of
+  the hours values).
+- `AISettings` (in `Settings.AI`): endpoint, deployment, apiVersion. Configures a
+  remote, Azure OpenAI-compatible chat-completions endpoint (e.g. an Azure AI
+  Foundry model router). The **API key is NOT stored in the JSON**; it is
+  supplied exclusively through the `FORECAST_AI_API_KEY` environment variable
+  (`AISettings.APIKey` is `omitempty` and only a legacy read fallback).
+- `FiscalYearSettings` (per FY, in `Data.FiscalYears map[int]...`): targetHours,
   vacationDaysH1, vacationDaysH2, standardTaskLabel, standardTaskHours.
-- Legacy-Felder (`fiscalYearTargetHours`, `annualVacationDays`) nur noch für Migration
-  + Fallback (`FYFor`) behalten, `omitempty`.
+- Legacy fields (`fiscalYearTargetHours`, `annualVacationDays`) are kept
+  `omitempty` for migration and the `FYFor` fallback only.
 
-## Standardwerte (Defaults)
+## Defaults
 
-- **Bundesland: `SN` (Sachsen)** – in `models.DefaultData` und `storage.normalize`.
-- **Wochensollstunden: `40`** (auch als grauer `placeholder="40"` im Eingabefeld).
-- **Auslastungs-Ampel** über `models.DefaultUtilization()` (greift in `DefaultData`
-  und in `storage.normalize`, wenn alle drei Schwellen `0` sind → Altdaten):
-  **min 26 / optimal 40 / over 60 h** mit Default-Labels (s. o.).
-- Pro Fiskaljahr über `models.DefaultFYSettings()` (greift in `FYFor`, wenn ein FY
-  noch nicht konfiguriert ist): **Ziel 1440 h**, **Urlaub H1 15 / H2 15 Tage**,
-  **Standard Tasks 250 h**. Nicht konfigurierte FY werden damit in den Einstellungen
-  vorbefüllt.
+- **Federal state: `SN` (Saxony)** – in `models.DefaultData` and
+  `storage.normalize`.
+- **Weekly target hours: `40`** (also as a grey `placeholder="40"` in the input).
+- **Utilization traffic light** via `models.DefaultUtilization()` (applied in
+  `DefaultData` and in `storage.normalize` when all three thresholds are `0` →
+  legacy data): **min 26 / optimal 40 / over 60 h** with the default labels.
+- Per fiscal year via `models.DefaultFYSettings()` (applied in `FYFor` when a
+  fiscal year is not configured yet): **target 1440 h**, **vacation H1 15 /
+  H2 15 days**, **standard tasks 250 h**. Unconfigured fiscal years are
+  pre-filled with these values in the settings.
 
-## Fiskaljahr (FY)
+## Fiscal year (FY)
 
-- Das FY ist nach dem Kalenderjahr benannt, in dem es **endet**. Es beginnt am 1. des
-  `FiscalYearStartMonth` im **Vorjahr** von `Year` (z. B. `Year=2027`, Start Juli →
-  **01.07.2026–30.06.2027**). Startmonat Januar = Kalenderjahr (keine Verschiebung).
-  Einzige Quelle der Wahrheit ist `forecast.FiscalYear(year, startMonth)`.
-- **H1 = erste 6 FY-Monate**, **H2 = letzte 6 FY-Monate**.
-- Wochen-/Quartalsansichten sind FY-relativ (Wochen-Index über die Jahresgrenze).
-- Quartale in Reihenfolge ab FY-Start (z. B. Jul–Sep, Okt–Dez, Jan–Mär, Apr–Jun).
-- projekte gehören immer in ein Fiskaljahr (nicht übergreifend), sofern ein projekt über ein FY geht wird dies neu angelegt. deswegen müssen die projekte auch für jedes FY neu angelegt und gespeichert werden
-- Einträge (Forecast/Ist) gehören immer zu einem Datum, das wiederum in ein FY fällt
+- The FY is named after the calendar year in which it **ends**. It starts on the
+  1st of `FiscalYearStartMonth` in the year **before** `Year` (e.g. `Year=2027`,
+  start July → **01.07.2026–30.06.2027**). Start month January = calendar year
+  (no shift). The single source of truth is
+  `forecast.FiscalYear(year, startMonth)`.
+- **H1 = the first 6 FY months**, **H2 = the last 6 FY months**.
+- Week and quarter views are FY-relative (a week index across the year boundary).
+- Quarters are ordered from the FY start (e.g. Jul–Sep, Oct–Dec, Jan–Mar, Apr–Jun).
+- Projects always belong to exactly one fiscal year (never across); a project
+  running into another FY is created anew there, so projects must be re-created
+  and stored per fiscal year.
+- Entries always belong to a date, which in turn falls into a fiscal year.
 
-## Einstellungen pro Fiskaljahr
+## Per-fiscal-year settings
 
-- Ziel, Urlaub und Standard Tasks werden **pro Fiskaljahr** gespeichert
-  (Werte ändern sich je FY). Globale Werte (Startmonat, Bundesland, Wochensoll)
-  gelten für alle FY.
-- Einstellungsseite erlaubt Wechsel des betrachteten FY (`?year=`); beim Speichern
-  wird das betrachtete FY zum aktiven FY.
+- Target, vacation and standard tasks are stored **per fiscal year** (the values
+  change from year to year). Global values (start month, federal state, weekly
+  target) apply to all fiscal years.
+- The settings page allows switching the fiscal year under review (`?year=`);
+  saving makes the reviewed FY the active FY.
 
-## Urlaub (pro Halbjahr)
+## Vacation (per half-year)
 
-- Urlaubsanspruch zählt **pro Kalenderjahr**, das Fiskaljahr erstreckt sich über
-  zwei Kalenderjahre. Daher Eingabe **getrennt für H1 und H2** (Tage à 8 h).
-- In der Kapazität getrennt als „Urlaub 1. Halbjahr“ / „Urlaub 2. Halbjahr“ ausweisen.
+- Vacation entitlement counts **per calendar year**, while a fiscal year spans
+  two calendar years. Vacation is therefore entered **separately for H1 and H2**
+  (days à 8 h).
+- In the capacity view it is reported separately as "Urlaub 1. Halbjahr" /
+  "Urlaub 2. Halbjahr".
 
-## Urlaub als Projekt
+## Vacation as a project
 
-- Pro Fiskaljahr existiert genau **ein Urlaubs­projekt**
-  (`Project.System == "vacation"`, `models.VacationSystem`), stabile ID
-  `vacation-<Jahr>` (`models.VacationProjectID`), Name „Urlaub“, Standardfarbe
-  `models.VacationColor` (#64748b). Es wird über `models.EnsureVacationProject(d, year)`
-  angelegt/synchronisiert – aufgerufen in `storage.normalize` (Laden + JSON-Editor +
-  Erststart via `load()`), beim FY-Wechsel (`handleSetActiveFY`) und beim Speichern der
-  Einstellungen (`handleSettingsSave`).
-- **Budget = (VacationDaysH1 + VacationDaysH2) × 8 h** aus den FY-Einstellungen
-  (`FiscalYearSettings.VacationBudgetHours`) – das ist der **einzige** automatisch
-  verwaltete Wert: `EnsureVacationProject` synchronisiert ausschließlich das Budget
-  (und den Namen, wenn er leer ist).
-- Ansonsten ist es ein **ganz normales Projekt**: Name, Assignment ID, Farbe, Aktiv-Flag
-  und Buchungszeitraum sind über `handleProjectUpdate` bzw. `PUT /api/v1/projects/{id}`
-  frei editierbar; das Budgetfeld ist in der UI schreibgeschützt und wird von beiden
-  Handlern ignoriert. **Nicht löschbar** (`handleProjectDelete`-Guard bzw. `409`; im
-  JSON-Editor stellt `normalize` es wieder her).
-- Urlaubsstunden werden **tageweise im Forecast-Grid geplant** (kein automatisches
-  Verteilen). Sie **zählen in die Wochen-Auslastungs-Ampel** (`BuildWeek`/`BuildSpan`
-  `Total`, `BuildYearSummary` `WeekTotals`), weil Urlaub verfügbare Arbeitszeit
-  verbraucht, aber **nicht aufs FY-Ziel** (`BuildGoalSummary` überspringt Urlaub via
-  `vacationSet`). Im Dashboard-Sankey ist Urlaub kein Bündel-Band, sondern erscheint als
-  grauer Block in der Achsenzone und reduziert die Kapazität im Freie-Zeit-Diagramm.
-  Der pauschale Urlaubsabzug in der FY-Kapazität (Ziele-Seite) bleibt bestehen.
-  Projekte-Seite zeigt zusätzlich das Badge „automatisch · Urlaub“.
-- AI-Blueprint (`internal/ai`) enthält das Urlaubsprojekt inkl. `system`-Feld; die KI darf
-  es nicht löschen und sein Budget nicht ändern.
+- Each fiscal year has exactly **one vacation project**
+  (`Project.System == "vacation"`, `models.VacationSystem`), with the stable id
+  `vacation-<year>` (`models.VacationProjectID`), the name "Urlaub" and the
+  default colour `models.VacationColor` (#64748b). It is created/synchronized by
+  `models.EnsureVacationProject(d, year)` – called in `storage.normalize`
+  (load + JSON editor + first start via `load()`), on an FY switch
+  (`handleSetActiveFY`) and when saving the settings (`handleSettingsSave`).
+- **Budget = (VacationDaysH1 + VacationDaysH2) × 8 h** from the FY settings
+  (`FiscalYearSettings.VacationBudgetHours`) – this is the **only** automatically
+  managed value: `EnsureVacationProject` synchronizes the budget only (plus the
+  name when it is empty).
+- Otherwise it is a **completely normal project**: name, assignment ID, colour,
+  active flag and booking window are freely editable through
+  `handleProjectUpdate` and `PUT /api/v1/projects/{id}`; the budget field is
+  read-only in the UI and ignored by both handlers. **Not deletable**
+  (`handleProjectDelete` guard, `409` in the API; in the JSON editor `normalize`
+  restores it).
+- Vacation hours are **planned day by day in the forecast grid** (no automatic
+  distribution). They **count towards the weekly utilization traffic light**
+  (`BuildWeek`/`BuildSpan` `Total`, `BuildYearSummary` `WeekTotals`), because
+  vacation consumes available working time, but **not towards the FY goal**
+  (`BuildGoalSummary` skips vacation via `vacationSet`). In the dashboard Sankey
+  vacation is not a band: it appears as a grey block in the axis zone and reduces
+  the capacity in the free-time chart. The flat vacation deduction in the FY
+  capacity (goal page) stays. The projects page additionally shows the badge
+  "automatisch · Urlaub".
+- The AI blueprint (`internal/ai`) contains the vacation project including its
+  `system` field; the model must not delete it or change its budget.
 
-## Standard Tasks
+## Standard tasks
 
-- Stundenanzahl für Standard Tasks für das gesamte FY (ein Eingabefeld in den
-  Einstellungen). Das Label (`standardTaskLabel`) bleibt im Datenmodell erhalten,
-  wird aber nicht mehr über die Einstellungen gepflegt.
-- Werden **wie Feiertage und Urlaub von den FY-Gesamtstunden abgezogen**.
+- Hours for standard tasks across the whole FY (a single input in the settings).
+  The label (`standardTaskLabel`) stays in the data model but is no longer
+  maintained through the settings.
+- They are **deducted from the FY total hours just like holidays and vacation**.
 
-## Zielrechnung & Kapazität
+## Goal calculation & capacity
 
-- Feiertage (Mo–Fr) zählen **nicht** aufs FY-Ziel; nur die erfassten Stunden (vergangene
-  Tage = gebucht, ab heute = Forecast).
-  Feiertage sind rein informativ (8 h/Tag, eigene Kategorie).
-- FY-Gesamtstunden = alle FY-Wochentage × 8 h (ohne Wochenende).
-- **Verfügbare Arbeitsstunden (netto) = Wochentagsstunden − Feiertage − Urlaub (H1+H2) − Standard Tasks.**
-- Kennzahlen: % des Ziels von FY-Gesamtstunden und von verfügbaren Stunden.
-- Resttempo bis FY-Ende: Restziel (Ziel − Ist), verbleibende Arbeitstage, benötigte h/Tag.
-- Soll pro Woche/Monat/Quartal = Ziel arithmetisch gleich aufteilen.
+- Public holidays (Mon–Fri) do **not** count towards the FY goal; only recorded
+  hours do (past days = booked, today and later = forecast). Holidays are purely
+  informational (8 h/day, own category).
+- FY total hours = all FY weekdays × 8 h (weekends excluded).
+- **Available working hours (net) = weekday hours − holidays − vacation (H1+H2) −
+  standard tasks.**
+- Key figures: the target as a % of the FY total hours and of the available hours.
+- Remaining pace until the FY end: remaining goal (target − actual), remaining
+  working days, required h/day.
+- The target per week/month/quarter is the FY target split evenly.
 
-## Projekt-Buchungszeitraum & Burnrate
+## Project booking window & burn rate
 
-- Jedes Projekt hat einen Buchungszeitraum (`startDate`/`endDate`, inklusiv; leer = FY).
-  `forecast` clampt den Zeitraum aufs FY (`projectWindow(p, fyStart, fyEnd)`).
-- `ProjectSummary` (aus `BuildYearSummary(d, cal)`) trägt zusätzlich:
-  `StartDate`/`EndDate` + `StartLabel`/`EndLabel` (DD.MM.YYYY), `HasCustomWindow`,
-  `WindowWorkdays` (Mo–Fr ohne Feiertage im Zeitraum, `cal`-basiert), `BurnPerWeek`
-  (= Budget / (Arbeitstage/5)), `BurnPerWorkday` (= Budget / Arbeitstage),
-  `RemainingWorkdays` (ab heute bis Zeitraum-Ende), `RequiredPerWorkday`
-  (= Restbudget / Rest-Arbeitstage) und `OutOfWindow` (effektive Stunden, die
-  außerhalb des Zeitraums gebucht wurden – Warnhinweis).
-- **`BuildYearSummary` nimmt jetzt `cal *holidays.Calendar`** (für feiertagsgenaue
-  Arbeitstage). Aufrufer: `handleDashboard`/`handleProjects`/`handleGoal` (alle haben
-  `s.calendar(d)`), Tests übergeben `holidays.New(2026, "BY")`.
-- **Buchungssperre außerhalb des Zeitraums:** Im Forecast-Grid (`week.html`) werden
-  Tageszellen außerhalb des Zeitraums über die Template-Funktion `bookable $p $d.Date`
-  als `td.day.closed` (mit `–`, ohne Inputs) gerendert. `handleWeekSave` erzwingt dies
-  zusätzlich serverseitig (`p.Bookable(date)`-Guard beim Re-Add), sodass auch manuelle
-  POSTs außerhalb des Zeitraums verworfen werden.
-- Projekte-Seite zeigt Zeitraum, Arbeitstage, Burnrate (h/Woche · h/Tag), Resttempo
-  und ggf. die „außerhalb des Zeitraums“-Warnung; Dashboard hat Spalten „Zeitraum“
-  und „Burnrate“.
+- Every project has a booking window (`startDate`/`endDate`, inclusive; empty =
+  the FY). `forecast` clamps the window to the FY
+  (`projectWindow(p, fyStart, fyEnd)`).
+- `ProjectSummary` (from `BuildYearSummary(d, cal)`) additionally carries:
+  `StartDate`/`EndDate` + `StartLabel`/`EndLabel` (DD.MM.YYYY),
+  `HasCustomWindow`, `WindowWorkdays` (Mon–Fri minus holidays in the window,
+  `cal`-based), `BurnPerWeek` (= budget / (working days / 5)), `BurnPerWorkday`
+  (= budget / working days), `RemainingWorkdays` (from today to the window end),
+  `RequiredPerWorkday` (= remaining budget / remaining working days) and
+  `OutOfWindow` (hours booked outside the window – a warning).
+- **`BuildYearSummary` takes `cal *holidays.Calendar`** (for holiday-accurate
+  working days). Callers: `handleDashboard`/`handleProjects`/`handleGoal` (all
+  have `s.calendar(d)`); tests pass `holidays.New(2026, "BY")`.
+- **Booking is blocked outside the window**: in the forecast grid (`week.html`)
+  day cells outside the window are rendered as `td.day.closed` (with `–`, no
+  inputs) via the template function `bookable $p $d.Date`. `handleWeekSave` and
+  `handleWeekCells` additionally enforce it server-side (`p.Bookable(date)`
+  guard), so hand-crafted posts outside the window are discarded too.
+- The projects page shows window, working days, burn rate (h/week · h/day),
+  remaining pace and, when applicable, the "outside the window" warning; the
+  dashboard has the columns "Zeitraum" and "Burnrate".
 
-## UI-Vorgaben
+## UI requirements
 
-- **Zentraler App-Name:** Konstante `web.AppName` ("Forecast Tool") wird über die
-  Template-Funktion `{{appName}}` ausgegeben – in `<title>`, Header-Brand und Footer.
-  Name nur an dieser einen Stelle ändern.
-- **Navigation (Header)** in dieser Reihenfolge und Beschriftung:
-  Dashboard (`/`) – Projekte (`/projects`) – Forecast (`/week`) – Ziele (`/goal`) –
-  JSON (`/data`) – Einstellungen (`/settings`). Die Active-Klassen-Schlüssel bleiben
-  technisch `dashboard`/`projects`/`week`/`goal`/`data`/`settings` (nur Anzeige + Reihenfolge).
-- **Footer:** `{{appName}} · Fiskaljahr {{Year}}` links, rechts ein Link auf das
-  GitHub-Profil `https://github.com/daknoblo/` mit Inline-SVG-Icon (kein externes Asset,
-  da `embed`). Kein Wochensoll mehr im Footer.
-- **Dashboard-Auslastungs-Sankey:** Die Dashboard-Seite ist `Wide` (volle Breite) und
-  zeigt – nach den KPI-Karten, vor „Budgets“ – eine Karte „Auslastung“ mit einem
-  serverseitig gerenderten, JS-freien Sankey/Alluvial-Diagramm (`web.sankeySVG` aus
-  `forecast.BuildSankey`). Darüber **zwei zentrierte Zeilen**: `.sankey-nav` mit
-  `‹ zurück` / `weiter ›` (`.btn.nav-btn`), darunter `.span-ctl.sankey-ctl` mit den
-  Zeitraum-Umschaltern (`forecast.SankeyRanges`: 1 Woche/2 Wochen/4 Wochen/2 Monate/
-  3 Monate/Halbjahr/Fiskaljahr) als `.chip`-Links (`GET /?sankey=<key>`, Default `4w`,
-  unbekannt → Default via `NormalizeSankeyRange`).
-- **KPI-Kacheln (`.cards.kpi-row`, immer gleichmäßig über die Breite):** Budget gesamt
-  (`Summary.TotalBudget`) · Forecast gesamt (`Summary.TotalForecast`) · Projekte ·
-  Aktuelle FY-Woche.
-- **Budgets-Tabelle (`table.grid.budgets`), Spalten in dieser Reihenfolge:** Projekt
-  (Farbpunkt + Name + `assignmentid`-Badge) · Budget · Forecast · Gebucht · Rest ·
-  Zeitraum (Datum + „(noch …)“ aus `ProjectSummary.RemainingLabel`, z. B. „2 Wochen und
-  3 Tage“ / „3 Monate“) · Burnrate (`.burncol`, ausgeschrieben „h/Woche“) · Auslastung
-  (`.utilcol`, **zwei Balken**: Forecast/Budget aus `ForecastPct` (transparent) und
-  Gebucht/Budget aus `ActualPct` (deckend)). Keine „Verbraucht“-Spalte.
-- **Zeitraum verschieben:** `GET /?sankey=<key>&soff=<n>` verschiebt den Zeitraum um
-  ganze Spannen (negativ = rückwirkend), `forecast.shiftSankeySpan` klemmt bündig an die
-  FY-Grenzen (`SankeyMaxOffset` begrenzt den Parameter). `SankeyData.CanPrev/CanNext`
-  steuern die `.disabled`-Buttons, `Offset != 0` blendet den Link „zurück zum aktuellen“
-  ein. Ein Wechsel des Zeitraums setzt den Offset zurück (Chips ohne `soff`).
-- Buckets sind Wochen (bis 2 Monate) bzw. Monate (ab 3 Monaten, Halbjahr, Fiskaljahr);
-  nur Tage **innerhalb des FY** zählen. Projekte sind farbige, gestapelte Bänder (Höhe ∝
-  geplante Stunden, Ribbons zwischen benachbarten Buckets, Stapelreihenfolge nach
-  Gesamtstunden); das **Urlaubsprojekt ist kein Band**. Vertikale Trenner grenzen die
-  Wochen/Monate ab, jede Spalte ist mit den **summierten geplanten Projektstunden**
-  beschriftet. Die **Legende steht im Diagramm** (oben links, max. 2 Zeilen, danach
-  „+N weitere“), nicht mehr als HTML darunter. **Geplanter Urlaub** erscheint als
-  **grauer Block in der Achsenzone** direkt über dem KW-/Monatslabel (`web.vacationBlocks`).
-- **Freie-Kapazität-Diagramm:** Unter dem Sankey liegt – auf **derselben Zeitachse**
-  (gemeinsame Geometrie `web.sankeyGeom`) – ein Säulendiagramm `web.freeTimeSVG` unter
-  der Überschrift „Freie Kapazität“: je Bucket `FreeHours = CapacityHours − Total` mit
-  `CapacityHours = Wochentage×8h − Feiertage − Urlaub`. Säulen über der Nulllinie =
-  freie Zeit (blau), darunter = überbucht (rot).
-- `BuildSankey(d, cal, rangeKey, offset)` braucht daher den Feiertagskalender.
+- **Central app name:** the constant `web.AppName` ("Forecast Tool") is rendered
+  through the template function `{{appName}}` – in `<title>`, the header brand
+  and the footer. Change the name in that one place only.
+- **Static assets** are referenced with `{{asset "/static/style.css"}}`, which
+  appends a content hash; the static handler answers with a long-lived
+  `Cache-Control: immutable`. Never link a static path without `asset`.
+- **Navigation (header)** in this order and wording:
+  Dashboard (`/`) – Projekte (`/projects`) – Forecast (`/week`) – Ziele
+  (`/goal`) – JSON (`/data`) – Einstellungen (`/settings`). The active-class keys
+  remain technically `dashboard`/`projects`/`week`/`goal`/`data`/`settings`
+  (display and order only).
+- **Footer:** `{{appName}} · Fiskaljahr {{Year}}` on the left, on the right a
+  link to the GitHub profile `https://github.com/daknoblo/` with an inline SVG
+  icon (no external asset, because of `embed`). No weekly target in the footer.
+- **Dashboard utilization Sankey:** the dashboard page is `Wide` (full width) and
+  shows – after the KPI cards, before "Budgets" – a card "Auslastung" with a
+  server-rendered, JavaScript-free Sankey/alluvial diagram (`web.sankeySVG` from
+  `forecast.BuildSankey`). Above it **two centred rows**: `.sankey-nav` with
+  `‹ zurück` / `weiter ›` (`.btn.nav-btn`), below it `.span-ctl.sankey-ctl` with
+  the horizon switches (`forecast.SankeyRanges`: 1 week/2 weeks/4 weeks/2 months/
+  3 months/half-year/fiscal year) as `.chip` links (`GET /?sankey=<key>`, default
+  `4w`, unknown → default via `NormalizeSankeyRange`).
+- **KPI tiles (`.cards.kpi-row`, always evenly spread across the width):** total
+  budget (`Summary.TotalBudget`) · total forecast (`Summary.TotalForecast`) ·
+  projects · current FY week.
+- **Budgets table (`table.grid.budgets`), columns in this order:** project
+  (colour dot + name + `assignmentid` badge) · budget · forecast · booked ·
+  remaining · window (date + "(noch …)" from `ProjectSummary.RemainingLabel`,
+  e.g. "2 Wochen und 3 Tage" / "3 Monate") · burn rate (`.burncol`, spelled out
+  "h/Woche") · utilization (`.utilcol`, **two bars**: forecast/budget from
+  `ForecastPct` (transparent) and booked/budget from `ActualPct` (opaque)). No
+  "Verbraucht" column.
+- **Shifting the horizon:** `GET /?sankey=<key>&soff=<n>` shifts the horizon by
+  whole spans (negative = into the past); `forecast.shiftSankeySpan` clamps flush
+  against the FY borders (`SankeyMaxOffset` bounds the parameter).
+  `SankeyData.CanPrev/CanNext` drive the `.disabled` buttons, `Offset != 0` shows
+  the "back to current" link. Changing the horizon resets the offset (chips carry
+  no `soff`).
+- Buckets are weeks (up to 2 months) or months (from 3 months, half-year, fiscal
+  year); only days **inside the FY** count. Projects are coloured stacked bands
+  (height ∝ planned hours, ribbons between adjacent buckets, stack order by total
+  hours); the **vacation project is not a band**. Vertical separators delimit the
+  weeks/months, and every column is labelled with the **summed planned project
+  hours**. The **legend lives inside the diagram** (top left, max. 2 rows, then
+  "+N weitere"), no longer as HTML below it. **Planned vacation** appears as a
+  **grey block in the axis zone** directly above the week/month label
+  (`web.vacationBlocks`).
+- **Free-capacity chart:** below the Sankey – on **the same time axis** (shared
+  geometry `web.sankeyGeom`) – sits the column chart `web.freeTimeSVG` under the
+  heading "Freie Kapazität": per bucket `FreeHours = CapacityHours − Total` with
+  `CapacityHours = weekdays × 8h − holidays − vacation`. Columns above the zero
+  line = free time (blue), below = overbooked (red).
+- `BuildSankey(d, cal, rangeKey, offset)` therefore needs the holiday calendar.
 
-## Privater Modus (Präsentationsmodus)
+## Private mode (presentation mode)
 
-- Umschalter **oben rechts im Header, direkt vor dem FY-Dropdown** (`.privbtn`,
-  Augen-Icon + „Privat“). Route `POST /private` (`handlePrivateToggle`) kippt das
-  Cookie `forecast_private` (HttpOnly, SameSite=Lax) und kehrt via `refererPath(r)`
-  zur Ausgangsseite zurück. Es ist eine **Anzeigeeinstellung pro Browser** und landet
-  daher bewusst **nicht** in `data.json`.
-- Umsetzung: `web.render(w, r, name, data)` **klont** das Basis-Template pro Request und
-  legt `privacyFuncs(private)` darüber. Damit maskiert `hours`/`pct` **jede** Zahl in
-  **allen** Templates als `•••` und `barWidth` liefert `0` – ohne Änderung an den
-  Aufrufstellen. Das Basis-Set wird nie selbst ausgeführt (sonst schlägt `Clone` fehl).
-  Formularfelder nutzen `hoursRaw` (nie maskiert), damit Einstellungen editierbar bleiben.
-- Projektnamen: `maskIfPrivate(d, r)` ersetzt sie durch stabile Platzhalter
-  („Projekt A/B/…“, sortiert nach Projekt-ID) und leert die `assignmentId`. Wird in
-  `handleDashboard`/`handleProjects`/`handleWeek`/`handleGoal` **auf dem Snapshot**
-  angewandt – Schreibpfade nutzen weiterhin `store.Update`/`Mutate`, es kann also nie
-  ein maskierter Name persistiert werden.
-- Diagramme dürfen auch über **Höhen** nichts verraten: `sankeySVG` normalisiert jede
-  Spalte auf dieselbe Höhe (nur der Projektmix bleibt sichtbar) und blendet die Y-Achse
-  aus; `freeTimeSVG` zeigt nur noch Richtung (frei/überbucht) mit fester Höhe;
-  `burndownSVG`/`progressSVG` maskieren ihre Achsen- und Ziel-Beschriftungen.
-  `body.private .bar span { display: none }` neutralisiert zusätzlich alle HTML-Balken.
-- Gesperrt, solange der Modus an ist: **JSON-Editor + Export** (`/data` zeigt nur einen
-  Hinweis), **Projekt-Formulare** (Anlegen/Bearbeiten/Löschen) und das **Forecast-Grid**
-  (Zellen `readonly`, keine „Leeren“-Buttons; das Live-Summen- und Auto-Save-JS steigt
-  über `table[data-private]` früh aus).
-- Die JSON-API (`/api/v1`) ist bewusst **nicht** betroffen (Maschinen-Schnittstelle).
+- The toggle sits **top right in the header, directly before the FY dropdown**
+  (`.privbtn`, eye icon + "Privat"). The route `POST /private`
+  (`handlePrivateToggle`) flips the cookie `forecast_private` (HttpOnly,
+  SameSite=Lax, `Secure` when the request arrives over HTTPS) and returns via
+  `refererPath(r)` to the originating page. It is a **per-browser display
+  preference** and therefore deliberately **not** part of `data.json`.
+- Implementation: `NewServer` prepares **two template sets** once at startup –
+  `s.tpl` with `privacyFuncs(false)` and `s.tplPrivate` with
+  `privacyFuncs(true)`; `web.render` picks one per request. This masks **every**
+  figure in **every** template as `•••` via `hours`/`pct` and makes `barWidth`
+  return `0`, without touching a single call site. Clone the base set **before**
+  either is executed (a template set can no longer be cloned afterwards). Form
+  fields use `hoursRaw` (never masked) so the settings stay editable.
+- Project names: `maskIfPrivate(d, r)` replaces them with stable placeholders
+  ("Projekt A/B/…", ordered by project ID) and clears the `assignmentId`. It is
+  applied in `handleDashboard`/`handleProjects`/`handleWeek`/`handleGoal` **on
+  the snapshot** – write paths keep using `store.Update`/`Mutate`, so a masked
+  name can never be persisted.
+- Charts must not leak anything through **heights** either: `sankeySVG`
+  normalizes every column to the same height (only the project mix stays
+  visible) and hides the Y axis; `freeTimeSVG` shows only the direction
+  (free/overbooked) at a fixed height; `burndownSVG`/`progressSVG` mask their
+  axis and target labels. `body.private .bar span { display: none }`
+  additionally neutralizes all HTML bars.
+- Locked while the mode is on: the **JSON editor + export** (`/data` shows only a
+  hint), the **project forms** (create/edit/delete) and the **forecast grid**
+  (cells `readonly`, no "clear" buttons; the live-total and auto-save JavaScript
+  bails out early on `table[data-private]`).
+- The JSON API (`/api/v1`) is deliberately **not** affected (machine interface).
 
-- Auf der Ziel-Seite werden **Quartals- und Monatsübersicht immer angezeigt**
-  (nicht ausklappbar).
-- **Ziel-Seite Reihenfolge (chronologisch):** Gesamt-FY (KPIs, Status inkl.
-  Fortschritts-Diagramm, FY-Kapazität, Resttempo, Soll-Tempo) → **Halbjahre H1 & H2**
-  (`GoalSummary.Halves`, je Card mit Kennzahlen, Auslastungsbalken und kleinem
-  Fortschritts-/Burn-Diagramm) → Quartale → Monatsübersicht → Wochenauslastung.
-  Die Diagramme (`web.progressSVG`, kumulierte Hochrechnung vs. Ideallinie + Ziel)
-  gibt es für FY, H1 und H2; Monate/Wochen behalten die Balken.
-- **Forecast-Grid Layout:** Projektnamen-Spalte (`.pname`) breit (~240 px), alle Werte
-  zentriert (außer `.pname`), Projektzeilen durch einen horizontalen Rahmen getrennt
-  (`tbody td` border-bottom 2px), Wochensummen-Spalte (`.weeksum`) schmal an den Inhalt
-  angepasst. Diese Vorgaben liegen in `static/style.css` (kein Markup in `week.html` nötig).
-- **Zentrales FY-Dropdown oben rechts im Header** (dort, wo Jahr/Bundesland stehen):  schaltet das aktive Fiskaljahr global um, funktioniert von **jeder** Seite und kehrt
-  nach dem Wechsel zur Ursprungsseite zurück (Route `POST /fy`, Redirect auf Referer). Sofern man hier das FY wechselt müssen auch auf allen seiten die passenden FY angezeigt werden
-- In den Einstellungen **Pfad und Größe der Konfigurationsdatei** (JSON) anzeigen
-  (Größe als B/KB/MB). Diese Karte steht **ganz unten** auf der Einstellungsseite
-  (nach der KI-Endpoint-Karte).
-- **KI-Endpoint-Karte (Einstellungen):** Reihenfolge der Elemente von oben nach unten:
-  Eingabefelder (Endpoint/Deployment/API-Version) → `API-Key`-Label mit Statusanzeige
-  (env gesetzt / nicht gesetzt) → Hinweis zur Umgebungsvariable → **Speichern-Button
-  ganz unten**.
-- **Auslastungs-Ampel-Karte (Einstellungen):** eigene Karte „Auslastungs-Ampel (global)“
-  mit eigenem Formular (`section=utilization`): drei Schwellen (`utilMin`/`utilOptimal`/
-  `utilOver`) und vier Label-Felder (`utilMinLabel`/`utilOptimalLabel`/`utilHighLabel`/
-  `utilOverLabel`). Steht zwischen der Pro-FY-Karte und der KI-Endpoint-Karte.
-- **Forecast-Seite (`/week`):** Das Grid ist **pro Woche gruppiert** (`.Span.Blocks`):
-  nach den fünf Tagesspalten folgt je Woche eine **Wochensummen-Spalte** (`.weeksum`,
-  Stundensumme pro Projekt), ganz rechts eine **Gesamt-Spalte** über alle sichtbaren Wochen
-  (`.grandsum`). Wochen sind durch einen dickeren linken Rahmen am ersten Tag (`.weekstart`)
-  abgegrenzt; **Monatsenden** durch einen farbigen rechten Strich (`.monthend`, gesetzt über
-  `DayCell.MonthEnd`: nächster sichtbarer Wochentag liegt in einem neuen Monat).
-  Vergangene (gebuchte) Tage sind dezent markiert (`td.day.past`, Badge „gebucht“). Die
-  `tfoot`-Zeile „Stunden / Tag“ (`.dayfoot`) ist **zentriert** (`td.center`) und hat
-  ebenfalls Wochen-/Gesamtsummen. Header/Tages-/Footer-Zeilen
-  iterieren alle über `.Span.Blocks` → `.Days`, damit Spalten bündig bleiben; die
-  Wochensummen-Header sind `rowspan=2`.
-- **Burnrate-Banner (`/week`):** über der Tabelle, direkt **unter** der zentrierten
-  Steuerzeile, zeigt `.burnbanner`
-  die kombinierte Burnrate (`{{.Burn.PerWeek}}` h/Woche · `{{.Burn.PerWorkday}}` h/Tag) plus
-  Pro-Projekt-Chips für alle **aktiven** Projekte, deren Buchungsfenster den sichtbaren
-  Zeitraum überlappt. Quelle: `forecast.BuildSpanBurn(ys.Projects, spanStart, spanEnd)`
-  in `handleWeek` (`ys` = `BuildYearSummary(d, cal)`).
-- **Forecast-Steuerung & Auto-Speichern (`/week`):** Über der Tabelle steht eine **zentrierte**
-  Steuerzeile (`.week-controls`): der „Sichtbare Wochen“-Umschalter wird links von einem
-  **«zurück»**- und rechts von einem **weiter»**-Button (`.btn.nav-btn`, an den FY-Rändern
-  deaktiviert) flankiert; darunter das Burnrate-Banner. Es gibt **keinen Speichern-Button** –
-  Änderungen werden **automatisch** gespeichert: Tippen (debounced) bzw. Verlassen/Enter einer
-  Zelle schickt sie per `fetch` (JSON, `keepalive`) an **`POST /week/cells`**
-  (`{cells:[{date,projectId,hours}]}`; `hours<=0` löscht; Projekt-Existenz + `p.Bookable`-Guard,
-  Verworfene werden gezählt; Persistenz über `store.Mutate`). Die Seite wird beim Eintragen
-  **nie neu geladen**; eine Status-Pille (`[data-save-status]`: „Automatisch gespeichert“ /
-  „Speichert…“ / „Gespeichert ✓“ / „Fehler beim Speichern“) gibt Rückmeldung. Grid-Zeilen und
-  Eingabefelder sind ~20 % größer; die **Urlaubszeile** ist dezent eingefärbt (`tr.vacrow`), und
-  eine Leerzeile (`tr.footspacer`) koppelt die Summen-/Auslastungszeilen im `tfoot` optisch vom
-  Rest ab. Der frühere Bulk-`POST /week/{week}` bleibt als Fallback erhalten.
-- **Leeren-Buttons** (`.clearbtn`, `type=button`, `data-clear-dates`) in Wochengruppen- und
-  Tages-Kopfzeilen leeren per JS alle `input.hcell` mit passendem `_<datum>`-Suffix; die
-  geleerten Zellen werden ebenfalls automatisch gespeichert (`hours 0` → löschen). Eine
-  **Status-Zeile** im `tfoot` zeigt je Woche (`colspan=6`: 5 Tage + Summenspalte) den
-  Ampel-Punkt plus die (urlaubsbereinigten) Wochenstunden.
-- **Projekte-Seite:** KPI-Zeile zeigt Budget, Verbraucht, Rest, **Burnrate** (h/Woche) und
-  Auslastung; darunter der Zeitraum-/Burnrate-Block (`.project-window`).
-- **Ampel-Punkte** werden über das Template-Partial `{{define "utilstatus"}}` (in
-  `partials.html`) gerendert: farbiger Kreis (`.util-dot`) mit weißem Symbol (↓ / OK /
-  ↑ / ✕) + Label. Erscheinen in der Forecast-Status-Zeile sowie in der Spalte „Status“
-  der Wochentabellen von Dashboard (`.Summary.WeekTotals`) und Zielen (`.WeekTotals`,
-  von `handleGoal` per FY-gefiltertem `BuildYearSummary` übergeben).
+## More UI requirements
 
-## Arbeitskonventionen (für den Agenten)
+- On the goal page the **quarter and month overviews are always visible** (not
+  collapsible).
+- **Goal page order (chronological):** whole FY (KPIs, status including the
+  progress chart, FY capacity, remaining pace, target pace) → **half-years H1 &
+  H2** (`GoalSummary.Halves`, one card each with figures, a utilization bar and a
+  small progress/burn chart) → quarters → month overview → weekly utilization.
+  The charts (`web.progressSVG`, cumulative projection vs. ideal line + target)
+  exist for FY, H1 and H2; months and weeks keep their bars.
+- **Forecast grid layout:** the project-name column (`.pname`) is wide (~240 px),
+  all values are centred (except `.pname`), project rows are separated by a
+  horizontal rule (`tbody td` border-bottom 2px) and the week-total column
+  (`.weeksum`) is narrow. These rules live in `static/style.css` (no markup
+  needed in `week.html`).
+- **Central FY dropdown top right in the header** (where year/state are shown):
+  switches the active fiscal year globally, works from **every** page and returns
+  to the originating page (route `POST /fy`, redirect to the referer path). When
+  the FY is switched, every page must show the matching fiscal year.
+- The settings show the **path and size of the configuration file** (JSON), the
+  size as B/KB/MB. That card sits **at the very bottom** of the settings page
+  (after the AI-endpoint card).
+- **AI endpoint card (settings):** element order top to bottom: input fields
+  (endpoint/deployment/API version) → `API-Key` label with a status indicator
+  (env set / not set) → hint about the environment variable → **save button at
+  the bottom**.
+- **Utilization traffic-light card (settings):** its own card "Auslastungs-Ampel
+  (global)" with its own form (`section=utilization`): three thresholds
+  (`utilMin`/`utilOptimal`/`utilOver`) and four label fields
+  (`utilMinLabel`/`utilOptimalLabel`/`utilHighLabel`/`utilOverLabel`). It sits
+  between the per-FY card and the AI-endpoint card.
+- **Forecast page (`/week`):** the grid is **grouped per week** (`.Span.Blocks`):
+  after the five day columns each week has a **week-total column** (`.weeksum`,
+  hours per project), and at the far right a **grand-total column** across all
+  visible weeks (`.grandsum`). Weeks are delimited by a thicker left border on
+  the first day (`.weekstart`); **month ends** by a coloured right rule
+  (`.monthend`, set through `DayCell.MonthEnd`: the next visible weekday falls
+  into a new month). Past (booked) days are subtly marked (`td.day.past`, badge
+  "gebucht"). The `tfoot` row "Stunden / Tag" (`.dayfoot`) is **centred**
+  (`td.center`) and carries week/grand totals too. Header, day and footer rows
+  all iterate over `.Span.Blocks` → `.Days` so the columns stay aligned; the
+  week-total headers are `rowspan=2`.
+- **Burn-rate banner (`/week`):** above the table, directly **below** the centred
+  control row, `.burnbanner` shows the combined burn rate
+  (`{{.Burn.PerWeek}}` h/week · `{{.Burn.PerWorkday}}` h/day) plus per-project
+  chips for all **active** projects whose booking window overlaps the visible
+  range. Source: `forecast.BuildSpanBurn(ys.Projects, spanStart, spanEnd)` in
+  `handleWeek` (`ys` = `BuildYearSummary(d, cal)`).
+- **Forecast control row & auto-save (`/week`):** above the table sits a
+  **centred** control row (`.week-controls`): the "visible weeks" switch is
+  flanked by a **«zurück»** button on the left and a **weiter»** button on the
+  right (`.btn.nav-btn`, disabled at the FY borders); below it the burn-rate
+  banner. There is **no save button** – changes are stored **automatically**:
+  typing (debounced) or leaving/Enter on a cell sends it via `fetch` (JSON,
+  `keepalive`) to **`POST /week/cells`**
+  (`{cells:[{date,projectId,hours}]}`; `hours<=0` deletes; project existence +
+  `p.Bookable` guard, discarded cells are counted; persistence via
+  `store.Mutate`). The page is **never reloaded** while entering data; a status
+  pill (`[data-save-status]`: "Automatisch gespeichert" / "Speichert…" /
+  "Gespeichert ✓" / "Fehler beim Speichern") gives feedback. Grid rows and inputs
+  are ~20 % larger; the **vacation row** is subtly tinted (`tr.vacrow`), and a
+  blank row (`tr.footspacer`) visually detaches the total/utilization rows in the
+  `tfoot`. The former bulk `POST /week/{week}` is kept as a fallback.
+- **Clear buttons** (`.clearbtn`, `type=button`, `data-clear-dates`) in the week
+  and day header rows clear all `input.hcell` with a matching `_<date>` suffix
+  via JavaScript; the cleared cells are auto-saved as well (`hours 0` → delete).
+  A **status row** in the `tfoot` shows the traffic-light dot plus the weekly
+  hours per week (`colspan=6`: 5 days + the total column).
+- **Projects page:** the KPI row shows budget, consumed, remaining, **burn rate**
+  (h/week) and utilization; below it the window/burn-rate block
+  (`.project-window`).
+- **Traffic-light dots** are rendered through the template partial
+  `{{define "utilstatus"}}` (in `partials.html`): a coloured circle (`.util-dot`)
+  with a white symbol (↓ / OK / ↑ / ✕) plus label. They appear in the forecast
+  status row and in the "Status" column of the weekly tables on the dashboard
+  (`.Summary.WeekTotals`) and the goal page (`.WeekTotals`, passed by
+  `handleGoal` from an FY-filtered `BuildYearSummary`).
 
-- Vor dem Commit: `gofmt`, `go vet ./...`, `go build ./...`, `go test ./...` müssen grün sein.
-- Danach lokaler Smoke-Test (Server mit temporärem `FORECAST_DATA_DIR`), anschließend aufräumen
-  (`appdata` entfernen, `appdata/.gitkeep` wiederherstellen).
-- Keine separaten Markdown-Doku-Dateien anlegen, außer ausdrücklich gewünscht.
-- Templates/Static liegen unter `internal/web/` (per `embed`), nicht im Repo-Root.
+## Security conventions
+
+- The HTML UI stays unauthenticated, but `web.Handler()` wraps it in two
+  middlewares from `internal/web/middleware.go`:
+  - `securityHeaders` sets `Content-Security-Policy` (same-origin;
+    `'unsafe-inline'` is required because the templates use inline scripts,
+    handlers and style attributes), `X-Content-Type-Options`, `X-Frame-Options`,
+    `Referrer-Policy: same-origin` (the referer-based redirects depend on it) and
+    `Permissions-Policy`.
+  - `requireSameOrigin` rejects state-changing UI requests that a browser reports
+    as cross-site (`403`) – the CSRF defence. Requests without `Sec-Fetch-Site`
+    and without `Origin` (curl, scripts) stay allowed.
+- `/api/v1` is mounted **outside** the same-origin guard: it authenticates with a
+  bearer token, which a cross-site form post can never supply.
+- Secrets (AI key, API tokens) come from environment variables only – never from
+  `data.json`, never logged. `GET` responses redact `AI.APIKey`.
+- The AI client uses its own `http.Client` that **refuses redirects**, so the
+  `api-key` header cannot be forwarded to another host.
+- Every user-supplied string is length-capped (`capLen`), dates are validated
+  (`validISODate`/`optionalISO`) and colours are checked (`models.IsHexColor` /
+  `web.sanitizeColor`) before they end up in `template.HTML` SVG output.
+- New charts are always server-rendered inline SVG – never a JavaScript
+  dependency.
+
+## Performance conventions
+
+- Holiday calendars are expensive to build (five calendar years day by day):
+  always obtain them via `holidays.Get(year, state)` (memoized), never
+  `holidays.New` in a request path.
+- The two template sets are cloned **once at startup**, never per request.
+- Aggregation helpers take a pre-built hours index where a caller loops
+  (`buildWeek` inside `BuildSpan`); avoid rebuilding `hoursIndex` per iteration
+  and avoid `time.Parse` inside nested loops.
+- `web.render` renders into a buffer first so a template failure cannot emit a
+  half-written page.
 
 ## Export
 
-- es soll die möglichkeit die aktuelle JSON aus der Anwendung heraus zu exportieren bzw. herunterzuladen
-- Download-Route `GET /export` (Content-Disposition attachment, Dateiname mit Datum).
-  Der Export-Button liegt im JSON-Editor (`/data`), nicht mehr in den Einstellungen.
+- The current JSON must be exportable/downloadable from within the application.
+- Download route `GET /export` (Content-Disposition attachment, file name with
+  the date). The export button lives in the JSON editor (`/data`), not in the
+  settings.
 
-## JSON-Editor (`/data`)
+## JSON editor (`/data`)
 
-- Eigene Seite „JSON" in der Navigation: großes, breites Textfeld (volle Kartenbreite)
-  zum direkten Bearbeiten der **gesamten** Datendatei im Browser – u. a. um KI-generiertes
-  JSON einzufügen.
-- **Validierung vor dem Speichern** (`store.ReplaceJSON` → `models.Validate`): striktes
-  Parsen (`DisallowUnknownFields`, keine Trailing-Daten), referentielle Prüfungen
-  (z. B. jede `entries.projectId` muss existieren). Ungültige Eingaben werden mit
-  deutscher Fehlermeldung abgelehnt, **die Eingabe bleibt erhalten**, der Store wird
-  nie überschrieben. Erfolgreiches Speichern zeigt die kanonische (normalisierte) Form.
-- Persistenz weiterhin atomar (temp + rename).
+- Its own "JSON" page in the navigation: a large, wide text area (full card
+  width) to edit the **whole** data file in the browser – e.g. to paste
+  AI-generated JSON.
+- **Validation before saving** (`store.ReplaceJSON` → `models.Validate`): strict
+  parsing (`DisallowUnknownFields`, no trailing data), referential checks (every
+  `entries.projectId` must exist). Invalid input is rejected with a German error
+  message, **the input is preserved** and the store is never overwritten. A
+  successful save shows the canonical (normalized) form.
+- `POST /data/reset` clears all projects and bookings but keeps every setting;
+  the browser asks for confirmation first.
+- Persistence stays atomic (temp file + fsync + rename).
 
-## KI-Aktualisierung der JSON
+## AI update of the JSON
 
-- KI-Endpoint wird in den **Einstellungen** konfiguriert (eigenes Formular, `section=ai`):
-  Endpoint-URL, Deployment/Model-Router-Name, API-Version. Der **API-Key** kommt aus der
-  Umgebungsvariable `FORECAST_AI_API_KEY` (Docker-Secret/`environment`), nicht aus der UI.
-  Beim Speichern wird ein evtl. vorhandener Legacy-Key aus der Datendatei entfernt.
-  Effektive Settings via `effectiveAI()` (env überlagert Store).
-- Im JSON-Editor gibt es ein **Prompt-Feld**; `POST /data/ai` schickt Prompt **und den
-  aktuellen (ggf. bearbeiteten) Editor-Inhalt** an den Endpoint und schreibt das Ergebnis
-  zurück in das Textfeld. Ohne konfigurierten Endpoint erscheint stattdessen ein Hinweis.
-- KI-Client liegt in `internal/ai` (nur stdlib): Azure-OpenAI-kompatible URL
-  `{endpoint}/openai/deployments/{deployment}/chat/completions?api-version=...`, Auth via
-  `api-key`-Header, `response_format: json_object`, `temperature: 0`, Timeout, entfernt
-  Markdown-Fences. Deutsche Fehlermeldungen.
-- Dem System-Prompt wird ein **Blueprint** (`ai.Blueprint`) mitgesendet – ein vollständiges,
-  gültiges Beispiel-Dokument –, damit das entfernte Modell Feldnamen, Verschachtelung und
-  Werttypen des Forecast-JSON kennt. Bei Schema-Änderungen am Datenmodell den Blueprint
-  mitpflegen.
-- **Kompakte Forecast-Direktiven (`forecastPlan`):** Statt hunderte Tageseinträge
-  auszuschreiben (was das Token-Limit sprengt und zu abgeschnittenen Antworten führt),
-  gibt die KI für regelmäßige, über ein ganzes FY gleichmäßig verteilte Forecasts genau
-  **einen** Eintrag pro Projekt in `forecastPlan` aus: `{ projectId, fiscalYear,
-  hoursPerWeek, kind }`. `ai.ExpandPlan` expandiert das **serverseitig** deterministisch
-  in Mo–Fr-Einträge (`hoursPerWeek/5` pro Werktag) für das gesamte FY, dedupliziert gegen
-  vorhandene Einträge und entfernt `forecastPlan` (Cap `maxExpandedEntries`). Die Expansion
-  läuft in `handleDataAI` **vor** der Validierung; `entries` bleibt nur für einzeln genannte
-  Tage. `forecastPlan` ist kein Bestandteil von `data.json` (nur Transportformat).
-- **Die KI-Antwort wird nie automatisch gespeichert**: Sie wird nur eingefügt und sofort
-  via `store.ValidateJSON` geprüft. Speichern erfolgt erst beim expliziten „Speichern"
-  (durchläuft erneut die volle Validierung).
-- Abgeschnittene KI-Antworten (`finish_reason: length`) werden erkannt und mit
-  deutscher Meldung gemeldet; der Client setzt `max_completion_tokens` (32768).
+- The AI endpoint is configured in the **settings** (own form, `section=ai`):
+  endpoint URL, deployment/model-router name, API version. The **API key** comes
+  from the `FORECAST_AI_API_KEY` environment variable (Docker secret /
+  `environment`), not from the UI. On save any legacy key is removed from the
+  data file. Effective settings via `effectiveAI()` (env overlays the store).
+- The JSON editor has a **prompt field**; `POST /data/ai` sends the prompt **and
+  the current (possibly edited) editor content** to the endpoint and writes the
+  result back into the text area. Without a configured endpoint a hint is shown
+  instead.
+- The AI client lives in `internal/ai` (stdlib only): Azure OpenAI-compatible URL
+  `{endpoint}/openai/deployments/{deployment}/chat/completions?api-version=...`,
+  auth via the `api-key` header, `response_format: json_object`,
+  `temperature: 0`, a timeout, and markdown-fence stripping. German error
+  messages.
+- The system prompt carries a **blueprint** (`ai.Blueprint`) – a complete, valid
+  example document – so the remote model knows the field names, nesting and value
+  types of the forecast JSON. Keep the blueprint in sync with schema changes.
+- **Compact forecast directives (`forecastPlan`):** instead of writing out
+  hundreds of daily entries (which blows the token limit and produces truncated
+  responses), the model emits exactly **one** entry per project in `forecastPlan`
+  for regular forecasts spread evenly over a whole FY: `{ projectId, fiscalYear,
+  hoursPerWeek }`. `ai.ExpandPlan` expands that **server-side** and
+  deterministically into Mon–Fri entries (`hoursPerWeek/5` per working day) for
+  the whole FY, deduplicates against existing entries and removes `forecastPlan`
+  (cap `maxExpandedEntries`). The expansion runs in `handleDataAI` **before**
+  validation; `entries` is only for individually named days. `forecastPlan` is
+  not part of `data.json` (transport format only).
+- **The AI answer is never saved automatically**: it is only inserted and checked
+  immediately via `store.ValidateJSON`. Saving happens on an explicit
+  "Speichern" (which runs the full validation again).
+- Truncated AI answers (`finish_reason: length`) are detected and reported with a
+  German message; the client sets `max_completion_tokens` (32768).
 
-## HTTP-API (`/api/v1`)
+## HTTP API (`/api/v1`)
 
-- Eigenes Paket `internal/api` (nur stdlib), gemountet in `web.Handler()` per
-  `mux.Handle("/api/", api.New(store, logger))`. Eigener `ServeMux` mit **vollen**
-  Pfaden `GET /api/v1/...` (kein StripPrefix), umschlossen von der Auth-Middleware.
-- **Zwei Bearer-Tokens** über Umgebungsvariablen (exportierte Konstanten
+- Its own package `internal/api` (stdlib only), mounted in `web.Handler()` via
+  `mux.Handle("/api/", api.New(store, logger))`. It has its own `ServeMux` with
+  **full** paths `GET /api/v1/...` (no StripPrefix), wrapped in the auth
+  middleware.
+- **Two bearer tokens** from environment variables (exported constants
   `api.ReadTokenEnv` = `FORECAST_API_READ_TOKEN`, `api.WriteTokenEnv` =
-  `FORECAST_API_WRITE_TOKEN`). Read = nur `GET`; Write = Read + Schreiben. Vergleich
-  konstant-zeitlich (`crypto/subtle`). Kein/ungültiger Token → `401`, Lese-Token auf
-  Schreib-Endpunkt → `403`, **beide** Tokens leer → `503` (fail-closed). Tokens werden
-  **nie** in `data.json` gespeichert und **nie** geloggt. **Die HTML-UI bleibt ohne Auth.**
-- **Einstellungen** zeigen (read-only Karte „API-Zugriff", zwischen KI-Endpoint- und
-  Konfigurationsdatei-Karte) an, ob die beiden Token-Variablen gesetzt sind – analog zur
-  KI-Key-Statusanzeige (`APIReadSet`/`APIWriteSet` in `handleSettings`).
-- **Schreibpfade laufen über `store.Mutate`** (Copy-on-Write: klont → mutiert →
-  `normalize` → `models.Validate` → nur bei Erfolg persistieren+swappen). Reads über
-  `Snapshot()`/`Marshal()`. `GET`-Antworten **redigieren** den KI-Key (`AI.APIKey=""`).
-- **Endpunkte:** Read (`GET`): `/data`, `/settings`, `/projects[?fiscalYear=&all=]`,
-  `/projects/summary[?fiscalYear=]` (berechnete Verbraucht/Rest/Auslastung je Projekt aus
-  `BuildYearSummary`→`ProjectSummary`), `/projects/{id}`, `/entries[?from=&to=&projectId=]`,
-  `/goal[?year=]`. Write:
-  `POST /entries/sync`, `POST /projects`, `PUT /projects/{id}`, `DELETE /projects/{id}`,
-  `PUT /settings`, `PUT /settings/fiscal-years/{year}`.
-- **`POST /entries/sync`** ist der Kern: Upsert je `(date, projectId)`, `hours=0`
-  löscht; Guard über Projekt-Existenz + `p.Bookable(date)`; verworfene Einträge werden in
-  `skipped` gemeldet (Rest wird angewendet). Antwort `{upserted, deleted, skipped}`.
-- Urlaubsprojekt: `PUT` ist erlaubt (nur `budgetHours` wird ignoriert), `DELETE` → `409`.
-  FY-Settings-`PUT` synchronisiert das Urlaubsbudget via `EnsureVacationProject`.
-- Fehlerformat `{ "error": "<deutsch>" }`. Request-Body strikt (`DisallowUnknownFields`),
-  Limit via `http.MaxBytesReader` (2 MiB). Referenz-Doku: `docs/API.md` (bei
-  Schema-/Endpunkt-Änderungen mitpflegen), Env-Variablen in README/`.env.example`/compose.
+  `FORECAST_API_WRITE_TOKEN`). Read = `GET` only; write = read + write. The
+  comparison is constant-time (`crypto/subtle`). Missing/invalid token → `401`, a
+  read token on a write endpoint → `403`, **both** tokens empty → `503`
+  (fail-closed). Tokens are **never** stored in `data.json` and **never** logged.
+  **The HTML UI stays unauthenticated.**
+- The **settings** show (read-only card "API-Zugriff", between the AI-endpoint
+  and the configuration-file card) whether the two token variables are set –
+  analogous to the AI key status (`APIReadSet`/`APIWriteSet` in
+  `handleSettings`).
+- **Write paths go through `store.Mutate`** (copy-on-write: clone → mutate →
+  `normalize` → `models.Validate` → persist and swap only on success). Reads use
+  `Snapshot()`/`Marshal()`. `GET` responses **redact** the AI key
+  (`AI.APIKey=""`).
+- **Endpoints:** read (`GET`): `/data`, `/settings`,
+  `/projects[?fiscalYear=&all=]`, `/projects/summary[?fiscalYear=]` (computed
+  consumed/remaining/utilization per project from
+  `BuildYearSummary`→`ProjectSummary`), `/projects/{id}`,
+  `/entries[?from=&to=&projectId=]`, `/goal[?year=]`. Write:
+  `POST /entries/sync`, `POST /projects`, `PUT /projects/{id}`,
+  `DELETE /projects/{id}`, `PUT /settings`,
+  `PUT /settings/fiscal-years/{year}`.
+- **`POST /entries/sync`** is the core: upsert per `(date, projectId)`,
+  `hours=0` deletes; guarded by project existence + `p.Bookable(date)`; discarded
+  entries are reported in `skipped` (the rest is applied). Response
+  `{upserted, deleted, skipped}`.
+- Vacation project: `PUT` is allowed (only `budgetHours` is ignored), `DELETE` →
+  `409`. The FY-settings `PUT` synchronizes the vacation budget via
+  `EnsureVacationProject`.
+- Error format `{ "error": "<German>" }`. Request bodies are strict
+  (`DisallowUnknownFields`), limited via `http.MaxBytesReader` (2 MiB).
+  Reference documentation: `docs/API.md` (keep it in sync with schema/endpoint
+  changes), environment variables in README/`.env.example`/compose.
 
 ## Logging
 
-- Logging-Paket `internal/logging` (nur stdlib): `Setup(dataDir)` liefert einen
-  `*slog.Logger`, der **gleichzeitig auf stdout (Docker-Container-Output) und in eine
-  Datei** `appdata/forecast.log` schreibt (Text-Handler).
-- **Selbst-Rotation**: bei Überschreiten von **10 MB** (`DefaultMaxBytes`) wird die Datei
-  rotiert (`forecast.log.1..3`, `DefaultMaxBackups`), älteste wird verworfen. Kein externes
-  Paket.
-- `main.go` ruft `logging.Setup` auf, setzt `slog.SetDefault` und leitet die Standard-
-  `log`-Ausgabe über einen Adapter in denselben Logger (alles landet in Container-Output
-  **und** Logdatei).
-- **KI-Nutzung wird protokolliert** (Endpoint/Deployment/API-Version, Prompt-/JSON-Größe,
-  Status, `finish_reason`, Token-Usage, Dauer, Erfolg/Fehler/Truncation) – **niemals der
-  API-Key**. Fehler/Warnungen erscheinen so auch im Container-Output zum Debuggen.
-- `forecast.log*` sind git-ignored.
+- The logging package `internal/logging` (stdlib only): `Setup(dataDir)` returns
+  a `*slog.Logger` that writes **simultaneously to stdout (the Docker container
+  output) and to a file** `appdata/forecast.log` (text handler).
+- **Self-rotation**: when the file exceeds **10 MB** (`DefaultMaxBytes`) it is
+  rotated (`forecast.log.1..3`, `DefaultMaxBackups`) and the oldest is dropped.
+  No external package.
+- `main.go` calls `logging.Setup`, sets `slog.SetDefault` and routes the standard
+  `log` output through an adapter into the same logger (everything ends up in the
+  container output **and** the log file).
+- **AI usage is logged** (endpoint/deployment/API version, prompt and JSON size,
+  status, `finish_reason`, token usage, duration, success/error/truncation) –
+  **never the API key**. Errors and warnings therefore also show up in the
+  container output for debugging.
+
+## Working conventions (for the agent)
+
+- Before committing: `gofmt`, `go vet ./...`, `go build ./...` and
+  `go test ./...` must be green.
+- Then run a local smoke test (server with a temporary `FORECAST_DATA_DIR`) and
+  clean up afterwards (remove `appdata`, restore `appdata/.gitkeep`).
+- Do not create separate markdown documentation files unless explicitly asked.
+- Templates and static files live under `internal/web/` (via `embed`), not in the
+  repository root.

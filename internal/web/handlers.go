@@ -1,19 +1,18 @@
 package web
 
 import (
+	"bytes"
 	"embed"
 	"encoding/json"
 	"fmt"
 	"html/template"
 	"io/fs"
-	"log"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
 	"sort"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/daknoblo/forecast-tool/internal/ai"
@@ -36,12 +35,16 @@ const AppName = "Forecast Tool"
 // Server wires storage, templates and HTTP routing together.
 type Server struct {
 	store  *storage.Store
-	tpl    *template.Template
 	logger *slog.Logger
 
-	mu      sync.Mutex
-	calKey  string
-	calData *holidays.Calendar
+	// Two fully parsed template sets: the public one and the private
+	// ("presentation") one whose figure-formatting functions mask every value.
+	// They are cloned once at startup instead of per request, because cloning a
+	// template set is far more expensive than rendering a page.
+	tpl        *template.Template
+	tplPrivate *template.Template
+
+	staticFS http.Handler
 }
 
 // NewServer parses templates and returns a ready-to-mount handler. The logger is
@@ -55,6 +58,7 @@ func NewServer(store *storage.Store, logger *slog.Logger) (*Server, error) {
 		"hours":    formatHours,
 		"hoursRaw": formatHours,
 		"appName":  func() string { return AppName },
+		"asset":    assetURL,
 		"pct":      func(f float64) string { return formatHours(f) + " %" },
 		"cellName": func(projectID, date string) string {
 			return "h_" + projectID + "_" + date
@@ -71,19 +75,34 @@ func NewServer(store *storage.Store, logger *slog.Logger) (*Server, error) {
 		"add":      func(a, b int) int { return a + b },
 		"barWidth": barWidth,
 	}
-	tpl, err := template.New("").Funcs(funcs).ParseFS(templateFS, "templates/*.html")
+	base, err := template.New("").Funcs(funcs).ParseFS(templateFS, "templates/*.html")
 	if err != nil {
 		return nil, err
 	}
-	return &Server{store: store, tpl: tpl, logger: logger}, nil
+	// Clone before either set is executed; a template set can no longer be
+	// cloned once it has run.
+	priv, err := base.Clone()
+	if err != nil {
+		return nil, err
+	}
+	sub, err := fs.Sub(staticFS, "static")
+	if err != nil {
+		return nil, err
+	}
+	return &Server{
+		store:      store,
+		logger:     logger,
+		tpl:        base.Funcs(privacyFuncs(false)),
+		tplPrivate: priv.Funcs(privacyFuncs(true)),
+		staticFS:   http.StripPrefix("/static/", cacheForever(http.FileServer(http.FS(sub)))),
+	}, nil
 }
 
 // Handler builds the HTTP routing mux.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 
-	sub, _ := fs.Sub(staticFS, "static")
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(sub))))
+	mux.Handle("GET /static/", s.staticFS)
 
 	mux.HandleFunc("GET /{$}", s.handleDashboard)
 	mux.HandleFunc("GET /week", s.handleWeekRedirect)
@@ -105,47 +124,48 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /fy", s.handleSetActiveFY)
 	mux.HandleFunc("POST /private", s.handlePrivateToggle)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
 
+	root := http.NewServeMux()
+	// The unauthenticated HTML UI additionally requires state-changing requests
+	// to originate from this site (CSRF defence).
+	root.Handle("/", requireSameOrigin(mux))
 	// JSON API for external clients (token-protected; the HTML UI stays open).
-	mux.Handle("/api/", api.New(s.store, s.logger))
+	// It is mounted outside the same-origin guard on purpose: it authenticates
+	// with a bearer token, which a cross-site form post can never supply.
+	root.Handle("/api/", api.New(s.store, s.logger))
 
-	return mux
+	return securityHeaders(root)
 }
 
 func (s *Server) calendar(d models.Data) *holidays.Calendar {
-	key := strconv.Itoa(d.Settings.Year) + "|" + d.Settings.FederalState
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.calData == nil || s.calKey != key {
-		s.calData = holidays.New(d.Settings.Year, d.Settings.FederalState)
-		s.calKey = key
-	}
-	return s.calData
+	return holidays.Get(d.Settings.Year, d.Settings.FederalState)
 }
 
 // render executes a template with the request's private-mode settings applied.
-// The base template set is never executed itself: it is cloned per request so
-// the privacy-aware functions (masking every figure) can be layered on top
-// without touching a single call site in the templates.
+// It picks one of the two template sets prepared at startup and renders into a
+// buffer first, so a template error cannot leave a half-written page behind.
 func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, data any) {
 	private := isPrivate(r)
 	if m, ok := data.(map[string]any); ok {
 		m["Private"] = private
 	}
-	tpl, err := s.tpl.Clone()
-	if err != nil {
-		log.Printf("template clone %s: %v", name, err)
+	tpl := s.tpl
+	if private {
+		tpl = s.tplPrivate
+	}
+	var buf bytes.Buffer
+	if err := tpl.ExecuteTemplate(&buf, name, data); err != nil {
+		s.logger.Error("template render failed", "template", name, "error", err)
 		http.Error(w, "render error", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := tpl.Funcs(privacyFuncs(private)).ExecuteTemplate(w, name, data); err != nil {
-		log.Printf("template %s: %v", name, err)
-		http.Error(w, "render error", http.StatusInternalServerError)
-	}
+	w.Header().Set("Content-Length", strconv.Itoa(buf.Len()))
+	_, _ = w.Write(buf.Bytes())
 }
 
 // --- Dashboard ---
@@ -770,7 +790,7 @@ func (s *Server) handleData(w http.ResponseWriter, r *http.Request) {
 // destructive action is guarded by a confirmation dialog in the browser before
 // the form is submitted.
 func (s *Server) handleDataReset(w http.ResponseWriter, r *http.Request) {
-	if err := s.store.Reset(time.Now().Year()); err != nil {
+	if err := s.store.Reset(); err != nil {
 		http.Error(w, "reset failed", http.StatusInternalServerError)
 		return
 	}

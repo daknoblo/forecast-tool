@@ -149,7 +149,9 @@ func mergeEntries(entries []models.Entry) []models.Entry {
 	return out
 }
 
-// persist writes the current document atomically (temp file + rename).
+// persist writes the current document atomically (temp file + rename). The temp
+// file is flushed to disk before the rename so a crash right after the rename
+// cannot leave an empty or truncated data file behind.
 // Caller must hold the write lock.
 func (s *Store) persist() error {
 	b, err := json.MarshalIndent(s.data, "", "  ")
@@ -157,10 +159,29 @@ func (s *Store) persist() error {
 		return err
 	}
 	tmp := s.path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, s.path)
+	if _, err := f.Write(b); err != nil {
+		_ = f.Close()
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := f.Close(); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := os.Rename(tmp, s.path); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
 }
 
 // Snapshot returns a deep-ish copy of the data safe for read-only use.
@@ -242,9 +263,8 @@ func parseAndValidate(raw []byte) (models.Data, error) {
 }
 
 // Reset clears all bookings (entries) and projects while preserving every
-// setting (global Settings and per-fiscal-year FiscalYears). The year argument
-// is unused and kept only for backward compatibility of the signature.
-func (s *Store) Reset(year int) error {
+// setting (global Settings and per-fiscal-year FiscalYears).
+func (s *Store) Reset() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.data.Projects = []models.Project{}

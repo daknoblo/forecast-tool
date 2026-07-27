@@ -1,8 +1,8 @@
 services:
-  # Einmaliger Init-Container: stellt sicher, dass das Daten-Volume dem
-  # Non-Root-User (UID 65532) des Images gehört. Nötig, wenn ein bestehendes
-  # Volume noch root gehört (z. B. aus einer älteren Image-Version). Läuft kurz
-  # als root, korrigiert die Rechte und beendet sich dann.
+  # One-shot init container: makes sure the data volume is owned by the image's
+  # non-root user (UID 65532). Needed when an existing volume is still owned by
+  # root (e.g. from an older, root-based image version). It runs briefly as root,
+  # fixes the permissions and exits.
   init-permissions:
     image: alpine:3
     command: ["chown", "-R", "65532:65532", "/appdata"]
@@ -23,9 +23,9 @@ services:
       FORECAST_ADDR: ":8080"
       FORECAST_DATA_DIR: "/appdata"
       TZ: "Europe/Berlin"
-      # Optional: API-Key für den KI-Endpoint per Host-Env oder .env-Datei setzen.
+      # Optional: API key for the AI endpoint, via host env or a .env file.
       # FORECAST_AI_API_KEY: "${FORECAST_AI_API_KEY}"
-      # Optional: Bearer-Tokens für die JSON-API (/api/v1, siehe docs/API.md).
+      # Optional: bearer tokens for the JSON API (/api/v1, see docs/API.md).
       # FORECAST_API_READ_TOKEN: "${FORECAST_API_READ_TOKEN}"
       # FORECAST_API_WRITE_TOKEN: "${FORECAST_API_WRITE_TOKEN}"
     volumes:

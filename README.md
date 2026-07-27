@@ -1,220 +1,259 @@
 # forecast-tool
 
-Ein leichtgewichtiges Single-User **Forecast-Tool** in Go mit Web-Oberfläche.
-Lege Projekte mit Stundenbudget an, forecaste tageweise (Mo–Fr) Stunden pro
-Projekt und behalte Wochen-/Jahressummen, Auslastung und Restbudget im Blick.
-Die Planung erfolgt **fiskaljahr-basiert** (frei wählbarer Startmonat).
-Feiertage werden je nach Bundesland automatisch berücksichtigt.
+A lightweight single-user **forecast tool** written in Go, with a server-rendered
+web interface. Create projects with an hour budget, forecast hours per project
+per day (Mon–Fri) and keep track of weekly/yearly totals, utilization and
+remaining budget. Planning is **fiscal-year based** (the start month is
+configurable). Public holidays are applied automatically per German federal
+state.
 
-Die Daten werden in einer einfachen JSON-Datei unter `appdata/data.json`
-gespeichert – keine Datenbank nötig. Die Datei lässt sich im Browser direkt
-bearbeiten, exportieren und optional per KI-Prompt aktualisieren.
+Data lives in a single JSON file under `appdata/data.json` — no database
+required. The file can be edited directly in the browser, exported, and
+optionally updated through an AI prompt.
+
+> **Note on language:** the user interface is intentionally German. Everything
+> else in this repository (code, comments, documentation) is English.
 
 ## Features
-- Projekte mit Stundenbudget (CRUD, Farbe, aktiv/inaktiv), pro Fiskaljahr, mit
-  eindeutiger **Assignment ID** (Pflichtfeld beim Anlegen, z. B. `5641245`)
-- **Buchungszeitraum je Projekt** (Start-/Enddatum, optional): Stunden lassen sich nur
-  innerhalb des Zeitraums buchen – Tageszellen außerhalb sind im Forecast gesperrt.
-  Daraus abgeleitet werden **Burnrate** (h/Woche bzw. h/Arbeitstag), Resttempo und ein
-  Warnhinweis, falls außerhalb des Zeitraums gebucht wurde
-- Mehrwochen-Forecast-Ansicht: Projekte × Tage (Mo–Fr) über mehrere Wochen,
-  **ein Stundenwert pro Tag** (vergangene Tage = gebucht, ab heute = Forecast),
-  automatische Summen (Summenspalte zentriert), Buttons zum Leeren einzelner Tage
-  oder ganzer Wochen
-- Konfigurierbare **Auslastungs-Ampel**: vier Status (Burnrate Minimum, Optimal,
-  Zu hoch, Überbucht) mit frei wählbaren Schwellen (Std.) und Labels; farbige
-  Punkte in der Forecast-Übersicht sowie in den Wochentabellen von Dashboard und Zielen
-- Fiskaljahr-Logik (frei wählbarer Startmonat) mit zentralem FY-Umschalter im Header
-- Automatische Feiertage (alle 16 Bundesländer wählbar)
-- Konfigurierbare Wochensollstunden, Urlaub (pro Halbjahr), Standard Tasks
-- Ziel-/Kapazitätsrechnung: verfügbare Stunden, Auslastung in %, Soll je Woche/Monat/Quartal
-- Restbudget je Projekt + Burn-Down-Diagramm (server-seitiges SVG)
-- Dashboard mit Jahresübersicht und Wochenauslastung
-- **JSON-Editor** im Browser: gesamte Datendatei bearbeiten, exportieren und mit
-  serverseitiger Validierung speichern
-- **KI-Aktualisierung**: per Prompt das JSON über einen konfigurierbaren, Azure-OpenAI-
-  kompatiblen Endpoint (z. B. Azure AI Foundry Model-Router) aktualisieren lassen –
-  das Ergebnis wird vor dem Speichern geprüft
-- Daten als JSON im Volume, läuft als schlanker Container
+- Projects with an hour budget (CRUD, colour, active/inactive), scoped to a
+  fiscal year, each with a unique **assignment ID** (required on creation,
+  e.g. `5641245`)
+- **Per-project booking window** (optional start/end date): hours can only be
+  booked inside the window — day cells outside it are locked in the forecast
+  grid. From it the tool derives the **burn rate** (h/week and h/working day),
+  the pace still required, and a warning when hours were booked outside the window
+- Multi-week forecast grid: projects × days (Mon–Fri) across several weeks with
+  **one hours value per day** (past days count as booked, today and later as
+  forecast), automatic totals, and buttons to clear single days or whole weeks
+- **Auto-save**: edits in the forecast grid are persisted in the background
+  (`POST /week/cells`); the page is never reloaded while typing
+- Configurable **utilization traffic light**: four states (minimum burn rate,
+  optimal, too high, overbooked) with freely chosen thresholds (hours) and
+  labels; coloured dots in the forecast grid and in the weekly tables of the
+  dashboard and goals pages
+- Fiscal-year logic (configurable start month) with a central FY switcher in the
+  header
+- Automatic public holidays (all 16 German federal states)
+- Configurable weekly target hours, vacation (per half-year) and standard tasks
+- Goal/capacity calculation: available hours, utilization in %, target per
+  week/month/quarter
+- Remaining budget per project plus a burn-down chart (server-rendered SVG)
+- Dashboard with a **utilization Sankey diagram** and a **free capacity** chart,
+  both rendered server-side as inline SVG (no JavaScript dependencies)
+- **Private mode**: a header toggle that masks all project names and figures —
+  useful when sharing a screen
+- **JSON editor** in the browser: edit, export and save the whole data file with
+  server-side validation
+- **AI update**: update the JSON via a prompt against a configurable,
+  Azure OpenAI-compatible endpoint (e.g. an Azure AI Foundry model router) — the
+  result is validated before it can be saved
+- **HTTP JSON API** under `/api/v1` for external clients, protected by bearer tokens
+- Data stored as JSON in a volume; runs as a small distroless container
 
-### Standardwerte für neue Daten
-Beim ersten Start (leere Datendatei) bzw. für noch nicht konfigurierte Fiskaljahre
-gelten folgende Vorgaben:
+### Defaults for new data
+On first start (empty data file) and for fiscal years that have not been
+configured yet, the following defaults apply:
 
-| Einstellung            | Default        |
-|------------------------|----------------|
-| Bundesland (Feiertage) | `SN` (Sachsen) |
-| Wochensollstunden      | `40`           |
-| FY-Ziel                | `1440` h       |
-| Urlaub H1 / H2         | `15` / `15` Tage |
-| Standard Tasks         | `250` h        |
+| Setting                     | Default          |
+|-----------------------------|------------------|
+| Federal state (holidays)    | `SN` (Saxony)    |
+| Weekly target hours         | `40`             |
+| FY target                   | `1440` h         |
+| Vacation H1 / H2            | `15` / `15` days |
+| Standard tasks              | `250` h          |
 
-## Schnellstart (lokal mit Go)
+## Quick start (local, with Go)
 ```bash
 go run ./cmd/server
 # UI: http://localhost:8080
 ```
 
-Konfiguration über Umgebungsvariablen:
+Configuration via environment variables:
 
-| Variable             | Default     | Beschreibung                          |
-|----------------------|-------------|---------------------------------------|
-| `FORECAST_ADDR`      | `:8080`     | Listen-Adresse                        |
-| `FORECAST_DATA_DIR`  | `appdata`   | Verzeichnis für `data.json`           |
-| `PORT`               | `8080`      | Port (Alias, falls `FORECAST_ADDR` nicht gesetzt) |
-| `DATA_DIR`           | `appdata`   | Daten-Verzeichnis (Alias für `FORECAST_DATA_DIR`) |
-| `FORECAST_AI_API_KEY`| –           | Secret-API-Key für den KI-Endpoint (nicht in `data.json` gespeichert) |
-| `FORECAST_API_READ_TOKEN`  | – | Bearer-Token für **Lesezugriff** (GET) auf die JSON-API (`/api/v1`) |
-| `FORECAST_API_WRITE_TOKEN` | – | Bearer-Token für **Lese- und Schreibzugriff** auf die JSON-API |
+| Variable                    | Default   | Description                                              |
+|-----------------------------|-----------|----------------------------------------------------------|
+| `FORECAST_ADDR`             | `:8080`   | Listen address                                           |
+| `FORECAST_DATA_DIR`         | `appdata` | Directory holding `data.json`                            |
+| `PORT`                      | `8080`    | Port (alias, used when `FORECAST_ADDR` is unset)         |
+| `DATA_DIR`                  | `appdata` | Data directory (legacy alias for `FORECAST_DATA_DIR`)    |
+| `FORECAST_AI_API_KEY`       | –         | Secret API key for the AI endpoint (never stored in `data.json`) |
+| `FORECAST_API_READ_TOKEN`   | –         | Bearer token for **read** access (GET) to the JSON API (`/api/v1`) |
+| `FORECAST_API_WRITE_TOKEN`  | –         | Bearer token for **read and write** access to the JSON API |
 
-## JSON-Editor & KI-Aktualisierung
-Unter dem Menüpunkt **JSON** (`/data`) lässt sich die komplette Datendatei direkt
-im Browser bearbeiten. Beim Speichern wird der Inhalt streng validiert (gültiges
-JSON, bekannte Felder, vorhandene Projekt-Referenzen usw.); ungültige Eingaben
-werden abgelehnt, ohne die gespeicherten Daten zu verändern. Über denselben
-Bereich kann die Datei als JSON exportiert/heruntergeladen werden.
+## Security model
+The application is designed to run on a private network behind a reverse proxy
+(Traefik, optionally plus an identity-aware proxy). The HTML UI therefore has
+**no authentication of its own**; the following measures harden it regardless:
 
-Optional kann das Dokument per **KI-Prompt** aktualisiert werden (z. B. „Erstelle
-ein Projekt namens ABC im Fiskaljahr 2027"). Dazu in den **Einstellungen** unter
-*KI-Endpoint* einen Azure-OpenAI-kompatiblen Endpoint hinterlegen:
+- **`/api/v1` requires a bearer token** (read-only or read+write). With neither
+  token configured the API is disabled and answers `503` (fail-closed). Tokens
+  are compared in constant time and are never stored or logged.
+- **Same-origin enforcement** on every state-changing UI request (CSRF defence):
+  requests a browser reports as cross-site are rejected with `403`.
+- **Security response headers** on every reply: `Content-Security-Policy`
+  (same-origin only, no framing, no plugins), `X-Content-Type-Options`,
+  `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`.
+- **Secrets only via environment variables** — never in `data.json`, never logged.
+- The AI client **refuses HTTP redirects**, so the API key cannot be forwarded to
+  a third-party host.
+- Strict input validation on every write path; the whole document is validated
+  before it is persisted, so a bad payload can never corrupt the store.
+- The container runs **non-root (UID 65532)**, read-only, with all capabilities
+  dropped and `no-new-privileges`.
 
-| Feld         | Beispiel                                  |
+## JSON editor & AI update
+The **JSON** menu entry (`/data`) lets you edit the complete data file directly
+in the browser. On save the content is validated strictly (valid JSON, known
+fields, existing project references, …); invalid input is rejected without
+touching the stored data. The same page offers a JSON export/download and a
+button that deletes all projects and bookings while keeping every setting.
+
+Optionally the document can be updated with an **AI prompt** (e.g. "create a
+project called ABC in fiscal year 2027"). Configure an Azure OpenAI-compatible
+endpoint under **Settings → AI endpoint**:
+
+| Field        | Example                                   |
 |--------------|-------------------------------------------|
-| Endpoint-URL | `https://mein-resource.openai.azure.com`  |
+| Endpoint URL | `https://my-resource.openai.azure.com`    |
 | Deployment   | `model-router`                            |
-| API-Version  | `2024-10-21`                              |
+| API version  | `2024-10-21`                              |
 
-Der **API-Key** wird **nicht** in `data.json` gespeichert, sondern über die
-Umgebungsvariable `FORECAST_AI_API_KEY` bereitgestellt – z. B. als Docker-Secret
-bzw. `environment`-Eintrag in `docker-compose.yml`. Lokal genügt:
+The **API key** is **not** stored in `data.json`; it is supplied through the
+`FORECAST_AI_API_KEY` environment variable — e.g. as a Docker secret or an
+`environment` entry in `docker-compose.yml`. Locally this is enough:
 
 ```bash
-FORECAST_AI_API_KEY=dein-key go run ./cmd/server
+FORECAST_AI_API_KEY=your-key go run ./cmd/server
 ```
 
-Für Docker Compose lege eine `.env` neben `docker-compose.yml` an (Vorlage:
+For Docker Compose create a `.env` next to `docker-compose.yml` (template:
 `.env.example`, git-ignored):
 
 ```bash
 cp .env.example .env
-# .env editieren und FORECAST_AI_API_KEY=... setzen
+# edit .env and set FORECAST_AI_API_KEY=...
 docker compose up -d
 ```
 
-Prompt und aktuelles JSON werden an den Endpoint gesendet; das Ergebnis wird in
-den Editor eingefügt und geprüft. Gespeichert wird erst nach explizitem Klick auf
-*Speichern*. Dem Modell wird zusätzlich ein **Blueprint** (vollständiges
-Beispiel-Dokument) mitgesendet, damit es das exakte JSON-Format kennt.
+The prompt and the current JSON are sent to the endpoint; the result is placed
+in the editor and validated. Nothing is saved until you explicitly click
+*Speichern*. The model additionally receives a **blueprint** (a complete example
+document) so it knows the exact JSON format.
 
-Für regelmäßige, über ein ganzes Fiskaljahr gleichmäßig verteilte Forecasts gibt die
-KI keine hunderten Tageseinträge aus (das würde das Token-Limit sprengen), sondern
-eine kompakte Direktive `forecastPlan` (`projectId`, `fiscalYear`, `hoursPerWeek`).
-Der Server expandiert diese automatisch in Mo–Fr-Einträge (`hoursPerWeek/5` pro
-Werktag) für das gesamte Fiskaljahr.
+For recurring forecasts spread evenly across a whole fiscal year the model does
+not emit hundreds of daily entries (that would exceed the token limit) but a
+compact `forecastPlan` directive (`projectId`, `fiscalYear`, `hoursPerWeek`).
+The server expands it deterministically into Mon–Fri entries
+(`hoursPerWeek / 5` per working day) for the entire fiscal year.
 
-## HTTP-API
-Unter `/api/v1` steht eine JSON-API bereit, um den Forecast von externen Tools
-(z. B. einem Desktop-Client) zu **lesen** und **zu synchronisieren** (ein
-Stundenwert je Tag/Projekt), Projekte zu verwalten und Einstellungen zu pflegen. Die
-Web-Oberfläche bleibt bewusst ohne Authentifizierung; **nur `/api/**` ist über
-zwei Bearer-Tokens geschützt**:
+## HTTP API
+A JSON API is available under `/api/v1` so external tools (e.g. a desktop
+client) can **read** and **synchronize** the forecast (one hours value per
+day/project), manage projects and maintain settings. The web UI intentionally
+stays unauthenticated; **only `/api/**` is protected**, by two bearer tokens:
 
-| Token-Env-Variable          | Zugriff                         |
-|-----------------------------|---------------------------------|
-| `FORECAST_API_READ_TOKEN`   | nur Lesen (GET)                 |
-| `FORECAST_API_WRITE_TOKEN`  | Lesen **und** Schreiben         |
+| Token environment variable  | Access                     |
+|-----------------------------|----------------------------|
+| `FORECAST_API_READ_TOKEN`   | read only (GET)            |
+| `FORECAST_API_WRITE_TOKEN`  | read **and** write         |
 
-Ist **keiner** der beiden Tokens gesetzt, ist die API deaktiviert (`503`). Die
-Tokens werden – wie der KI-Key – **nicht** in `data.json` gespeichert, sondern
-nur über Umgebungsvariablen bereitgestellt. In den **Einstellungen** wird
-angezeigt, ob die beiden Variablen gesetzt sind.
+If **neither** token is set the API is disabled (`503`). Like the AI key, the
+tokens are **never** stored in `data.json` and are only supplied through
+environment variables. The **Settings** page shows whether the two variables are
+set.
 
 ```bash
-# Aktuellen Stand lesen
+# Read the current state
 curl -H "Authorization: Bearer $READ" https://host/api/v1/data
 
-# Stunden synchronisieren (Upsert je Tag/Projekt; hours=0 löscht)
+# Synchronize hours (upsert per day/project; hours=0 deletes)
 curl -X POST https://host/api/v1/entries/sync \
   -H "Authorization: Bearer $WRITE" -H "Content-Type: application/json" \
   -d '{"entries":[{"date":"2026-07-01","projectId":"<id>","hours":6}]}'
 ```
 
-Die vollständige Referenz aller Endpunkte, Parameter und Beispiele steht in
+The full reference of all endpoints, parameters and examples lives in
 [docs/API.md](docs/API.md).
 
 ## Logging
-Die Anwendung schreibt Logs **gleichzeitig** in den Container-Output (`docker logs`)
-und in eine Datei `appdata/forecast.log`. Die Datei rotiert automatisch bei **10 MB**
-(bis zu drei Backups `forecast.log.1`–`forecast.log.3`); ein externes Paket ist nicht
-nötig. KI-Aufrufe werden mit Endpoint/Deployment, Prompt-/Antwortgröße, `finish_reason`,
-Token-Verbrauch und Dauer protokolliert (der **API-Key wird nie geloggt**), was das
-Debugging des KI-Endpoints erleichtert. Fehler und Warnungen erscheinen zusätzlich im
-Container-Output.
+The application writes logs **simultaneously** to the container output
+(`docker logs`) and to a file at `appdata/forecast.log`. The file rotates
+automatically at **10 MB** (keeping up to three backups, `forecast.log.1`–
+`forecast.log.3`); no external package is needed. AI calls are logged with
+endpoint/deployment, prompt and response size, `finish_reason`, token usage and
+duration (the **API key is never logged**), which makes debugging the remote
+endpoint straightforward. Errors and warnings also appear in the container
+output.
 
-## Mit Docker bauen und starten
+## Build and run with Docker
 ```bash
 docker build -t forecast-tool .
 docker volume create forecast-data
 docker run -p 8080:8080 -v forecast-data:/appdata forecast-tool
 ```
 
-## Mit docker compose (Ziel-Host)
-`docker-compose.yml` zieht standardmäßig das fertige Image aus der GitHub
-Container Registry und persistiert die Daten in einem Named Volume:
+## Run with docker compose (target host)
+`docker-compose.yml` pulls the prebuilt image from the GitHub Container Registry
+by default and persists the data in a named volume:
 ```bash
 docker compose up -d
 ```
-Möchtest du lokal bauen statt zu ziehen, kommentiere in `docker-compose.yml`
-die `image:`-Zeile aus und aktiviere `build: .`.
+To build locally instead of pulling, comment out the `image:` line in
+`docker-compose.yml` and enable `build: .`.
 
-## CI/CD: Prüfungen und Container-Release
-Der Workflow [.github/workflows/ci.yml](.github/workflows/ci.yml) prüft Format,
-`go vet`, golangci-lint, govulncheck, gosec (SARIF), Race-Tests und den
-statischen Build. [.github/workflows/release.yml](.github/workflows/release.yml)
-baut und pusht Multi-Arch-Images nach GHCR, erzeugt SBOM/Provenance, signiert
-keyless mit cosign und lädt den Trivy-SARIF-Report hoch.
+## CI/CD: checks and container release
+[.github/workflows/ci.yml](.github/workflows/ci.yml) checks formatting,
+`go vet`, golangci-lint, govulncheck, gosec (SARIF), race-enabled tests and the
+static build.
 
-Jeder Push auf `main` baut und pusht ein Multi-Arch-Image, das als `latest`
-getaggt wird (`ghcr.io/daknoblo/forecast-tool:latest`). Es gibt keine weiteren
-Stages (kein `stable`/`dev`) mehr.
+[.github/workflows/release.yml](.github/workflows/release.yml) first re-runs
+`go vet` and the race tests — so a red build can never publish an image — then
+builds and pushes multi-arch images to GHCR, produces SBOM and provenance,
+signs keyless with cosign and uploads the Trivy SARIF report.
 
-### Was du einmalig einrichten musst
-1. **Repository-Berechtigungen**: In *Settings → Actions → General → Workflow
-   permissions* „Read and write permissions" aktivieren (oder es ist via der
-   `permissions:`-Angabe im Workflow bereits abgedeckt). Es ist **kein** PAT
-   nötig – der Workflow nutzt das automatische `GITHUB_TOKEN`.
-2. **Erster Push** erzeugt das Package `forecast-tool` (zunächst **privat**).
-   Unter *GitHub → dein Profil → Packages → forecast-tool → Package settings*
-   kannst du:
-   - die Sichtbarkeit auf **public** stellen (dann ist kein Login zum Pullen nötig), oder
-   - es **privat** lassen.
+[.github/workflows/codeql.yml](.github/workflows/codeql.yml) runs CodeQL
+analysis on every push and pull request, plus weekly.
 
-### Auf dem Ziel-Host pullen
-- **Public Image**: einfach `docker compose up -d` – kein Login.
-- **Privates Image**: einmalig anmelden mit einem Personal Access Token
-  (classic) mit Scope `read:packages`:
+Every push to `main` builds and pushes a multi-arch image tagged `latest`
+(`ghcr.io/daknoblo/forecast-tool:latest`). There are no further stages
+(no `stable`/`dev`).
+
+### One-time setup
+1. **Repository permissions**: under *Settings → Actions → General → Workflow
+   permissions* enable "Read and write permissions" (or rely on the
+   `permissions:` block in the workflow). **No** PAT is required — the workflow
+   uses the automatic `GITHUB_TOKEN`.
+2. **The first push** creates the `forecast-tool` package (initially **private**).
+   Under *GitHub → your profile → Packages → forecast-tool → Package settings*
+   you can either:
+   - make it **public** (no login needed to pull), or
+   - keep it **private**.
+
+### Pulling on the target host
+- **Public image**: simply `docker compose up -d` — no login.
+- **Private image**: log in once with a personal access token (classic) that has
+  the `read:packages` scope:
   ```bash
-  echo "<DEIN_PAT>" | docker login ghcr.io -u <dein-github-user> --password-stdin
+  echo "<YOUR_PAT>" | docker login ghcr.io -u <your-github-user> --password-stdin
   docker compose up -d
   ```
 
-> Hinweis: Der Owner-Teil des Image-Namens muss kleingeschrieben sein, z. B.
-> `ghcr.io/daknoblo/forecast-tool`. Passe die `image:`-Zeile in
-> `docker-compose.yml` an deinen GitHub-Benutzer/-Organisation an.
+> Note: the owner part of the image name must be lowercase, e.g.
+> `ghcr.io/daknoblo/forecast-tool`. Adjust the `image:` line in
+> `docker-compose.yml` to your GitHub user or organisation.
 
-### Fehlerbehebung: `open /appdata/data.json: permission denied`
-Das Image läuft als **Non-Root-User (UID 65532)** und muss nach `/appdata`
-schreiben. Der Fehler tritt auf, wenn das gemountete Datenverzeichnis einem
-anderen Nutzer gehört (meist `root`, z. B. aus einer älteren, als root
-laufenden Image-Version).
+### Troubleshooting: `open /appdata/data.json: permission denied`
+The image runs as a **non-root user (UID 65532)** and must write to `/appdata`.
+The error appears when the mounted data directory is owned by someone else
+(usually `root`, e.g. left over from an older image version that ran as root).
 
-**Named Volume** (Standard dieses Repos): Ein frisch angelegtes Volume erhält
-automatisch die richtigen Rechte; die mitgelieferte `docker-compose.yml` setzt
-sie über einen kleinen `init-permissions`-Container zusätzlich bei jedem Start:
+**Named volume** (the default in this repo): a freshly created volume gets the
+right ownership automatically; the bundled `docker-compose.yml` additionally
+enforces it on every start through a small `init-permissions` container:
 ```bash
 docker compose up -d
 ```
-Einmaliger manueller Fix für ein bestehendes Named Volume:
+One-off manual fix for an existing named volume:
 ```bash
 docker compose down
 VOL=$(docker volume ls -q | grep forecast-data | head -1)
@@ -222,16 +261,16 @@ docker run --rm -v "$VOL":/appdata alpine chown -R 65532:65532 /appdata
 docker compose up -d
 ```
 
-**Bind Mount** (z. B. `./appdata:/appdata`, häufig bei Dockge/Portainer): Hier
-initialisiert Docker die Rechte **nicht** automatisch – das Host-Verzeichnis
-muss dem Container-User (UID 65532) gehören. Entweder einmalig auf dem Host im
-Stack-Verzeichnis:
+**Bind mount** (e.g. `./appdata:/appdata`, common with Dockge/Portainer): Docker
+does **not** initialise the ownership here — the host directory must belong to
+the container user (UID 65532). Either fix it once on the host inside the stack
+directory:
 ```bash
 sudo chown -R 65532:65532 ./appdata
 ```
-… oder – damit es bei jedem Deploy automatisch passiert – denselben
-`init-permissions`-Service (mit **demselben** Bind-Mount) in die Compose
-aufnehmen und `forecast` per `depends_on` darauf warten lassen:
+… or — so it happens on every deploy — add the same `init-permissions` service
+(with the **same** bind mount) to your compose file and make `forecast` wait for
+it via `depends_on`:
 ```yaml
   init-permissions:
     image: alpine:3
@@ -240,7 +279,7 @@ aufnehmen und `forecast` per `depends_on` darauf warten lassen:
       - ./appdata:/appdata
     restart: "no"
   forecast:
-    # ... bisherige Konfiguration ...
+    # ... existing configuration ...
     depends_on:
       init-permissions:
         condition: service_completed_successfully
@@ -251,5 +290,5 @@ aufnehmen und `forecast` per `depends_on` darauf warten lassen:
 go test ./...
 ```
 
-## Projektstruktur & Plan
-Siehe [docs/PLAN.md](docs/PLAN.md) für Architektur und Designentscheidungen.
+## Project structure & plan
+See [docs/PLAN.md](docs/PLAN.md) for the architecture and design decisions.

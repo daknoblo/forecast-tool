@@ -2,6 +2,8 @@ package holidays
 
 import (
 	"sort"
+	"strconv"
+	"sync"
 	"time"
 
 	"github.com/rickar/cal/v2"
@@ -95,6 +97,36 @@ func New(year int, state string) *Calendar {
 		d = d.AddDate(0, 0, 1)
 	}
 	return &Calendar{byDate: byDate}
+}
+
+// maxCachedCalendars bounds the calendar cache. Year and state come from
+// validated user input (2000..2100 x 16 states), so the cache is bounded
+// anyway; this keeps the working set small for the handful of years a user
+// actually looks at.
+const maxCachedCalendars = 64
+
+var (
+	cacheMu sync.Mutex
+	cache   = make(map[string]*Calendar, maxCachedCalendars)
+)
+
+// Get returns a calendar for the given anchor year and federal state, building
+// it once and reusing it afterwards. Building a calendar walks five calendar
+// years day by day, which is far too expensive to repeat per request. The
+// returned Calendar is immutable, so it is safe to share across goroutines.
+func Get(year int, state string) *Calendar {
+	key := strconv.Itoa(year) + "|" + state
+	cacheMu.Lock()
+	defer cacheMu.Unlock()
+	if c, ok := cache[key]; ok {
+		return c
+	}
+	if len(cache) >= maxCachedCalendars {
+		cache = make(map[string]*Calendar, maxCachedCalendars)
+	}
+	c := New(year, state)
+	cache[key] = c
+	return c
 }
 
 // IsHoliday reports whether the given ISO date (YYYY-MM-DD) is a public holiday.

@@ -43,10 +43,10 @@
     <button type="submit" class="btn danger">Projekte &amp; Buchungen löschen</button>
   </form>
   <p class="hint">
-    Struktur: <code>settings</code> (year, federalState, weeklyTargetHours, fiscalYearStartMonth),
+    Struktur: <code>settings</code> (year, federalState, weeklyTargetHours, fiscalYearStartMonth, ai, utilization),
     <code>fiscalYears</code> (pro FY: targetHours, vacationDaysH1/H2, standardTaskLabel, standardTaskHours),
-    <code>projects</code> (id, name, budgetHours, color, active, fiscalYear) und
-    <code>entries</code> (date YYYY-MM-DD, projectId, hours, kind = forecast|actual).
+    <code>projects</code> (id, assignmentId, name, budgetHours, color, active, fiscalYear, startDate, endDate) und
+    <code>entries</code> (date YYYY-MM-DD, projectId, hours – ein Wert je Tag und Projekt).
     Jede <code>entries.projectId</code> muss zu einer existierenden <code>projects.id</code> passen.
   </p>
 </section>

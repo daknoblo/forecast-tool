@@ -23,6 +23,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -47,8 +49,11 @@ jobs:
           version: v2.12.2
 
       - name: govulncheck
+        env:
+          # Pinned so a CI run is reproducible and cannot break on an upstream release.
+          GOVULNCHECK_VERSION: v1.1.4
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
+          go install "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}"
           "$(go env GOPATH)/bin/govulncheck" ./...
 
       - name: gosec (SARIF, non-blocking)

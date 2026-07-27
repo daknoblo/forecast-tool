@@ -1,97 +1,105 @@
-# Forecast-Tool – HTTP-API
+# forecast-tool – HTTP API
 
-Die JSON-API unter `/api/v1` erlaubt externen Tools (z. B. einem Desktop-Client)
-den Forecast zu **lesen** und zu **synchronisieren** (Stunden je Tag/Projekt),
-Projekte zu verwalten und Einstellungen zu pflegen.
+The JSON API under `/api/v1` lets external tools (e.g. a desktop client) **read**
+and **synchronize** the forecast (hours per day/project), manage projects and
+maintain settings.
 
-Die HTML-Oberfläche bleibt bewusst ohne Authentifizierung (nur intern hinter dem
-Reverse-Proxy). **Nur `/api/**` ist geschützt** – über zwei Bearer-Tokens.
+The HTML UI intentionally stays unauthenticated (internal use only, behind a
+reverse proxy). **Only `/api/**` is protected** — by two bearer tokens.
+
+> **Language note:** the application's user interface is German, and so are the
+> `error` messages returned by this API. Everything else in this repository is
+> English.
 
 ---
 
-## Authentifizierung
+## Authentication
 
-Jeder API-Request muss einen Bearer-Token im `Authorization`-Header senden:
+Every API request must carry a bearer token in the `Authorization` header:
 
 ```
 Authorization: Bearer <token>
 ```
 
-Es gibt zwei Tokens, die **ausschließlich** über Umgebungsvariablen bereitgestellt
-werden (nicht in `data.json`, werden nie geloggt):
+There are two tokens, supplied **exclusively** through environment variables
+(never in `data.json`, never logged):
 
-| Umgebungsvariable            | Scope                           | Erlaubte Methoden        |
-|------------------------------|---------------------------------|--------------------------|
-| `FORECAST_API_READ_TOKEN`    | Lesen                           | `GET`                    |
-| `FORECAST_API_WRITE_TOKEN`   | Lesen **und** Schreiben         | `GET`, `POST`, `PUT`, `DELETE` |
+| Environment variable         | Scope                     | Allowed methods                |
+|------------------------------|---------------------------|--------------------------------|
+| `FORECAST_API_READ_TOKEN`    | read                      | `GET`                          |
+| `FORECAST_API_WRITE_TOKEN`   | read **and** write        | `GET`, `POST`, `PUT`, `DELETE` |
 
-Der Schreib-Token schließt Lesezugriff mit ein. In den **Einstellungen** der
-Web-Oberfläche wird angezeigt, ob die Variablen gesetzt sind.
+The write token includes read access. The **Settings** page of the web UI shows
+whether the variables are set.
 
-### Verhalten
+### Behaviour
 
-- Kein oder ungültiger Token → `401 Unauthorized` (`WWW-Authenticate: Bearer`).
-- Gültiger Lese-Token auf einen Schreib-Endpunkt → `403 Forbidden`.
-- **Beide** Tokens nicht gesetzt → die API ist deaktiviert, jeder Request → `503`.
+- Missing or invalid token → `401 Unauthorized` (`WWW-Authenticate: Bearer`).
+- Valid read token on a write endpoint → `403 Forbidden`.
+- **Neither** token set → the API is disabled, every request → `503`.
 
-> Tokens werden konstant-zeitlich verglichen. Verwende lange, zufällige Werte,
-> z. B. `openssl rand -hex 32`.
+> Tokens are compared in constant time. Use long, random values, e.g.
+> `openssl rand -hex 32`.
 
 ---
 
-## Konventionen
+## Conventions
 
-- **Basis-URL:** `<host>/api/v1`
-- **Content-Type:** Request- und Response-Body sind JSON (`application/json`).
-- **Datumsformat:** ISO `YYYY-MM-DD`.
-- **Stunden (`hours`):** Dezimalzahl ≥ 0. Pro Tag und Projekt gibt es genau **einen**
-  Wert; ob er als **gebucht** (Ist) oder **Forecast** zählt, ergibt sich aus dem Datum
-  (vergangene Tage = gebucht, heute und später = Forecast). Es gibt **kein** `kind`-Feld.
-- **Fehlerformat:** `{ "error": "<deutsche Meldung>" }` mit passendem HTTP-Status.
-- **Request-Body-Limit:** 2 MiB. Unbekannte JSON-Felder werden abgelehnt (`400`).
-- **Teil-Updates (`PUT`):** Nur mitgeschickte Felder werden geändert. Bei Projekt-
-  Datumsfeldern bedeutet `""` „Zeitraum leeren“, Weglassen „unverändert lassen“.
+- **Base URL:** `<host>/api/v1`
+- **Content type:** request and response bodies are JSON (`application/json`).
+- **Date format:** ISO `YYYY-MM-DD`.
+- **Hours (`hours`):** decimal ≥ 0. There is exactly **one** value per day and
+  project; whether it counts as **booked** or **forecast** follows from the date
+  (past days = booked, today and later = forecast). There is **no** `kind` field.
+- **Error format:** `{ "error": "<German message>" }` with a matching HTTP status.
+- **Request body limit:** 2 MiB. Unknown JSON fields are rejected (`400`).
+- **Partial updates (`PUT`):** only the fields you send are changed. For the
+  project date fields, `""` means "clear the window" and omitting the field means
+  "leave unchanged".
 
-### Statuscodes
+### Status codes
 
-| Code | Bedeutung |
-|------|-----------|
+| Code  | Meaning |
+|-------|---------|
 | `200` | OK |
-| `201` | Ressource angelegt |
-| `400` | Ungültige Eingabe (Body, Parameter, Validierung) |
-| `401` | Token fehlt oder ist ungültig |
-| `403` | Lese-Token auf Schreib-Endpunkt |
-| `404` | Ressource nicht gefunden |
-| `409` | Konflikt (z. B. automatisch verwaltetes Urlaubsprojekt) |
-| `503` | API deaktiviert (keine Tokens konfiguriert) |
+| `201` | Resource created |
+| `400` | Invalid input (body, parameter, validation) |
+| `401` | Token missing or invalid |
+| `403` | Read token used on a write endpoint |
+| `404` | Resource not found |
+| `409` | Conflict (e.g. the auto-managed vacation project) |
+| `503` | API disabled (no tokens configured) |
 
 ---
 
-## Endpunkte – Übersicht
+## Endpoint overview
 
-| Methode | Pfad | Scope | Zweck |
-|---------|------|-------|-------|
-| `GET`    | `/api/v1/data` | read | Gesamtes Dokument |
-| `GET`    | `/api/v1/settings` | read | Globale + Pro-FY-Einstellungen |
-| `GET`    | `/api/v1/projects` | read | Projekte (FY-gefiltert) |
-| `GET`    | `/api/v1/projects/summary` | read | Berechnete Stunden je Projekt (Verbraucht/Rest/Auslastung) |
-| `GET`    | `/api/v1/projects/{id}` | read | Einzelnes Projekt |
-| `GET`    | `/api/v1/entries` | read | Einträge (gefiltert) |
-| `GET`    | `/api/v1/goal` | read | Ziel-/Kapazitätsübersicht |
-| `POST`   | `/api/v1/entries/sync` | write | Einträge upserten (Kern-Sync) |
-| `POST`   | `/api/v1/projects` | write | Projekt anlegen |
-| `PUT`    | `/api/v1/projects/{id}` | write | Projekt ändern |
-| `DELETE` | `/api/v1/projects/{id}` | write | Projekt löschen |
-| `PUT`    | `/api/v1/settings` | write | Globale Einstellungen ändern |
-| `PUT`    | `/api/v1/settings/fiscal-years/{year}` | write | Pro-FY-Einstellungen ändern |
+| Method   | Path | Scope | Purpose |
+|----------|------|-------|---------|
+| `GET`    | `/api/v1/data` | read | Whole document |
+| `GET`    | `/api/v1/settings` | read | Global + per-FY settings |
+| `GET`    | `/api/v1/projects` | read | Projects (filtered by FY) |
+| `GET`    | `/api/v1/projects/summary` | read | Computed hours per project (consumed/remaining/utilization) |
+| `GET`    | `/api/v1/projects/{id}` | read | Single project |
+| `GET`    | `/api/v1/entries` | read | Entries (filtered) |
+| `GET`    | `/api/v1/goal` | read | Goal/capacity summary |
+| `POST`   | `/api/v1/entries/sync` | write | Upsert entries (the core sync) |
+| `POST`   | `/api/v1/projects` | write | Create a project |
+| `PUT`    | `/api/v1/projects/{id}` | write | Update a project |
+| `DELETE` | `/api/v1/projects/{id}` | write | Delete a project |
+| `PUT`    | `/api/v1/settings` | write | Update global settings |
+| `PUT`    | `/api/v1/settings/fiscal-years/{year}` | write | Update per-FY settings |
+
+> The web UI additionally exposes `GET /healthz` (liveness probe) and
+> `GET /export` (JSON download). Both live outside `/api/v1` and need no token.
 
 ---
 
-## Lesen
+## Reading
 
 ### `GET /api/v1/data`
-Gibt das komplette Dokument zurück (`settings`, `fiscalYears`, `projects`,
-`entries`). Der KI-API-Key wird immer entfernt.
+Returns the complete document (`settings`, `fiscalYears`, `projects`,
+`entries`). The AI API key is always redacted.
 
 ```bash
 curl -H "Authorization: Bearer $READ" https://host/api/v1/data
@@ -103,13 +111,13 @@ curl -H "Authorization: Bearer $READ" https://host/api/v1/data
 ```
 
 ### `GET /api/v1/projects`
-Query-Parameter:
+Query parameters:
 
-| Parameter | Beschreibung |
-|-----------|--------------|
-| _(keiner)_ | nur Projekte des **aktiven** Fiskaljahres |
-| `fiscalYear=YYYY` | Projekte des angegebenen FY |
-| `all=true` | Projekte **aller** Fiskaljahre |
+| Parameter | Description |
+|-----------|-------------|
+| _(none)_  | only projects of the **active** fiscal year |
+| `fiscalYear=YYYY` | projects of the given FY |
+| `all=true` | projects of **all** fiscal years |
 
 ```bash
 curl -H "Authorization: Bearer $READ" "https://host/api/v1/projects?fiscalYear=2027"
@@ -119,11 +127,10 @@ curl -H "Authorization: Bearer $READ" "https://host/api/v1/projects?fiscalYear=2
 ```
 
 ### `GET /api/v1/projects/summary`
-Liefert die **berechneten** Stunden je Projekt für ein Fiskaljahr (Standard:
-aktives FY, oder `?fiscalYear=YYYY`) – dieselben Zahlen wie die Projekte-Seite:
-Budget, Forecast, Ist, **effektiv verbraucht** (Ist überschreibt Forecast pro
-Tag) sowie Restbudget und Auslastung. Damit muss der Client die Einträge nicht
-selbst aggregieren.
+Returns the **computed** hours per project for a fiscal year (default: the
+active FY, or `?fiscalYear=YYYY`) — the same figures the projects page shows:
+budget, forecast, booked, consumed, remaining budget and utilization. This
+saves the client from aggregating the entries itself.
 
 ```bash
 curl -H "Authorization: Bearer $READ" "https://host/api/v1/projects/summary"
@@ -136,29 +143,36 @@ curl -H "Authorization: Bearer $READ" "https://host/api/v1/projects/summary"
     {
       "id": "abc", "assignmentId": "5641245", "name": "Projekt A", "fiscalYear": 2027,
       "budgetHours": 200, "forecastHours": 120, "actualHours": 42,
-      "consumedHours": 150, "remainingHours": 50, "utilizationPct": 75,
+      "consumedHours": 162, "remainingHours": 38, "utilizationPct": 81,
       "startDate": "2026-07-01", "endDate": "2027-06-30",
-      "remainingWorkdays": 180, "requiredPerWorkday": 0.28, "outOfWindow": 0
+      "remainingWorkdays": 180, "requiredPerWorkday": 0.21, "outOfWindow": 0
     }
   ]
 }
 ```
-`consumedHours` ist die Summe aller Stunden (gebucht + Forecast), `forecastHours`
-zählt die zukünftigen (ab heute), `actualHours` die vergangenen Tage,
-`remainingHours` = `budgetHours − consumedHours`, `utilizationPct` =
-`consumedHours / budgetHours × 100`.
+
+| Field | Meaning |
+|-------|---------|
+| `forecastHours` | hours on today and future days |
+| `actualHours` | hours on past days (booked) |
+| `consumedHours` | all hours: `forecastHours + actualHours` |
+| `remainingHours` | `budgetHours − consumedHours` |
+| `utilizationPct` | `consumedHours / budgetHours × 100` |
+| `remainingWorkdays` | working days (Mon–Fri minus holidays) from today to the window end |
+| `requiredPerWorkday` | `remainingHours / remainingWorkdays` |
+| `outOfWindow` | hours booked outside the project's booking window |
 
 ### `GET /api/v1/projects/{id}`
-Einzelnes Projekt oder `404`.
+A single project, or `404`.
 
 ### `GET /api/v1/entries`
-Query-Parameter (alle optional, kombinierbar):
+Query parameters (all optional, combinable):
 
-| Parameter | Beschreibung |
-|-----------|--------------|
-| `from=YYYY-MM-DD` | nur Einträge ab (inkl.) diesem Datum |
-| `to=YYYY-MM-DD`   | nur Einträge bis (inkl.) diesem Datum |
-| `projectId=<id>`  | nur dieses Projekt |
+| Parameter | Description |
+|-----------|-------------|
+| `from=YYYY-MM-DD` | only entries on or after this date |
+| `to=YYYY-MM-DD`   | only entries on or before this date |
+| `projectId=<id>`  | only this project |
 
 ```bash
 curl -H "Authorization: Bearer $READ" \
@@ -169,21 +183,22 @@ curl -H "Authorization: Bearer $READ" \
 ```
 
 ### `GET /api/v1/goal`
-Ziel-/Kapazitätsübersicht des aktiven FY, oder `?year=YYYY` für ein anderes FY.
+Goal/capacity summary of the active FY, or `?year=YYYY` for another one.
 
 ---
 
-## Schreiben
+## Writing
 
-### `POST /api/v1/entries/sync` — Kern-Synchronisation
+### `POST /api/v1/entries/sync` — the core synchronization
 
-Upsert eines Stapels von Einträgen. Schlüssel je Eintrag: **(date, projectId)**.
+Upserts a batch of entries. The key of each item is **(date, projectId)**.
 
-- Existiert der Schlüssel bereits, werden die Stunden **überschrieben**, sonst **neu angelegt**.
-- `hours: 0` **löscht** einen vorhandenen Eintrag (zum Leeren von Tagen).
-- Einträge, die auf ein **unbekanntes Projekt** verweisen oder deren Datum
-  **außerhalb des Buchungszeitraums** des Projekts liegt, werden übersprungen und
-  gemeldet – der Rest des Stapels wird trotzdem angewendet.
+- If the key already exists the hours are **overwritten**, otherwise a new entry
+  is **created**.
+- `hours: 0` **deletes** an existing entry (to clear a day).
+- Items referring to an **unknown project**, or whose date lies **outside the
+  project's booking window**, are skipped and reported — the rest of the batch is
+  still applied.
 
 **Request**
 ```json
@@ -201,8 +216,8 @@ Upsert eines Stapels von Einträgen. Schlüssel je Eintrag: **(date, projectId)*
 { "upserted": 2, "deleted": 1, "skipped": [] }
 ```
 
-`skipped` enthält bei Bedarf `{ "index": <n>, "reason": "<grund>" }` für jeden
-verworfenen Eintrag (Index bezieht sich auf das gesendete Array).
+When needed, `skipped` contains `{ "index": <n>, "reason": "<reason>" }` for
+every discarded item (the index refers to the array you sent).
 
 ```bash
 curl -X POST https://host/api/v1/entries/sync \
@@ -210,36 +225,36 @@ curl -X POST https://host/api/v1/entries/sync \
   -d '{"entries":[{"date":"2026-07-01","projectId":"abc","hours":6}]}'
 ```
 
-> **Projekt-IDs**: Ein externes Tool ermittelt die IDs vorab über
-> `GET /api/v1/projects`. IDs sind stabil und serverseitig vergeben.
+> **Project IDs**: an external tool resolves the IDs up front via
+> `GET /api/v1/projects`. IDs are stable and assigned server-side.
 
-### `POST /api/v1/projects` — anlegen
+### `POST /api/v1/projects` — create
 
-Die `id` wird **serverseitig** erzeugt und zurückgegeben.
+The `id` is generated **server-side** and returned.
 
-| Feld | Pflicht | Standard |
-|------|---------|----------|
-| `name` | ja | – |
-| `assignmentId` | ja | – |
-| `budgetHours` | nein | `0` |
-| `color` | nein | zufällig aus Palette (`#rrggbb`) |
-| `active` | nein | `true` |
-| `fiscalYear` | nein | aktives FY |
-| `startDate` / `endDate` | nein | leer (ganzes FY) |
+| Field | Required | Default |
+|-------|----------|---------|
+| `name` | yes | – |
+| `assignmentId` | yes | – |
+| `budgetHours` | no | `0` |
+| `color` | no | random from the palette (`#rrggbb`) |
+| `active` | no | `true` |
+| `fiscalYear` | no | active FY |
+| `startDate` / `endDate` | no | empty (whole FY) |
 
 ```bash
 curl -X POST https://host/api/v1/projects \
   -H "Authorization: Bearer $WRITE" -H "Content-Type: application/json" \
   -d '{"name":"Neues Projekt","assignmentId":"5641245","budgetHours":120,"fiscalYear":2027}'
 ```
-**Response** `201` – das angelegte Projekt inkl. `id`.
+**Response** `201` — the created project including its `id`.
 
-### `PUT /api/v1/projects/{id}` — ändern
+### `PUT /api/v1/projects/{id}` — update
 
-Teil-Update: nur mitgeschickte Felder (`name`, `assignmentId`, `budgetHours`, `color`,
-`active`, `fiscalYear`, `startDate`, `endDate`) werden geändert. Beim **Urlaubsprojekt**
-wird `budgetHours` ignoriert (es ergibt sich aus den Urlaubstagen der FY-Einstellungen),
-alle anderen Felder sind änderbar. Unbekannte `id` → `404`.
+Partial update: only the fields you send (`name`, `assignmentId`, `budgetHours`,
+`color`, `active`, `fiscalYear`, `startDate`, `endDate`) are changed. For the
+**vacation project** `budgetHours` is ignored (it is derived from the vacation
+days in the FY settings); every other field is editable. Unknown `id` → `404`.
 
 ```bash
 curl -X PUT https://host/api/v1/projects/abc \
@@ -247,10 +262,10 @@ curl -X PUT https://host/api/v1/projects/abc \
   -d '{"budgetHours":150,"active":false}'
 ```
 
-### `DELETE /api/v1/projects/{id}` — löschen
+### `DELETE /api/v1/projects/{id}` — delete
 
-Löscht das Projekt **und alle zugehörigen Einträge**. Urlaubsprojekt → `409`,
-unbekannte `id` → `404`.
+Deletes the project **and all of its entries**. Vacation project → `409`,
+unknown `id` → `404`.
 
 ```bash
 curl -X DELETE https://host/api/v1/projects/abc -H "Authorization: Bearer $WRITE"
@@ -259,12 +274,12 @@ curl -X DELETE https://host/api/v1/projects/abc -H "Authorization: Bearer $WRITE
 { "status": "gelöscht", "id": "abc" }
 ```
 
-### `PUT /api/v1/settings` — globale Einstellungen
+### `PUT /api/v1/settings` — global settings
 
-Teil-Update. Felder: `year` (aktives FY), `federalState` (Bundesland-Kürzel,
-z. B. `BY`), `weeklyTargetHours`, `fiscalYearStartMonth` (1–12), `utilization`
-(Ampel-Schwellen/Labels) und `ai` (`endpoint`/`deployment`/`apiVersion` –
-**kein** Key). Ungültige Werte → `400`.
+Partial update. Fields: `year` (active FY), `federalState` (state code, e.g.
+`BY`), `weeklyTargetHours`, `fiscalYearStartMonth` (1–12), `utilization`
+(traffic-light thresholds/labels) and `ai` (`endpoint`/`deployment`/`apiVersion`
+— **no** key). Invalid values → `400`.
 
 ```bash
 curl -X PUT https://host/api/v1/settings \
@@ -272,12 +287,12 @@ curl -X PUT https://host/api/v1/settings \
   -d '{"federalState":"SN","weeklyTargetHours":40,"fiscalYearStartMonth":7}'
 ```
 
-### `PUT /api/v1/settings/fiscal-years/{year}` — Pro-FY-Einstellungen
+### `PUT /api/v1/settings/fiscal-years/{year}` — per-FY settings
 
-Teil-Update der FY-Werte: `targetHours`, `vacationDaysH1`, `vacationDaysH2`
-(0–366), `standardTaskLabel`, `standardTaskHours`. Das **Urlaubsbudget** des
-Urlaubsprojekts wird automatisch auf `(vacationDaysH1 + vacationDaysH2) × 8 h`
-synchronisiert.
+Partial update of the FY values: `targetHours`, `vacationDaysH1`,
+`vacationDaysH2` (0–366), `standardTaskLabel`, `standardTaskHours`. The
+**vacation budget** of the vacation project is automatically synchronized to
+`(vacationDaysH1 + vacationDaysH2) × 8 h`.
 
 ```bash
 curl -X PUT https://host/api/v1/settings/fiscal-years/2027 \
@@ -290,13 +305,13 @@ curl -X PUT https://host/api/v1/settings/fiscal-years/2027 \
 
 ---
 
-## Beispiel: Ist-Stunden vom Desktop synchronisieren
+## Example: synchronizing booked hours from the desktop
 
-1. Projekte und deren IDs abrufen:
+1. Fetch the projects and their IDs:
    ```bash
    curl -H "Authorization: Bearer $READ" "https://host/api/v1/projects?all=true"
    ```
-2. Ist-Stunden der letzten Woche pushen (Upsert je Tag/Projekt):
+2. Push last week's booked hours (upsert per day/project):
    ```bash
    curl -X POST https://host/api/v1/entries/sync \
      -H "Authorization: Bearer $WRITE" -H "Content-Type: application/json" \
@@ -306,11 +321,11 @@ curl -X PUT https://host/api/v1/settings/fiscal-years/2027 \
        {"date":"2026-07-21","projectId":"xyz","hours":2}
      ]}'
    ```
-3. Kontrolle:
+3. Verify:
    ```bash
    curl -H "Authorization: Bearer $READ" \
      "https://host/api/v1/entries?from=2026-07-20&to=2026-07-24"
    ```
 
-Da der Sync idempotent ist, kann derselbe Zeitraum beliebig oft übertragen
-werden – gleiche Schlüssel werden überschrieben, `hours=0` entfernt einen Tag.
+Because the sync is idempotent, the same period can be transferred as often as
+you like — identical keys are overwritten and `hours=0` removes a day.

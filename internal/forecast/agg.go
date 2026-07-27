@@ -171,12 +171,17 @@ func vacationSet(ps []models.Project) map[string]bool {
 
 // BuildWeek assembles the Mon-Fri view for one fiscal-year week.
 func BuildWeek(d models.Data, cal *holidays.Calendar, week int) WeekView {
+	return buildWeek(d, cal, week, hoursIndex(d.Entries), todayISO())
+}
+
+// buildWeek is the shared implementation of BuildWeek. It takes the pre-built
+// hours index and today's date so a multi-week span does not have to rebuild
+// them for every single week.
+func buildWeek(d models.Data, cal *holidays.Calendar, week int, hidx map[string]float64, today string) WeekView {
 	year := d.Settings.Year
 	startMonth := d.Settings.FiscalYearStartMonth
 	monday := FYWeekMonday(year, startMonth, week)
 	fyStart, fyEnd := FiscalYear(year, startMonth)
-	hidx := hoursIndex(d.Entries)
-	today := todayISO()
 
 	_, isoWeek := monday.ISOWeek()
 	friday := monday.AddDate(0, 0, 4)
@@ -298,8 +303,11 @@ func BuildSpan(d models.Data, cal *holidays.Calendar, startWeek, weeks int) Span
 		MaxWeek:       max,
 		ProjectTotals: map[string]float64{},
 	}
+	// Build the hours index once for the whole span instead of once per week.
+	hidx := hoursIndex(d.Entries)
+	today := todayISO()
 	for i := 0; i < weeks; i++ {
-		wv := BuildWeek(d, cal, startWeek+i)
+		wv := buildWeek(d, cal, startWeek+i, hidx, today)
 		sv.Blocks = append(sv.Blocks, wv)
 		sv.Days = append(sv.Days, wv.Days...)
 		for pid, h := range wv.ProjectTotals {
@@ -634,7 +642,7 @@ type BurnPoint struct {
 
 // BuildBurndown returns the remaining-budget curve for one project over its
 // effective booking window, padded by one month before the start and one month
-// after the end. Hours are effective (actual where booked, else forecast).
+// after the end.
 func BuildBurndown(d models.Data, projectID, startISO, endISO string, budget float64) []BurnPoint {
 	start, errS := time.Parse("2006-01-02", startISO)
 	end, errE := time.Parse("2006-01-02", endISO)
@@ -647,36 +655,40 @@ func BuildBurndown(d models.Data, projectID, startISO, endISO string, budget flo
 	winStart := mondayOf(start.AddDate(0, -1, 0))
 	winEnd := end.AddDate(0, 1, 0)
 
-	// Hours per project per day.
-	hidx := hoursIndex(d.Entries)
-	daySum := make(map[string]float64)
-	hoursBefore := 0.0
-	for k, v := range hidx {
-		sep := strings.IndexByte(k, '|')
-		if k[sep+1:] != projectID {
-			continue
-		}
-		ds := k[:sep]
-		if t, err := time.Parse("2006-01-02", ds); err == nil && t.Before(winStart) {
-			hoursBefore += v
-			continue
-		}
-		daySum[ds] += v
+	weeks := int(winEnd.Sub(winStart).Hours()/24)/7 + 1
+	if weeks < 1 {
+		weeks = 1
 	}
 
-	var points []BurnPoint
-	cum := hoursBefore
-	for m := winStart; !m.After(winEnd); m = m.AddDate(0, 0, 7) {
-		weekEnd := m.AddDate(0, 0, 6)
-		for ds, v := range daySum {
-			t, err := time.Parse("2006-01-02", ds)
-			if err != nil {
-				continue
-			}
-			if !t.Before(m) && !t.After(weekEnd) {
-				cum += v
-			}
+	// Bucket the project's hours per week in a single pass over the entries.
+	// Each date is parsed exactly once, and its week index is derived
+	// arithmetically instead of by scanning the whole window per week.
+	perWeek := make([]float64, weeks)
+	hoursBefore := 0.0
+	for _, e := range d.Entries {
+		if e.ProjectID != projectID {
+			continue
 		}
+		t, err := time.Parse("2006-01-02", e.Date)
+		if err != nil {
+			continue
+		}
+		if t.Before(winStart) {
+			hoursBefore += e.Hours
+			continue
+		}
+		wi := int(t.Sub(winStart).Hours()/24) / 7
+		if wi < 0 || wi >= weeks {
+			continue // after the padded window
+		}
+		perWeek[wi] += e.Hours
+	}
+
+	points := make([]BurnPoint, 0, weeks)
+	cum := hoursBefore
+	m := winStart
+	for i := 0; i < weeks; i++ {
+		cum += perWeek[i]
 		yr, wk := m.ISOWeek()
 		points = append(points, BurnPoint{
 			ISOWeek:   wk,
@@ -684,6 +696,7 @@ func BuildBurndown(d models.Data, projectID, startISO, endISO string, budget flo
 			Year:      yr,
 			Remaining: round1(budget - cum),
 		})
+		m = m.AddDate(0, 0, 7)
 	}
 	return points
 }

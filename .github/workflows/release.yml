@@ -16,8 +16,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Gate the release on a green build. ci.yml runs in parallel on the same push,
+  # so without this job a failing test would still publish a new :latest image.
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: Test (race detector)
+        run: go test -race ./...
+
   release:
     name: Build, Push, Sign & Scan
+    needs: verify
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -27,6 +51,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3

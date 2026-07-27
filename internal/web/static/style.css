@@ -227,10 +227,10 @@ small.ist, td.num.ist, .kpi-value.ist { color: #0e7490; }
   color: #fff; font-size: 0.62rem; font-weight: 700; line-height: 1; flex: 0 0 auto;
 }
 .util-label { font-size: 0.85rem; }
-.util-min .util-dot { background: #2563eb; }   /* blau, Pfeil nach unten */
-.util-optimal .util-dot { background: #16a34a; } /* grün, OK */
-.util-high .util-dot { background: #f59e0b; }    /* orange, Pfeil nach oben */
-.util-over .util-dot { background: #dc2626; }    /* rot, X */
+.util-min .util-dot { background: #2563eb; }   /* blue, arrow down */
+.util-optimal .util-dot { background: #16a34a; } /* green, OK */
+.util-high .util-dot { background: #f59e0b; }    /* orange, arrow up */
+.util-over .util-dot { background: #dc2626; }    /* red, X */
 
 /* centered sum column in the forecast grid */
 .grid .sumcol { text-align: center; }
@@ -275,7 +275,7 @@ table.week.span .weeksum { width: 58px; padding-left: 0.25rem; padding-right: 0.
 table.week.span .grandsum { width: 66px; }
 table.week.span tbody td { border-bottom: 2px solid #cbd5e1; }
 
-/* centred daily totals in the forecast footer (Forecast/Tag, Ist/Tag) */
+/* centred daily totals in the forecast footer */
 table.week tfoot td.center { text-align: center; }
 
 /* burn-rate banner above the forecast grid */

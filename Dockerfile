@@ -1,14 +1,14 @@
-# ---- Build-Stage ----
-# Der Go-Compiler läuft nativ auf BUILDPLATFORM und cross-compiliert für
-# TARGETOS/TARGETARCH. Das vermeidet langsame QEMU-Emulation im Build.
+# ---- Build stage ----
+# The Go compiler runs natively on BUILDPLATFORM and cross-compiles for
+# TARGETOS/TARGETARCH. This avoids slow QEMU emulation during the build.
 FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
 WORKDIR /src
 
 ARG TARGETOS
 ARG TARGETARCH
 
-# Module zuerst laden, damit der BuildKit-Cache unveränderte Abhängigkeiten
-# zwischen Builds wiederverwenden kann.
+# Download modules first so BuildKit can reuse the cache for unchanged
+# dependencies between builds.
 COPY go.mod go.sum* ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
@@ -16,14 +16,14 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 COPY . .
 RUN mkdir -p /out/appdata
 
-# Statisches Binary für die Zielplattform bauen. Die Go-Caches sind sicher über
-# Architekturen hinweg nutzbar, weil GOOS/GOARCH Teil des Cache-Schlüssels sind.
+# Build a static binary for the target platform. The Go caches are safe to share
+# across architectures because GOOS/GOARCH are part of the cache key.
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-$(go env GOARCH)} \
     go build -trimpath -ldflags="-s -w" -o /out/forecast ./cmd/server
 
-# ---- Runtime-Stage ----
+# ---- Runtime stage ----
 FROM gcr.io/distroless/static:nonroot
 WORKDIR /app
 

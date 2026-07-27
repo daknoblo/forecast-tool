@@ -33,6 +33,7 @@ func (s *Server) handlePrivateToggle(w http.ResponseWriter, r *http.Request) {
 		Value:    "1",
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   isSecureRequest(r),
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   privateMaxAge,
 	}

@@ -112,7 +112,7 @@ func (s *Server) handleGetGoal(w http.ResponseWriter, r *http.Request) {
 		}
 		d.Settings.Year = year
 	}
-	cal := holidays.New(d.Settings.Year, d.Settings.FederalState)
+	cal := holidays.Get(d.Settings.Year, d.Settings.FederalState)
 	s.writeJSON(w, http.StatusOK, forecast.BuildGoalSummary(d, cal))
 }
 
@@ -153,7 +153,7 @@ func (s *Server) handleProjectsSummary(w http.ResponseWriter, r *http.Request) {
 	}
 	d.Settings.Year = year
 	d.Projects = models.ProjectsForFY(d.Projects, year)
-	cal := holidays.New(year, d.Settings.FederalState)
+	cal := holidays.Get(year, d.Settings.FederalState)
 	ys := forecast.BuildYearSummary(d, cal)
 	out := make([]projectSummaryOut, 0, len(ys.Projects))
 	for _, ps := range ys.Projects {

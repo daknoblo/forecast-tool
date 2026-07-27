@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -77,6 +78,20 @@ Regeln:
 - budgetHours ist das Gesamtbudget des Projekts; verwechsle es nicht mit standardTaskHours.
 Gib keinen erklärenden Text, keine Markdown-Codeblöcke und keine Kommentare aus – nur das reine JSON-Objekt.`
 
+// requestTimeout bounds a single AI call. Model routers can be slow, but a
+// request must not hang a UI handler forever.
+const requestTimeout = 120 * time.Second
+
+// httpClient is used instead of http.DefaultClient so redirects are refused:
+// the secret key travels in a custom "api-key" header, which Go would happily
+// forward to whatever host a redirect points at.
+var httpClient = &http.Client{
+	Timeout: requestTimeout + 30*time.Second,
+	CheckRedirect: func(*http.Request, []*http.Request) error {
+		return errors.New("Weiterleitung abgelehnt (der API-Key darf nicht an ein anderes Ziel gesendet werden)")
+	},
+}
+
 // Generate sends the prompt and current JSON to the configured endpoint and
 // returns the model's JSON response (with any markdown fences stripped). It logs
 // request/response metadata (never the API key) via the provided logger to ease
@@ -120,7 +135,7 @@ func Generate(ctx context.Context, cfg models.AISettings, prompt, currentJSON st
 		"endpoint", endpoint, "deployment", deployment, "apiVersion", apiVersion,
 		"promptChars", len(prompt), "inputJSONChars", len(currentJSON))
 
-	ctx, cancel := context.WithTimeout(ctx, 120*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
@@ -131,7 +146,7 @@ func Generate(ctx context.Context, cfg models.AISettings, prompt, currentJSON st
 	req.Header.Set("api-key", apiKey)
 
 	start := time.Now()
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		logger.Error("ai endpoint unreachable", "error", err, "deployment", deployment)
 		return "", fmt.Errorf("KI-Endpoint nicht erreichbar: %w", err)

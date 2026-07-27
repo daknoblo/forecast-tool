@@ -32,8 +32,8 @@ func main() {
 	logger, logPath, closeLog := logging.Setup(dataDir)
 	defer func() { _ = closeLog() }()
 	slog.SetDefault(logger)
-	// Standard-Logger über slog leiten, damit Ausgaben im Container-Log und in
-	// der rotierenden Logdatei landen.
+	// Route the standard logger through slog so its output also ends up in the
+	// container log and the rotating log file.
 	log.SetFlags(0)
 	log.SetOutput(slogWriter{logger})
 	if logPath != "" {
@@ -53,22 +53,41 @@ func main() {
 	}
 
 	httpSrv := &http.Server{
-		Addr:              addr,
-		Handler:           srv.Handler(),
+		Addr:    addr,
+		Handler: srv.Handler(),
+		// Bound how long a slow or stalled client may occupy a connection.
+		// WriteTimeout is deliberately left unset: POST /data/ai proxies a call
+		// to a remote AI endpoint that may legitimately run for minutes.
 		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       60 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    1 << 20,
+		ErrorLog:          slog.NewLogLogger(logger.Handler(), slog.LevelError),
 	}
 
+	serveErr := make(chan error, 1)
 	go func() {
 		logger.Info("forecast-tool listening", "addr", addr, "data", dataPath)
 		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			logger.Error("listen failed", "error", err)
-			os.Exit(1)
+			serveErr <- err
 		}
+		close(serveErr)
 	}()
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
-	<-stop
+
+	// Exit on either a shutdown signal or a fatal listen error, so a failed
+	// bind still runs the deferred log-file close.
+	select {
+	case err := <-serveErr:
+		if err != nil {
+			logger.Error("listen failed", "error", err)
+			_ = closeLog()
+			os.Exit(1)
+		}
+	case <-stop:
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -77,7 +96,7 @@ func main() {
 	}
 }
 
-// slogWriter leitet Standard-Logausgaben als Info-Einträge an slog weiter.
+// slogWriter forwards standard-library log output to slog as info records.
 type slogWriter struct{ l *slog.Logger }
 
 func (w slogWriter) Write(p []byte) (int, error) {
