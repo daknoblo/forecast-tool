@@ -927,6 +927,10 @@ var SankeyRanges = []SankeyRange{
 // requested.
 const SankeyDefaultRange = "4w"
 
+// SankeyMaxOffset bounds how far the horizon may be shifted into the past or
+// future, so a hand-crafted query parameter cannot cause pointless work.
+const SankeyMaxOffset = 260
+
 // NormalizeSankeyRange returns key when it is a known range, else the default.
 func NormalizeSankeyRange(key string) string {
 	for _, r := range SankeyRanges {
@@ -939,19 +943,26 @@ func NormalizeSankeyRange(key string) string {
 
 // SankeyBucket is one time column (a week or a month) of the utilization flow.
 // Total is the summed planned project hours in the bucket; Hours holds the
-// per-project split that drives the stacked bands.
+// per-project split that drives the stacked bands. The capacity figures make
+// the remaining free time of the bucket explicit.
 type SankeyBucket struct {
-	Label    string             // primary axis label (e.g. "KW30" or "Jul")
-	SubLabel string             // secondary label (start date or year)
-	Total    float64            // summed planned hours over all projects
-	Hours    map[string]float64 // projectID -> planned hours in this bucket
+	Label         string             // primary axis label (e.g. "KW30" or "Jul")
+	SubLabel      string             // secondary label (start date or year)
+	Total         float64            // summed planned hours over all projects
+	Hours         map[string]float64 // projectID -> planned hours in this bucket
+	WeekdayHours  float64            // in-FY weekdays (Mon-Fri) in the bucket * 8h
+	HolidayHours  float64            // public holidays among those weekdays * 8h
+	VacationHours float64            // planned vacation hours in the bucket
+	VacationDays  float64            // VacationHours / 8h
+	CapacityHours float64            // WeekdayHours - HolidayHours - VacationHours
+	FreeHours     float64            // CapacityHours - Total (negative = overbooked)
 }
 
 // SankeyData is the dashboard utilization time-flow. Buckets are evenly spaced
 // columns (weeks or months) drawn across the full width; each project forms a
 // coloured band whose height is proportional to its planned hours, connected by
-// ribbons between adjacent buckets. The auto-managed vacation project is
-// excluded, matching the weekly traffic-light and the FY goal.
+// ribbons between adjacent buckets. The vacation project is not part of the
+// bands (it is reported per bucket instead) and never counts towards Total.
 type SankeyData struct {
 	RangeKey      string             // selected range key
 	Unit          string             // "week" | "month" bucket granularity
@@ -961,6 +972,20 @@ type SankeyData struct {
 	Total         float64            // grand total planned hours over the span
 	MaxBucket     float64            // largest single-bucket total (vertical scale)
 	RangeLabel    string             // whole-span range, DD.MM.YYYY – DD.MM.YYYY
+
+	// Horizon shifting: the span can be moved backwards/forwards in whole spans
+	// so past weeks/months can be reviewed.
+	Offset     int  // applied shift in spans (0 = the current one)
+	PrevOffset int  // offset of the previous span
+	NextOffset int  // offset of the next span
+	CanPrev    bool // false when the span already starts at the FY start
+	CanNext    bool // false when the span already ends at the FY end
+
+	// Capacity roll-up over the whole span (drives the free-time chart).
+	VacationTotal float64 // planned vacation hours over the span
+	CapacityTotal float64 // available working hours over the span
+	FreeTotal     float64 // CapacityTotal - Total
+	MaxFree       float64 // largest absolute per-bucket free/overbooked value
 }
 
 // sankeySpan resolves a range key into a fiscal-year week window (1-based start
@@ -991,28 +1016,72 @@ func sankeySpan(year, startMonth, curWeek int, key string) (startWeek, weeks int
 	}
 }
 
+// shiftSankeySpan moves a span of `weeks` weeks starting at baseWeek by `offset`
+// whole spans and clamps the result into the fiscal year. It returns the
+// resulting start week together with the offset that actually took effect, so
+// the navigation links never point outside the fiscal year.
+func shiftSankeySpan(baseWeek, weeks, maxW, offset int) (startWeek, applied int) {
+	if weeks < 1 {
+		weeks = 1
+	}
+	if offset > SankeyMaxOffset {
+		offset = SankeyMaxOffset
+	}
+	if offset < -SankeyMaxOffset {
+		offset = -SankeyMaxOffset
+	}
+	maxStart := maxW - weeks + 1
+	if maxStart < 1 {
+		maxStart = 1
+	}
+	if baseWeek < 1 {
+		baseWeek = 1
+	}
+	if baseWeek > maxStart {
+		baseWeek = maxStart
+	}
+	// Clamp flush against the fiscal-year border (rather than stepping back a
+	// whole span) so the last span ends exactly at the FY end and CanPrev/CanNext
+	// turn off precisely there.
+	startWeek = baseWeek + offset*weeks
+	if startWeek < 1 {
+		startWeek = 1
+	}
+	if startWeek > maxStart {
+		startWeek = maxStart
+	}
+	// Report the offset that actually took effect. A clamped span that is still
+	// off the default start counts as shifted, so the UI can offer a way back.
+	delta := startWeek - baseWeek
+	applied = delta / weeks
+	if applied == 0 && delta != 0 {
+		applied = -1
+		if delta > 0 {
+			applied = 1
+		}
+	}
+	return startWeek, applied
+}
+
 // BuildSankey aggregates planned project hours into week or month buckets over
-// the horizon selected by rangeKey, for the dashboard utilization Sankey. Only
-// days within the fiscal year are counted; the vacation project is excluded.
-func BuildSankey(d models.Data, rangeKey string) SankeyData {
+// the horizon selected by rangeKey, for the dashboard utilization Sankey. The
+// horizon can be shifted by whole spans via offset (negative = into the past).
+// Only days within the fiscal year are counted; vacation hours are reported per
+// bucket instead of being part of the stacked bands.
+func BuildSankey(d models.Data, cal *holidays.Calendar, rangeKey string, offset int) SankeyData {
 	year := d.Settings.Year
 	startMonth := normMonth(d.Settings.FiscalYearStartMonth)
 	rangeKey = NormalizeSankeyRange(rangeKey)
 	cur := CurrentFYWeek(year, startMonth)
 	maxW := FYWeeks(year, startMonth)
-	startWeek, weeks, unit := sankeySpan(year, startMonth, cur, rangeKey)
-	if startWeek < 1 {
-		startWeek = 1
-	}
-	if startWeek > maxW {
-		startWeek = maxW
-	}
+	baseWeek, weeks, unit := sankeySpan(year, startMonth, cur, rangeKey)
 	if weeks < 1 {
 		weeks = 1
 	}
-	if startWeek+weeks-1 > maxW {
-		weeks = maxW - startWeek + 1
+	if weeks > maxW {
+		weeks = maxW
 	}
+	startWeek, offset := shiftSankeySpan(baseWeek, weeks, maxW, offset)
 
 	fyStart, fyEnd := FiscalYear(year, startMonth)
 	fyStartISO := fyStart.Format("2006-01-02")
@@ -1024,10 +1093,15 @@ func BuildSankey(d models.Data, rangeKey string) SankeyData {
 		RangeKey:      rangeKey,
 		Unit:          unit,
 		ProjectTotals: map[string]float64{},
+		Offset:        offset,
+		PrevOffset:    offset - 1,
+		NextOffset:    offset + 1,
+		CanPrev:       startWeek > 1,
+		CanNext:       startWeek+weeks-1 < maxW,
 	}
 
-	// add accumulates one in-FY day's per-project hours into a bucket and tracks
-	// the visible date span for the range label.
+	// add accumulates one in-FY weekday's per-project hours and capacity into a
+	// bucket and tracks the visible date span for the range label.
 	var firstISO, lastISO string
 	add := func(b *SankeyBucket, iso string) {
 		if iso < fyStartISO || iso > fyEndISO {
@@ -1037,12 +1111,17 @@ func BuildSankey(d models.Data, rangeKey string) SankeyData {
 			firstISO = iso
 		}
 		lastISO = iso
+		b.WeekdayHours += HolidayDayHours
+		if cal.IsHoliday(iso) {
+			b.HolidayHours += HolidayDayHours
+		}
 		for _, p := range d.Projects {
-			if vac[p.ID] {
-				continue
-			}
 			h := hidx[iso+"|"+p.ID]
 			if h == 0 {
+				continue
+			}
+			if vac[p.ID] {
+				b.VacationHours += h
 				continue
 			}
 			b.Hours[p.ID] += h
@@ -1126,13 +1205,29 @@ func BuildSankey(d models.Data, rangeKey string) SankeyData {
 	for pid, tot := range data.ProjectTotals {
 		data.ProjectTotals[pid] = round1(tot)
 	}
-	for _, bk := range data.Buckets {
+	for i := range data.Buckets {
+		bk := &data.Buckets[i]
+		bk.VacationHours = round1(bk.VacationHours)
+		bk.VacationDays = round1(bk.VacationHours / HolidayDayHours)
+		bk.CapacityHours = round1(bk.WeekdayHours - bk.HolidayHours - bk.VacationHours)
+		bk.FreeHours = round1(bk.CapacityHours - bk.Total)
+
 		data.Total += bk.Total
+		data.VacationTotal += bk.VacationHours
+		data.CapacityTotal += bk.CapacityHours
 		if bk.Total > data.MaxBucket {
 			data.MaxBucket = bk.Total
 		}
+		if f := bk.FreeHours; f > data.MaxFree {
+			data.MaxFree = f
+		} else if -f > data.MaxFree {
+			data.MaxFree = -f
+		}
 	}
 	data.Total = round1(data.Total)
+	data.VacationTotal = round1(data.VacationTotal)
+	data.CapacityTotal = round1(data.CapacityTotal)
+	data.FreeTotal = round1(data.CapacityTotal - data.Total)
 	if firstISO != "" {
 		data.RangeLabel = formatDayDot(firstISO) + " – " + formatDayDot(lastISO)
 	}

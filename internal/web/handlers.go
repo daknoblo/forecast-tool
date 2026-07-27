@@ -148,7 +148,8 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	ys := forecast.BuildYearSummary(d, s.calendar(d))
 	projects := forecast.SortedProjects(d.Projects)
 	fyStart, fyEnd := forecast.FiscalYear(d.Settings.Year, d.Settings.FiscalYearStartMonth)
-	sankey := forecast.BuildSankey(d, r.URL.Query().Get("sankey"))
+	sankeyOffset, _ := strconv.Atoi(trim(r.URL.Query().Get("soff")))
+	sankey := forecast.BuildSankey(d, s.calendar(d), r.URL.Query().Get("sankey"), sankeyOffset)
 	s.render(w, "dashboard.html", map[string]any{
 		"Active":       "dashboard",
 		"Wide":         true,
@@ -162,6 +163,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		"Sankey":       sankey,
 		"SankeyRanges": forecast.SankeyRanges,
 		"SankeySVG":    sankeySVG(sankey),
+		"FreeTimeSVG":  freeTimeSVG(sankey),
 	})
 }
 

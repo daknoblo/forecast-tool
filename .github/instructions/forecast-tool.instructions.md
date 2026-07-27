@@ -117,7 +117,8 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
   Verteilen). Sie **zählen in die Wochen-Auslastungs-Ampel** (`BuildWeek`/`BuildSpan`
   `Total`, `BuildYearSummary` `WeekTotals`), weil Urlaub verfügbare Arbeitszeit
   verbraucht, aber **nicht aufs FY-Ziel** (`BuildGoalSummary` überspringt Urlaub via
-  `vacationSet`). Im Dashboard-Sankey ist Urlaub (vorerst) ebenfalls ausgeschlossen.
+  `vacationSet`). Im Dashboard-Sankey ist Urlaub kein Bündel-Band, sondern erscheint als
+  grauer Block in der Achsenzone und reduziert die Kapazität im Freie-Zeit-Diagramm.
   Der pauschale Urlaubsabzug in der FY-Kapazität (Ziele-Seite) bleibt bestehen.
   Projekte-Seite zeigt zusätzlich das Badge „automatisch · Urlaub“.
 - AI-Blueprint (`internal/ai`) enthält das Urlaubsprojekt inkl. `system`-Feld; die KI darf
@@ -179,16 +180,30 @@ sammelt alle bisher formulierten Anforderungen als verbindliche Referenz.
 - **Dashboard-Auslastungs-Sankey:** Die Dashboard-Seite ist `Wide` (volle Breite) und
   zeigt – nach den KPI-Karten, vor „Budgets“ – eine Karte „Auslastung“ mit einem
   serverseitig gerenderten, JS-freien Sankey/Alluvial-Diagramm (`web.sankeySVG` aus
-  `forecast.BuildSankey`). Darüber Zeitraum-Umschalter (`forecast.SankeyRanges`:
-  1 Woche/2 Wochen/4 Wochen/2 Monate/3 Monate/Halbjahr/Fiskaljahr) als `.chip`-Links
-  (`GET /?sankey=<key>`, Default `4w`, unbekannt → Default via `NormalizeSankeyRange`).
-  Buckets sind Wochen (bis 2 Monate) bzw. Monate (ab 3 Monaten, Halbjahr, Fiskaljahr);
+  `forecast.BuildSankey`). Darüber eine zentrierte Steuerzeile (`.sankey-ctl`):
+  `‹ zurück` / `weiter ›` als `.btn.nav-btn` flankieren die Zeitraum-Umschalter
+  (`forecast.SankeyRanges`: 1 Woche/2 Wochen/4 Wochen/2 Monate/3 Monate/Halbjahr/
+  Fiskaljahr) als `.chip`-Links (`GET /?sankey=<key>`, Default `4w`, unbekannt →
+  Default via `NormalizeSankeyRange`).
+- **Zeitraum verschieben:** `GET /?sankey=<key>&soff=<n>` verschiebt den Zeitraum um
+  ganze Spannen (negativ = rückwirkend), `forecast.shiftSankeySpan` klemmt bündig an die
+  FY-Grenzen (`SankeyMaxOffset` begrenzt den Parameter). `SankeyData.CanPrev/CanNext`
+  steuern die `.disabled`-Buttons, `Offset != 0` blendet den Link „zurück zum aktuellen“
+  ein. Ein Wechsel des Zeitraums setzt den Offset zurück (Chips ohne `soff`).
+- Buckets sind Wochen (bis 2 Monate) bzw. Monate (ab 3 Monaten, Halbjahr, Fiskaljahr);
   nur Tage **innerhalb des FY** zählen. Projekte sind farbige, gestapelte Bänder (Höhe ∝
   geplante Stunden, Ribbons zwischen benachbarten Buckets, Stapelreihenfolge nach
-  Gesamtstunden); das **Urlaubsprojekt ist ausgeschlossen** (Auslastungs-Konvention).
-  Vertikale Trenner grenzen die Wochen/Monate ab, jede Spalte ist mit den **summierten
-  geplanten Projektstunden** beschriftet; Summe und eine Legende (Stunden je Projekt)
-  stehen darunter.
+  Gesamtstunden); das **Urlaubsprojekt ist kein Band**. Vertikale Trenner grenzen die
+  Wochen/Monate ab, jede Spalte ist mit den **summierten geplanten Projektstunden**
+  beschriftet. Die **Legende steht im Diagramm** (oben links, max. 2 Zeilen, danach
+  „+N weitere“), nicht mehr als HTML darunter. **Geplanter Urlaub** erscheint als
+  **grauer Block in der Achsenzone** direkt über dem KW-/Monatslabel (`web.vacationBlocks`).
+- **Freie-Zeit-Diagramm:** Unter dem Sankey liegt – auf **derselben Zeitachse**
+  (gemeinsame Geometrie `web.sankeyGeom`) – ein Säulendiagramm `web.freeTimeSVG`:
+  je Bucket `FreeHours = CapacityHours − Total` mit
+  `CapacityHours = Wochentage×8h − Feiertage − Urlaub`. Säulen über der Nulllinie =
+  freie Zeit (blau), darunter = überbucht (rot).
+- `BuildSankey(d, cal, rangeKey, offset)` braucht daher den Feiertagskalender.
 - Auf der Ziel-Seite werden **Quartals- und Monatsübersicht immer angezeigt**
   (nicht ausklappbar).
 - **Ziel-Seite Reihenfolge (chronologisch):** Gesamt-FY (KPIs, Status inkl.

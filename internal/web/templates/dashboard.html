@@ -20,20 +20,21 @@
 <section class="card sankey-card">
   <div class="sankey-head">
     <h2>Auslastung</h2>
-    <span class="sankey-meta">{{.Sankey.RangeLabel}} · Summe {{hours .Sankey.Total}} h</span>
+    <span class="sankey-meta">{{.Sankey.RangeLabel}} · Summe {{hours .Sankey.Total}} h · frei {{hours .Sankey.FreeTotal}} h</span>
   </div>
-  <div class="span-ctl sankey-ctl">
-    <span class="span-ctl-label">Zeitraum:</span>
-    {{range .SankeyRanges}}<a class="chip{{if eq .Key $.Sankey.RangeKey}} active{{end}}" href="/?sankey={{.Key}}">{{.Label}}</a>{{end}}
+  <div class="sankey-ctl">
+    {{if .Sankey.CanPrev}}<a class="btn nav-btn" href="/?sankey={{.Sankey.RangeKey}}&amp;soff={{.Sankey.PrevOffset}}" title="Zeitraum zurück">‹ zurück</a>{{else}}<span class="btn nav-btn disabled">‹ zurück</span>{{end}}
+    <span class="span-ctl">
+      <span class="span-ctl-label">Zeitraum:</span>
+      {{range .SankeyRanges}}<a class="chip{{if eq .Key $.Sankey.RangeKey}} active{{end}}" href="/?sankey={{.Key}}">{{.Label}}</a>{{end}}
+    </span>
+    {{if .Sankey.CanNext}}<a class="btn nav-btn" href="/?sankey={{.Sankey.RangeKey}}&amp;soff={{.Sankey.NextOffset}}" title="Zeitraum weiter">weiter ›</a>{{else}}<span class="btn nav-btn disabled">weiter ›</span>{{end}}
   </div>
+  {{if ne .Sankey.Offset 0}}<p class="hint sankey-shift">Verschobener Zeitraum · <a href="/?sankey={{.Sankey.RangeKey}}">zurück zum aktuellen</a></p>{{end}}
   <div class="sankey-wrap">{{.SankeySVG}}</div>
-  {{if .Sankey.Projects}}
-  <div class="sankey-legend">
-    {{range .Sankey.Projects}}<span class="sankey-leg"><span class="dot" style="background:{{.Color}}"></span>{{.Name}} · {{hours (index $.Sankey.ProjectTotals .ID)}} h</span>{{end}}
-  </div>
-  {{else}}
-  <p class="hint">Keine geplanten Projektstunden im gewählten Zeitraum.</p>
-  {{end}}
+  {{if not .Sankey.Projects}}<p class="hint">Keine geplanten Projektstunden im gewählten Zeitraum.</p>{{end}}
+  <h3 class="chart-sub">Freie Zeit <small>Kapazität (Wochentage − Feiertage − Urlaub) − geplante Stunden</small></h3>
+  <div class="sankey-wrap">{{.FreeTimeSVG}}</div>
 </section>
 
 <h2>Budgets</h2>

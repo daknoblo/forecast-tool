@@ -289,12 +289,13 @@ table.week tfoot td.center { text-align: center; }
 .sankey-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
 .sankey-head h2 { margin: 0; }
 .sankey-meta { color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
-.sankey-ctl { margin: 0.5rem 0 0.75rem; }
+.sankey-ctl { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 0.5rem 1rem; margin: 0.5rem 0 0.75rem; }
+.sankey-ctl .span-ctl { margin: 0; flex: 1 1 auto; justify-content: center; }
+.sankey-shift { margin: -0.35rem 0 0.6rem; text-align: center; }
 .sankey-wrap { width: 100%; overflow-x: auto; }
-.sankey { width: 100%; height: auto; display: block; }
-.sankey-legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1.1rem; margin-top: 0.6rem; color: var(--muted); font-size: 0.82rem; }
-.sankey-leg { display: inline-flex; align-items: center; white-space: nowrap; }
-.sankey-leg .dot { width: 11px; height: 11px; margin-right: 0.4rem; }
+.sankey, .freetime { width: 100%; height: auto; display: block; }
+.chart-sub { margin: 1rem 0 0.2rem; font-size: 0.95rem; }
+.chart-sub small { font-weight: 400; color: var(--muted); font-size: 0.8rem; margin-left: 0.4rem; }
 
 /* forecast controls: centred visible-weeks selector flanked by nav buttons */
 .week-controls { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 0.5rem 1rem; margin: 0.25rem 0 1rem; }

@@ -435,19 +435,22 @@ func TestSankeySpanUnits(t *testing.T) {
 	}
 }
 
-func TestBuildSankeyFiscalYearExcludesVacation(t *testing.T) {
+func TestBuildSankeyFiscalYearSeparatesVacation(t *testing.T) {
 	d := vacationData() // FY 2026 (calendar year), all entries in January
-	sk := BuildSankey(d, "fy")
+	sk := BuildSankey(d, holidays.New(2026, "BY"), "fy", 0)
 
 	if sk.Unit != "month" {
 		t.Fatalf("unit = %q, want month", sk.Unit)
 	}
-	// Vacation hours (16h) are excluded; only p1's 8h remain.
+	// Vacation hours (16h) are not part of the bands; only p1's 8h remain.
 	if sk.Total != 8 {
-		t.Errorf("total = %v, want 8 (vacation excluded)", sk.Total)
+		t.Errorf("total = %v, want 8 (vacation not in the bands)", sk.Total)
 	}
 	if _, ok := sk.ProjectTotals["vacation-2026"]; ok {
-		t.Errorf("vacation must not appear in the Sankey")
+		t.Errorf("vacation must not appear as a Sankey band")
+	}
+	if sk.VacationTotal != 16 {
+		t.Errorf("vacation total = %v, want 16", sk.VacationTotal)
 	}
 	if sk.ProjectTotals["p1"] != 8 {
 		t.Errorf("p1 total = %v, want 8", sk.ProjectTotals["p1"])
@@ -468,7 +471,70 @@ func TestBuildSankeyFiscalYearExcludesVacation(t *testing.T) {
 	if jan == nil || jan.Total != 8 {
 		t.Fatalf("january bucket = %+v, want total 8", jan)
 	}
+	if jan.VacationHours != 16 || jan.VacationDays != 2 {
+		t.Errorf("january vacation = %v h / %v days, want 16 h / 2 days", jan.VacationHours, jan.VacationDays)
+	}
+	// Free time = weekdays*8 - holidays - vacation - planned hours.
+	wantFree := jan.WeekdayHours - jan.HolidayHours - jan.VacationHours - jan.Total
+	if jan.FreeHours != round1(wantFree) {
+		t.Errorf("january free = %v, want %v", jan.FreeHours, round1(wantFree))
+	}
+	if jan.WeekdayHours == 0 {
+		t.Error("weekday hours must be counted for the capacity")
+	}
 	if len(sk.Buckets) != 12 {
 		t.Errorf("fy buckets = %d, want 12 months", len(sk.Buckets))
+	}
+	// A whole-FY span cannot be shifted any further.
+	if sk.CanPrev || sk.CanNext {
+		t.Error("fy span must not offer prev/next navigation")
+	}
+}
+
+func TestShiftSankeySpan(t *testing.T) {
+	const maxW = 52
+	cases := []struct {
+		name                      string
+		base, weeks, offset       int
+		wantStart, wantAppliedOff int
+	}{
+		{"no shift", 20, 4, 0, 20, 0},
+		{"one span back", 20, 4, -1, 16, -1},
+		{"two spans forward", 20, 4, 2, 28, 2},
+		{"clamped at fy start", 3, 4, -5, 1, -1},
+		{"clamped at fy end", 48, 4, 3, 49, 1},
+		{"whole fy cannot move", 1, maxW, -2, 1, 0},
+	}
+	for _, c := range cases {
+		start, applied := shiftSankeySpan(c.base, c.weeks, maxW, c.offset)
+		if start != c.wantStart || applied != c.wantAppliedOff {
+			t.Errorf("%s: start=%d offset=%d, want start=%d offset=%d", c.name, start, applied, c.wantStart, c.wantAppliedOff)
+		}
+		if start < 1 || start+c.weeks-1 > maxW {
+			t.Errorf("%s: span %d..%d leaves the fiscal year", c.name, start, start+c.weeks-1)
+		}
+	}
+}
+
+func TestBuildSankeyOffsetShiftsIntoThePast(t *testing.T) {
+	d := vacationData()
+	cal := holidays.New(2026, "BY")
+	cur := BuildSankey(d, cal, "4w", 0)
+	prev := BuildSankey(d, cal, "4w", -1)
+
+	if !cur.CanPrev {
+		t.Fatal("a 4-week span inside the FY must allow stepping back")
+	}
+	if prev.Offset != -1 {
+		t.Errorf("offset = %d, want -1", prev.Offset)
+	}
+	if len(prev.Buckets) != len(cur.Buckets) {
+		t.Errorf("buckets = %d, want %d (same span length)", len(prev.Buckets), len(cur.Buckets))
+	}
+	if prev.RangeLabel == cur.RangeLabel {
+		t.Errorf("shifted span must cover a different range (got %q twice)", prev.RangeLabel)
+	}
+	if prev.PrevOffset != -2 || prev.NextOffset != 0 {
+		t.Errorf("navigation offsets = %d/%d, want -2/0", prev.PrevOffset, prev.NextOffset)
 	}
 }
