@@ -28,13 +28,14 @@
   </div>
   <div class="sankey-nav">
     {{if .Sankey.CanPrev}}<a class="btn nav-btn" href="/?sankey={{.Sankey.RangeKey}}&amp;soff={{.Sankey.PrevOffset}}" title="Zeitraum zurück">‹ zurück</a>{{else}}<span class="btn nav-btn disabled">‹ zurück</span>{{end}}
+    {{if ne .Sankey.Offset 0}}<a class="btn nav-btn" href="/?sankey={{.Sankey.RangeKey}}" title="Zurück zur aktuellen Woche">Heute</a>{{else}}<span class="btn nav-btn disabled" title="Der aktuelle Zeitraum wird bereits angezeigt">Heute</span>{{end}}
     {{if .Sankey.CanNext}}<a class="btn nav-btn" href="/?sankey={{.Sankey.RangeKey}}&amp;soff={{.Sankey.NextOffset}}" title="Zeitraum weiter">weiter ›</a>{{else}}<span class="btn nav-btn disabled">weiter ›</span>{{end}}
   </div>
   <div class="span-ctl sankey-ctl">
     <span class="span-ctl-label">Zeitraum:</span>
     {{range .SankeyRanges}}<a class="chip{{if eq .Key $.Sankey.RangeKey}} active{{end}}" href="/?sankey={{.Key}}">{{.Label}}</a>{{end}}
   </div>
-  {{if ne .Sankey.Offset 0}}<p class="hint sankey-shift">Verschobener Zeitraum · <a href="/?sankey={{.Sankey.RangeKey}}">zurück zum aktuellen</a></p>{{end}}
+  {{if ne .Sankey.Offset 0}}<p class="hint sankey-shift">Verschobener Zeitraum – „Heute“ springt zurück zur aktuellen Woche.</p>{{end}}
   <div class="sankey-wrap">{{.SankeySVG}}</div>
   {{if not .Sankey.Projects}}<p class="hint">Keine geplanten Projektstunden im gewählten Zeitraum.</p>{{end}}
   <h3 class="chart-sub">Freie Kapazität</h3>

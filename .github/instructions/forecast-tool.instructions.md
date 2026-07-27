@@ -237,7 +237,8 @@ collects every requirement stated so far as the binding reference.
   shows – after the KPI cards, before "Budgets" – a card "Auslastung" with a
   server-rendered, JavaScript-free Sankey/alluvial diagram (`web.sankeySVG` from
   `forecast.BuildSankey`). Above it **two centred rows**: `.sankey-nav` with
-  `‹ zurück` / `weiter ›` (`.btn.nav-btn`), below it `.span-ctl.sankey-ctl` with
+  `‹ zurück` / `Heute` / `weiter ›` (`.btn.nav-btn`), below it
+  `.span-ctl.sankey-ctl` with
   the horizon switches (`forecast.SankeyRanges`: 1 week/2 weeks/4 weeks/2 months/
   3 months/half-year/fiscal year) as `.chip` links (`GET /?sankey=<key>`, default
   `4w`, unknown → default via `NormalizeSankeyRange`).
@@ -263,9 +264,11 @@ collects every requirement stated so far as the binding reference.
 - **Shifting the horizon:** `GET /?sankey=<key>&soff=<n>` shifts the horizon by
   whole spans (negative = into the past); `forecast.shiftSankeySpan` clamps flush
   against the FY borders (`SankeyMaxOffset` bounds the parameter).
-  `SankeyData.CanPrev/CanNext` drive the `.disabled` buttons, `Offset != 0` shows
-  the "back to current" link. Changing the horizon resets the offset (chips carry
-  no `soff`).
+  `SankeyData.CanPrev/CanNext` drive the `.disabled` buttons. The middle
+  **`Heute`** button links to `/?sankey=<key>` (no `soff`) and jumps back to the
+  span around the current week; it is `.disabled` while `Offset == 0`, and
+  `Offset != 0` additionally shows the `.sankey-shift` notice. Changing the
+  horizon resets the offset (chips carry no `soff`).
 - Buckets are weeks (up to 2 months) or months (from 3 months, half-year, fiscal
   year); only days **inside the FY** count. Projects are coloured stacked bands
   (height ∝ planned hours, ribbons between adjacent buckets, stack order by total
