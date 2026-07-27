@@ -316,6 +316,8 @@ table.week tfoot td.center { text-align: center; }
 .btn.nav-btn { text-decoration: none; }
 .btn.nav-btn:hover { text-decoration: none; }
 .btn.nav-btn.disabled { opacity: 0.4; pointer-events: none; cursor: default; }
+/* sankey nav buttons share the chip metrics of the range selector below them */
+.sankey-nav .btn { padding: 0.2rem 0.75rem; font-size: 0.85rem; line-height: normal; border: 1px solid var(--line); border-radius: 999px; }
 
 /* forecast auto-save status pill */
 .save-status-wrap { margin-top: 1rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
