@@ -32,10 +32,21 @@
       <span>Forecast <strong>{{hours .Summary.Forecast}} h</strong></span>
       <span>Ist gebucht <strong>{{hours .Summary.Actual}} h</strong></span>
       <span class="{{if lt .Summary.Remaining 0.0}}negative{{end}}">Rest <strong>{{hours .Summary.Remaining}} h</strong></span>
+      {{if gt .Summary.FutureFY 0.0}}<span title="liegt datumsmäßig bereits im nächsten Fiskaljahr">Späteres FY <strong>{{hours .Summary.FutureFY}} h</strong></span>{{end}}
       <span>Burnrate <strong>{{hours .Summary.BurnPerWeek}} h/Woche</strong></span>
       <span>Auslastung <strong>{{hours .Summary.UtilizationPct}} %</strong></span>
     </div>
   </div>
+
+  {{if .Summary.SpansFY}}
+  <div class="fy-split">
+    <span class="fy-split-head">Stunden je Fiskaljahr</span>
+    {{range .Summary.FYSplit}}
+    <span class="fy-chip{{if .Current}} current{{else if .Past}} past{{else}} future{{end}}">{{.Label}} <strong>{{hours .Hours}} h</strong></span>
+    {{end}}
+    <small class="fy-split-hint">Die Zuordnung folgt dem <strong>Datum</strong> der Buchung: Dieses Assignment läuft über die Fiskaljahres­grenze, daher zählen Stunden bis zum FY-Ende ins alte und ab FY-Beginn ins neue Fiskaljahr.</small>
+  </div>
+  {{end}}
 
   <div class="project-window">
     <span>Zeitraum <strong>{{.Summary.StartLabel}} – {{.Summary.EndLabel}}</strong>{{if .Summary.HasCustomWindow}} <span class="tag">eigener Zeitraum</span>{{end}}</span>

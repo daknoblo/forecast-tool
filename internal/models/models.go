@@ -292,14 +292,19 @@ type Data struct {
 	Entries     []Entry                    `json:"entries"`
 }
 
-// DefaultData returns a sensible empty document for first start.
+// DefaultFiscalYearStartMonth is the month a fiscal year starts in unless the
+// user configures another one (7 = July).
+const DefaultFiscalYearStartMonth = 7
+
+// DefaultData returns a sensible empty document for first start. The year is
+// the fiscal-year anchor the caller wants to start with.
 func DefaultData(year int) Data {
 	return Data{
 		Settings: Settings{
 			Year:                 year,
 			FederalState:         "SN",
 			WeeklyTargetHours:    40,
-			FiscalYearStartMonth: 7,
+			FiscalYearStartMonth: DefaultFiscalYearStartMonth,
 			Utilization:          DefaultUtilization(),
 		},
 		FiscalYears: map[int]FiscalYearSettings{},

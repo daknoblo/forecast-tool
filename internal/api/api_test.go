@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/daknoblo/forecast-tool/internal/forecast"
 	"github.com/daknoblo/forecast-tool/internal/models"
 	"github.com/daknoblo/forecast-tool/internal/storage"
 )
@@ -60,6 +61,24 @@ func do(t *testing.T, h http.Handler, method, path, token string, body any) *htt
 func activeYear(t *testing.T, st *storage.Store) int {
 	t.Helper()
 	return st.Snapshot().Settings.Year
+}
+
+// setFYAroundToday shifts the fiscal year so today sits roughly in its middle.
+// Hours are attributed to the fiscal year of their DATE, so a fixture seeding
+// days around today must make sure they all fall into the reviewed year.
+func setFYAroundToday(t *testing.T, st *storage.Store) int {
+	t.Helper()
+	now := time.Now().UTC()
+	startMonth := int(now.AddDate(0, -5, 0).Month())
+	year := forecast.FiscalYearOf(now, startMonth)
+	if err := st.Update(func(d *models.Data) error {
+		d.Settings.FiscalYearStartMonth = startMonth
+		d.Settings.Year = year
+		return nil
+	}); err != nil {
+		t.Fatalf("set fiscal year: %v", err)
+	}
+	return year
 }
 
 func seedProject(t *testing.T, st *storage.Store, p models.Project) {
@@ -290,7 +309,7 @@ func TestSettingsAndFY(t *testing.T) {
 
 func TestProjectsSummary(t *testing.T) {
 	st := newTestStore(t)
-	year := activeYear(t, st)
+	year := setFYAroundToday(t, st)
 	seedProject(t, st, models.Project{ID: "p1", Name: "Projekt 1", BudgetHours: 100, Color: "#3cb44b", Active: true, FiscalYear: year})
 	dayPast := time.Now().UTC().AddDate(0, 0, -30).Format("2006-01-02")
 	dayFuture := time.Now().UTC().AddDate(0, 0, 30).Format("2006-01-02")

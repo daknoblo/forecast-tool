@@ -179,14 +179,22 @@ collects every requirement stated so far as the binding reference.
   (`projectWindow(p, fyStart, fyEnd)`).
 - **Assignments across fiscal years:** a project belongs to exactly one FY, so a
   continuing assignment is re-created in the new year with the **same
-  `assignmentId`** and the assignment's total budget. `BuildYearSummary`
-  therefore deducts a **carry-over**: `carryOverByAssignment` sums the hours
-  consumed by projects of **earlier** fiscal years (`p.FiscalYear < year`) that
-  share the same (trimmed, lower-cased) `assignmentId`. Later fiscal years never
-  count. Derived fields: `CarryOver`, `AvailableBudget` (= `BudgetHours -
+  `assignmentId`** and the assignment's total budget. Hours are attributed to a
+  fiscal year by their **DATE**, never by the project row they were booked on:
+  `forecast.FiscalYearOf(t, startMonth)` is the single rule (inverse of
+  `FiscalYear`), so with a July start everything up to 30 June stays in the old
+  FY and everything from 1 July counts towards the new one — even when it was
+  entered on the previous year's project row (the forecast grid's first/last
+  week can reach across the boundary).
+  `BuildYearSummary` pools the hours per assignment and fiscal year
+  (`groupKey` = assignment ID, or the project ID when there is none, e.g. the
+  vacation project). Derived fields: `Consumed` (hours dated **inside** the FY),
+  `CarryOver` (earlier FYs), `FutureFY` (later FYs), `FYSplit []FYHours` +
+  `SpansFY` (the full per-year split), `AvailableBudget` (= `BudgetHours -
   CarryOver`, floored at 0), `Remaining` (= `AvailableBudget - Consumed`),
   `UtilizationPct` (= `(CarryOver + Consumed) / BudgetHours`) and `CarryOverPct`.
-  `YearSummary` carries `TotalCarryOver` and `HasCarryOver`.
+  `YearSummary` carries `TotalCarryOver`, `TotalAvailable`, `HasCarryOver` and
+  `HasFYSplit`.
 - **Because of that, `BuildYearSummary(d, cal)` must be called with the projects
   of ALL fiscal years**; it filters to `d.Settings.Year` itself via
   `models.ProjectsForFY`. Never narrow `d.Projects` before calling it, otherwise
@@ -201,7 +209,14 @@ collects every requirement stated so far as the binding reference.
   `OutOfWindow` (hours booked outside the window – a warning).
 - **The burn rate is always based on `AvailableBudget`, never on `BudgetHours`**,
   so a continued assignment does not get its already-burned hours back. The same
-  applies to the burn-down chart on the projects page.
+  applies to the burn-down chart on the projects page, which also ignores hours
+  dated outside the (FY-clamped) booking window — they belong to another fiscal
+  year and are already deducted as a carry-over.
+- The **default active fiscal year** on first start (and for a legacy document
+  with `year: 0`) is the FY that contains today, via
+  `forecast.FiscalYearOf(time.Now().UTC(), startMonth)` in `storage` — not the
+  calendar year, which differs for half of the year with a July start.
+  `models.DefaultFiscalYearStartMonth` (7) is the shared default.
 - **`BuildYearSummary` takes `cal *holidays.Calendar`** (for holiday-accurate
   working days). Callers: `handleDashboard`/`handleProjects`/`handleGoal` (all
   have `s.calendar(d)`); tests pass `holidays.New(2026, "BY")`.
@@ -242,9 +257,10 @@ collects every requirement stated so far as the binding reference.
   the horizon switches (`forecast.SankeyRanges`: 1 week/2 weeks/4 weeks/2 months/
   3 months/half-year/fiscal year) as `.chip` links (`GET /?sankey=<key>`, default
   `4w`, unknown → default via `NormalizeSankeyRange`).
-- **KPI tiles (`.cards.kpi-row`, always evenly spread across the width):** total
-  budget (`Summary.TotalBudget`) · total forecast (`Summary.TotalForecast`) ·
-  projects · current FY week.
+- **KPI tiles (`.cards.kpi-row`, always evenly spread across the width):** Budget
+  gesamt (`Summary.TotalBudget`, plus a `.kpi-sub` line with the carry-over and
+  `TotalAvailable` when `HasCarryOver`) · Forecast gesamt
+  (`Summary.TotalForecast`) · Projekte · Aktuelle FY-Woche.
 - **Budgets table (`table.grid.budgets`), columns in this order:** project
   (colour dot + name + `assignmentid` badge) · budget · **Übertrag** (only
   rendered when `Summary.HasCarryOver`, shows `−CarryOver`) · forecast · booked ·
@@ -387,7 +403,9 @@ collects every requirement stated so far as the binding reference.
   hours per week (`colspan=6`: 5 days + the total column).
 - **Projects page:** the KPI row shows budget, consumed, remaining, **burn rate**
   (h/week) and utilization; below it the window/burn-rate block
-  (`.project-window`).
+  (`.project-window`). When the assignment spans fiscal years (`SpansFY`) a
+  `.fy-split` block lists one `.fy-chip` per fiscal year (`past` / `current` /
+  `future`) with a short note that the attribution follows the booking date.
 - **No save buttons – everything saves itself.** Beside the forecast grid, the
   **project edit form** and all three **settings forms** are marked
   `data-autosave` and have no submit button. The shared `{{template "autosave"}}`

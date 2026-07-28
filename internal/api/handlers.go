@@ -126,7 +126,9 @@ type projectSummaryOut struct {
 	BudgetHours  float64 `json:"budgetHours"`
 	// CarryOverHours are hours booked on the same assignmentId in EARLIER fiscal
 	// years; AvailableBudgetHours is budgetHours minus that carry-over.
+	// FutureFYHours are hours of the same assignment dated in LATER fiscal years.
 	CarryOverHours       float64 `json:"carryOverHours"`
+	FutureFYHours        float64 `json:"futureFyHours"`
 	AvailableBudgetHours float64 `json:"availableBudgetHours"`
 	ForecastHours        float64 `json:"forecastHours"`
 	ActualHours          float64 `json:"actualHours"`
@@ -172,6 +174,7 @@ func (s *Server) handleProjectsSummary(w http.ResponseWriter, r *http.Request) {
 			FiscalYear:           ps.Project.FiscalYear,
 			BudgetHours:          ps.Project.BudgetHours,
 			CarryOverHours:       ps.CarryOver,
+			FutureFYHours:        ps.FutureFY,
 			AvailableBudgetHours: ps.AvailableBudget,
 			ForecastHours:        ps.Forecast,
 			ActualHours:          ps.Actual,

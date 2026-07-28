@@ -165,6 +165,94 @@ func TestAssignmentCarryOverIgnoresLaterFiscalYears(t *testing.T) {
 	}
 }
 
+// Hours belong to the fiscal year their DATE falls into, not to the fiscal year
+// of the project row they were booked on. With a July start, everything up to
+// 30 June stays in the old FY and everything from 1 July counts towards the new
+// one — even when it was entered on the previous year's project.
+func TestHoursSplitAtFiscalYearBoundary(t *testing.T) {
+	d := models.Data{
+		Settings: models.Settings{Year: 2027, FederalState: "BY", WeeklyTargetHours: 40, FiscalYearStartMonth: 7},
+		Projects: []models.Project{
+			{ID: "old", AssignmentID: "5641245", Name: "Alpha", BudgetHours: 200, Active: true, FiscalYear: 2026},
+			{ID: "new", AssignmentID: "5641245", Name: "Alpha", BudgetHours: 200, Active: true, FiscalYear: 2027},
+		},
+		Entries: []models.Entry{
+			// FY 2026 (ends 30.06.2026) — carry-over for FY 2027.
+			{Date: "2026-06-29", ProjectID: "old", Hours: 5},
+			// FY 2027 (01.07.2026-30.06.2027), but entered on the OLD project row:
+			// the date decides, so these hours belong to FY 2027.
+			{Date: "2026-07-01", ProjectID: "old", Hours: 7},
+			{Date: "2026-09-01", ProjectID: "new", Hours: 10},
+			// FY 2028 — already beyond the reviewed year.
+			{Date: "2027-07-05", ProjectID: "new", Hours: 3},
+		},
+	}
+	ys := BuildYearSummary(d, holidays.New(2027, "BY"))
+	if len(ys.Projects) != 1 {
+		t.Fatalf("summary covers %d projects, want 1", len(ys.Projects))
+	}
+	ps := ys.Projects[0]
+
+	if ps.Consumed != 17 {
+		t.Errorf("Consumed = %v, want 17 (7 booked on the old row + 10, both dated in FY 2027)", ps.Consumed)
+	}
+	if ps.CarryOver != 5 {
+		t.Errorf("CarryOver = %v, want 5 (29.06.2026 is still FY 2026)", ps.CarryOver)
+	}
+	if ps.FutureFY != 3 {
+		t.Errorf("FutureFY = %v, want 3 (05.07.2027 already belongs to FY 2028)", ps.FutureFY)
+	}
+	if ps.Remaining != 178 {
+		t.Errorf("Remaining = %v, want 178 (200 - 5 - 17)", ps.Remaining)
+	}
+	if ys.TotalHours != 17 {
+		t.Errorf("TotalHours = %v, want 17 (only hours inside the fiscal year)", ys.TotalHours)
+	}
+	if !ps.SpansFY || !ys.HasFYSplit {
+		t.Errorf("SpansFY/HasFYSplit = %v/%v, want true/true", ps.SpansFY, ys.HasFYSplit)
+	}
+
+	want := []FYHours{
+		{Year: 2026, Label: "FY 2026", Hours: 5, Past: true},
+		{Year: 2027, Label: "FY 2027", Hours: 17, Current: true},
+		{Year: 2028, Label: "FY 2028", Hours: 3},
+	}
+	if len(ps.FYSplit) != len(want) {
+		t.Fatalf("FYSplit = %+v, want %d entries", ps.FYSplit, len(want))
+	}
+	for i, w := range want {
+		if ps.FYSplit[i] != w {
+			t.Errorf("FYSplit[%d] = %+v, want %+v", i, ps.FYSplit[i], w)
+		}
+	}
+}
+
+func TestFiscalYearOf(t *testing.T) {
+	cases := []struct {
+		date       string
+		startMonth int
+		want       int
+	}{
+		{"2026-06-30", 7, 2026}, // last day of FY 2026
+		{"2026-07-01", 7, 2027}, // first day of FY 2027
+		{"2027-06-30", 7, 2027},
+		{"2027-07-01", 7, 2028},
+		{"2026-03-15", 1, 2026}, // start month January == calendar year
+		{"2026-12-31", 1, 2026},
+		{"2026-04-01", 4, 2027},
+		{"2026-03-31", 4, 2026},
+	}
+	for _, c := range cases {
+		tt, err := time.Parse("2006-01-02", c.date)
+		if err != nil {
+			t.Fatalf("parse %s: %v", c.date, err)
+		}
+		if got := FiscalYearOf(tt, c.startMonth); got != c.want {
+			t.Errorf("FiscalYearOf(%s, startMonth %d) = %d, want %d", c.date, c.startMonth, got, c.want)
+		}
+	}
+}
+
 func TestBurndownEndsAtRemaining(t *testing.T) {
 	d := sampleData()
 	pts := BuildBurndown(d, "p1", "2026-01-01", "2026-12-31", 100)

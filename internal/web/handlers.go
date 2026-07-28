@@ -230,7 +230,7 @@ func (s *Server) handleWeek(w http.ResponseWriter, r *http.Request) {
 			budgetLeft[p.Project.ID] = 0
 			continue
 		}
-		budgetLeft[p.Project.ID] = round1(p.Project.BudgetHours - p.Consumed)
+		budgetLeft[p.Project.ID] = round1(p.Remaining)
 	}
 	s.render(w, r, "week.html", map[string]any{
 		"Active":      "week",

@@ -6,6 +6,7 @@
   <div class="card kpi">
     <div class="kpi-value">{{hours .Summary.TotalBudget}} h</div>
     <div class="kpi-label">Budget gesamt</div>
+    {{if .Summary.HasCarryOver}}<div class="kpi-sub" title="In früheren Fiskaljahren auf dieselben Assignments gebuchte Stunden sind bereits abgezogen">−{{hours .Summary.TotalCarryOver}} h Übertrag · <strong>{{hours .Summary.TotalAvailable}} h</strong> in FY {{.Settings.Year}}</div>{{end}}
   </div>
   <div class="card kpi">
     <div class="kpi-value">{{hours .Summary.TotalForecast}} h</div>

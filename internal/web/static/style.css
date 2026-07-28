@@ -60,6 +60,8 @@ h2 { font-size: 1.1rem; margin: 1.5rem 0 0.75rem; }
 .kpi { text-align: center; }
 .kpi-value { font-size: 1.8rem; font-weight: 700; }
 .kpi-label { color: var(--muted); font-size: 0.85rem; }
+/* secondary KPI line, e.g. the cross-fiscal-year carry-over */
+.kpi-sub { color: var(--muted); font-size: 0.76rem; margin-top: 0.2rem; }
 /* dashboard KPI row: always split evenly across the full width */
 .kpi-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 @media (max-width: 760px) { .kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -253,8 +255,16 @@ small.ist, td.num.ist, .kpi-value.ist { color: #0e7490; }
 .grid td.day.closed { background: repeating-linear-gradient(135deg, #f3f4f6, #f3f4f6 6px, #eceef1 6px, #eceef1 12px); }
 .closedmark { display: inline-block; color: var(--muted); opacity: 0.6; }
 
-/* project booking window + burn rate */
-.project-window {
+/* hours of an assignment split across fiscal years (date-based attribution) */
+.fy-split { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin: 0.75rem 0 0; padding: 0.6rem 0.8rem; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; }
+.fy-split-head { font-size: 0.8rem; font-weight: 600; color: var(--muted); margin-right: 0.25rem; }
+.fy-chip { font-size: 0.8rem; padding: 0.2rem 0.55rem; border-radius: 999px; border: 1px solid var(--line); background: #fff; white-space: nowrap; }
+.fy-chip.current { border-color: var(--accent); color: var(--accent); }
+.fy-chip.past { color: var(--muted); }
+.fy-chip.future { border-style: dashed; color: var(--muted); }
+.fy-split-hint { flex: 1 1 100%; color: var(--muted); font-size: 0.76rem; }
+
+/* project booking window + burn rate */.project-window {
   display: flex; flex-wrap: wrap; gap: 0.4rem 1.25rem;
   margin: 0.4rem 0 0.6rem; color: var(--muted); font-size: 0.85rem;
 }

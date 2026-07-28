@@ -144,7 +144,8 @@ curl -H "Authorization: Bearer $READ" "https://host/api/v1/projects/summary"
   "projects": [
     {
       "id": "abc", "assignmentId": "5641245", "name": "Projekt A", "fiscalYear": 2027,
-      "budgetHours": 200, "carryOverHours": 40, "availableBudgetHours": 160,
+      "budgetHours": 200, "carryOverHours": 40, "futureFyHours": 0,
+      "availableBudgetHours": 160,
       "forecastHours": 120, "actualHours": 42,
       "consumedHours": 162, "remainingHours": -2, "utilizationPct": 101,
       "startDate": "2026-07-01", "endDate": "2027-06-30",
@@ -157,23 +158,28 @@ curl -H "Authorization: Bearer $READ" "https://host/api/v1/projects/summary"
 
 | Field | Meaning |
 |-------|---------|
-| `carryOverHours` | hours booked on the **same `assignmentId` in earlier fiscal years** |
+| `carryOverHours` | hours of the same assignment dated in **earlier** fiscal years |
+| `futureFyHours` | hours of the same assignment dated in **later** fiscal years |
 | `availableBudgetHours` | `budgetHours − carryOverHours` — what is still available in this FY |
-| `forecastHours` | hours on today and future days |
-| `actualHours` | hours on past days (booked) |
-| `consumedHours` | all hours of this year's project: `forecastHours + actualHours` |
+| `forecastHours` | hours on today and future days, inside this fiscal year |
+| `actualHours` | hours on past days (booked), inside this fiscal year |
+| `consumedHours` | all hours dated **inside** this fiscal year: `forecastHours + actualHours` |
 | `remainingHours` | `availableBudgetHours − consumedHours` |
 | `utilizationPct` | `(carryOverHours + consumedHours) / budgetHours × 100` |
 | `burnPerWeek` / `burnPerWorkday` | `availableBudgetHours` spread evenly over the working days of the booking window |
 | `remainingWorkdays` | working days (Mon–Fri minus holidays) from today to the window end |
 | `requiredPerWorkday` | `remainingHours / remainingWorkdays` — what is still left to plan per day |
-| `outOfWindow` | hours booked outside the project's booking window |
+| `outOfWindow` | hours booked inside the fiscal year but outside the project's booking window |
 
 > **Assignments across fiscal years:** a project belongs to exactly one fiscal
 > year. An assignment that keeps running is re-created in the new FY with the
-> **same `assignmentId`** and the assignment's total budget. The API then
-> deducts the hours already booked in earlier fiscal years as
-> `carryOverHours`, so budget is never granted twice.
+> **same `assignmentId`** and the assignment's total budget. Hours are then
+> attributed to a fiscal year by their **date**, not by the project row they were
+> booked on: with a July start, everything up to 30 June counts towards the old
+> fiscal year and everything from 1 July towards the new one. The earlier years'
+> hours are reported as `carryOverHours` and deducted from the budget, so budget
+> is never granted twice; hours that already lie in a later fiscal year appear as
+> `futureFyHours`.
 
 ### `GET /api/v1/projects/{id}`
 A single project, or `404`.

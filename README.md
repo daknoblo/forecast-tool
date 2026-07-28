@@ -20,9 +20,12 @@ optionally updated through an AI prompt.
   e.g. `5641245`)
 - **Assignments across fiscal years**: a project belongs to exactly one fiscal
   year, so a continuing assignment is re-created in the new year with the same
-  assignment ID and the assignment's total budget. The hours already booked in
-  earlier fiscal years are deducted automatically as a **carry-over**, so the
-  remaining budget and the burn rate never hand out budget twice
+  assignment ID and the assignment's total budget. Hours are attributed to a
+  fiscal year by their **date** — with a July start everything up to 30 June
+  counts towards the old year and everything from 1 July towards the new one.
+  The earlier years' hours are deducted automatically as a **carry-over**, so
+  the remaining budget and the burn rate never hand out budget twice, and the
+  projects page shows the full per-fiscal-year split of the assignment
 - **Per-project booking window** (optional start/end date): hours can only be
   booked inside the window — day cells outside it are locked in the forecast
   grid. From it the tool derives the **burn rate** (h/week and h/working day),

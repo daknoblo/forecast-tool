@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/daknoblo/forecast-tool/internal/forecast"
 	"github.com/daknoblo/forecast-tool/internal/models"
 )
 
@@ -35,7 +36,9 @@ func New(path string) (*Store, error) {
 func (s *Store) load() error {
 	b, err := os.ReadFile(s.path)
 	if errors.Is(err, os.ErrNotExist) {
-		d := models.DefaultData(time.Now().Year())
+		// Start in the fiscal year that contains today, not in the calendar year:
+		// with a July start those differ for half of the year.
+		d := models.DefaultData(forecast.FiscalYearOf(time.Now().UTC(), models.DefaultFiscalYearStartMonth))
 		normalize(&d) // ensure defaults incl. the vacation project on first start
 		s.data = d
 		return s.persist()
@@ -68,17 +71,19 @@ func normalize(d *models.Data) {
 	// The kind marker is dropped afterwards: hours are now classified as booked
 	// or forecast purely by their date at read time.
 	d.Entries = mergeEntries(d.Entries)
+	if d.Settings.FiscalYearStartMonth < 1 || d.Settings.FiscalYearStartMonth > 12 {
+		d.Settings.FiscalYearStartMonth = models.DefaultFiscalYearStartMonth
+	}
 	if d.Settings.Year == 0 {
-		d.Settings.Year = time.Now().Year()
+		// Settled after the start month, because the fiscal year containing today
+		// depends on it.
+		d.Settings.Year = forecast.FiscalYearOf(time.Now().UTC(), d.Settings.FiscalYearStartMonth)
 	}
 	if d.Settings.WeeklyTargetHours == 0 {
 		d.Settings.WeeklyTargetHours = 40
 	}
 	if d.Settings.FederalState == "" {
 		d.Settings.FederalState = "SN"
-	}
-	if d.Settings.FiscalYearStartMonth < 1 || d.Settings.FiscalYearStartMonth > 12 {
-		d.Settings.FiscalYearStartMonth = 7
 	}
 	// Default the utilization traffic-light for documents created before it
 	// existed (all thresholds zero == unset).
