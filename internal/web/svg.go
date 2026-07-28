@@ -215,12 +215,31 @@ type sankeyGeom struct {
 
 func newSankeyGeom(n int) sankeyGeom {
 	const (
-		w     = 1200.0
-		padL  = 42.0
-		padR  = 18.0
-		nodeW = 18.0
+		w    = 1200.0
+		padL = 42.0
+		padR = 18.0
 	)
-	return sankeyGeom{w: w, padL: padL, padR: padR, plotW: w - padL - padR, nodeW: nodeW, n: n}
+	plotW := w - padL - padR
+	return sankeyGeom{w: w, padL: padL, padR: padR, plotW: plotW, nodeW: nodeWidth(n, plotW), n: n}
+}
+
+// nodeWidth scales a bucket's stacked bar to the room it actually has. With many
+// buckets the bars stay narrow so the ribbons between them dominate (the classic
+// sankey look); with only a handful a fixed narrow bar would leave nearly the
+// whole chart empty, and a single bucket has no ribbons at all - there the bar
+// may use a good part of the width.
+func nodeWidth(n int, plotW float64) float64 {
+	if n <= 1 {
+		return plotW * 0.45
+	}
+	w := plotW / float64(n) * 0.32
+	if w < 12 {
+		w = 12
+	}
+	if w > 96 {
+		w = 96
+	}
+	return w
 }
 
 // nodeX returns the left edge of bucket i's node column.
@@ -550,13 +569,9 @@ func freeTimeSVG(data forecast.SankeyData, private bool) template.HTML {
 	zeroY := padT + usableH*(maxPos*1.15)/span
 	scale := func(v float64) float64 { return usableH * v / span }
 
-	barW := g.colWidth() * 0.6
-	if barW > 54 {
-		barW = 54
-	}
-	if barW < 4 {
-		barW = 4
-	}
+	// Same width as the stacked bar of the Sankey above, so both charts line up
+	// on the time axis they share.
+	barW := g.nodeW
 
 	var b strings.Builder
 	fmt.Fprintf(&b, `<svg viewBox="0 0 %g %g" class="freetime" role="img" aria-label="Freie Kapazität">`, g.w, h)

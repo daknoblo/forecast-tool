@@ -324,6 +324,12 @@ collects every requirement stated so far as the binding reference.
   tooltip. CSS highlights the hovered band
   (`.sankey .ribbon:hover { fill-opacity: 0.65 }`, `.sankey .node:hover` gets an
   outline). The hours go through `chartHours`, so private mode masks them too.
+- **Bar width scales with the bucket count** (`web.nodeWidth(n, plotW)`, stored
+  as `sankeyGeom.nodeW`): `plotW/n * 0.32` clamped to 12–96 px, and for a single
+  bucket (1-week view, where there are no ribbons at all) `plotW * 0.45`. A fixed
+  narrow bar would leave nearly the whole chart empty in the short ranges. The
+  free-capacity chart uses **the same `g.nodeW`** for its columns, so both charts
+  line up on the axis they share.
 - **Free-capacity chart:** below the Sankey – on **the same time axis** (shared
   geometry `web.sankeyGeom`) – sits the column chart `web.freeTimeSVG` under the
   heading "Freie Kapazität": per bucket `FreeHours = CapacityHours − Total` with
