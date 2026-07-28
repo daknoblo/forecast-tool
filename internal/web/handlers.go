@@ -177,6 +177,9 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	// BuildYearSummary needs every fiscal year's projects to resolve the
 	// per-assignment carry-over; it scopes the summary to the active FY itself.
 	ys := forecast.BuildYearSummary(d, cal)
+	// The "open until goal" tile measures against the fiscal year's hour goal,
+	// not against the summed project budgets.
+	goal := forecast.BuildGoalSummary(d, cal)
 	d.Projects = models.ProjectsForFY(d.Projects, d.Settings.Year)
 	projects := forecast.SortedProjects(d.Projects)
 	fyStart, fyEnd := forecast.FiscalYear(d.Settings.Year, d.Settings.FiscalYearStartMonth)
@@ -194,6 +197,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		"Settings":       d.Settings,
 		"FYYears":        fyYears(d),
 		"Summary":        ys,
+		"Goal":           goal,
 		"WeekToDate":     forecast.BuildWeekToDate(d),
 		"Projects":       projects,
 		"ActiveProjects": len(activeProjects(projects)),

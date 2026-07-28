@@ -14,18 +14,25 @@
     <div class="kpi-label">Week-to-date</div>
   </div>
   {{end}}
-  <div class="card kpi" title="Summe der Assignment-Budgets für das Fiskaljahr {{.Settings.Year}} – ohne Urlaubsprojekt.&#10;&#10;Budget der Assignments insgesamt: {{hours .Summary.TotalBudget}} h&#10;{{if .Summary.HasCarryOver}}Davon in früheren Fiskaljahren verbraucht: −{{hours .Summary.TotalCarryOver}} h&#10;{{end}}In diesem Fiskaljahr verfügbar: {{hours .Summary.TotalAvailable}} h&#10;&#10;Bereits verplant (gebucht + Forecast): {{hours .Summary.TotalHours}} h">
+  <div class="card kpi" title="Summe der Assignment-Budgets für das Fiskaljahr {{.Settings.Year}} – ohne Urlaubsprojekt.&#10;&#10;Budget der Assignments insgesamt: {{hours .Summary.TotalBudget}} h&#10;{{if .Summary.HasCarryOver}}Davon in früheren Fiskaljahren verbraucht: −{{hours .Summary.TotalCarryOver}} h&#10;{{end}}In diesem Fiskaljahr verfügbar: {{hours .Summary.TotalAvailable}} h&#10;&#10;Bereits verplant (gebucht + Forecast): {{hours .Summary.TotalHours}} h&#10;Budget noch nicht verplant: {{hours .Summary.TotalRemaining}} h">
     <div class="kpi-value">{{hours .Summary.TotalAvailable}} h</div>
     <div class="kpi-label">Budget gesamt</div>
   </div>
-  <div class="card kpi" title="Stunden, die ab heute im Fiskaljahr {{.Settings.Year}} geplant sind ({{.FYStart}} – {{.FYEnd}}) – ohne Urlaub.&#10;&#10;Bereits gebucht (vergangene Tage): {{hours .Summary.TotalActual}} h&#10;Gebucht + Forecast zusammen: {{hours .Summary.TotalHours}} h&#10;Noch nicht geforecastet: {{hours .Summary.TotalRemaining}} h">
+  <div class="card kpi" title="Stunden, die ab heute im Fiskaljahr {{.Settings.Year}} geplant sind ({{.FYStart}} – {{.FYEnd}}) – ohne Urlaub.&#10;&#10;Bereits gebucht (vergangene Tage): {{hours .Summary.TotalActual}} h&#10;Gebucht + Forecast zusammen: {{hours .Summary.TotalHours}} h{{if .Goal.HasTarget}}&#10;Noch offen bis FY-Ziel: {{hours .Goal.Remaining}} h{{end}}">
     <div class="kpi-value">{{hours .Summary.TotalForecast}} h</div>
     <div class="kpi-label">Forecast gesamt</div>
   </div>
-  <div class="card kpi" title="Verfügbares Budget minus gebuchte minus geplante Stunden – so viele Stunden sind bis zur Zielerreichung noch weder gebucht noch geforecastet.&#10;&#10;{{hours .Summary.TotalAvailable}} h verfügbar&#10;− {{hours .Summary.TotalActual}} h gebucht&#10;− {{hours .Summary.TotalForecast}} h Forecast&#10;= {{hours .Summary.TotalRemaining}} h offen&#10;&#10;Ein negativer Wert bedeutet, dass mehr verplant ist als Budget vorhanden.">
-    <div class="kpi-value{{if and (not .Private) (lt .Summary.TotalRemaining 0.0)}} negative{{end}}">{{hours .Summary.TotalRemaining}} h</div>
+  {{if .Goal.HasTarget}}
+  <div class="card kpi" title="FY-Stundenziel für das gesamte Fiskaljahr {{.Settings.Year}} ({{.FYStart}} – {{.FYEnd}}), abzüglich allem, was schon gebucht oder geplant ist.&#10;&#10;{{hours .Goal.TargetHours}} h Jahresziel&#10;− {{hours .Goal.ActualTotal}} h gebucht&#10;− {{hours .Goal.ForecastRemaining}} h Forecast&#10;= {{hours .Goal.Remaining}} h offen&#10;&#10;Urlaub zählt nicht aufs Ziel. Das Ziel pflegst du in den Einstellungen.">
+    <div class="kpi-value{{if and (not .Private) (lt .Goal.Remaining 0.0)}} negative{{end}}">{{hours .Goal.Remaining}} h</div>
     <div class="kpi-label">Offen bis Ziel</div>
   </div>
+  {{else}}
+  <div class="card kpi" title="Für das Fiskaljahr {{.Settings.Year}} ist kein Stundenziel hinterlegt. Trage es in den Einstellungen unter „Pro Fiskaljahr“ ein.">
+    <div class="kpi-value muted">–</div>
+    <div class="kpi-label">Offen bis Ziel</div>
+  </div>
+  {{end}}
   <div class="card kpi" title="Projekte im Fiskaljahr {{.Settings.Year}} – inklusive Urlaubsprojekt.&#10;&#10;Davon aktiv: {{.ActiveProjects}}&#10;Nur aktive Projekte erscheinen im Forecast-Raster.">
     <div class="kpi-value">{{len .Projects}}</div>
     <div class="kpi-label">Projekte</div>

@@ -270,11 +270,16 @@ collects every requirement stated so far as the binding reference.
   the vacation row.
   - **Budget gesamt** shows `TotalAvailable` = `TotalBudget - TotalCarryOver`,
     i.e. what is really left for this fiscal year after the hours an assignment
-    already spent in earlier years.
-  - **Offen bis Ziel** shows `TotalRemaining` = `TotalAvailable - TotalHours`
-    (neither booked nor forecast yet). A negative value gets
-    `.kpi-value.negative`, but never in private mode, where the colour would
-    leak the sign of the masked figure.
+    already spent in earlier years. Its tooltip carries the budget-scoped
+    leftover (`TotalRemaining` = `TotalAvailable - TotalHours`).
+  - **Offen bis Ziel** measures against the **fiscal year's hour goal**, not
+    against the summed assignment budgets: `handleDashboard` also calls
+    `forecast.BuildGoalSummary` and the tile renders `Goal.Remaining` =
+    `TargetHours - ActualTotal - ForecastRemaining` (identical to the
+    "Ziele" page, vacation excluded). When the fiscal year has no goal
+    (`Goal.HasTarget` false) the tile shows a `–` placeholder pointing at the
+    settings. A negative value gets `.kpi-value.negative`, but never in private
+    mode, where the colour would leak the sign of the masked figure.
 - **Week-to-date tile (first):** `forecast.BuildWeekToDate(d)` reports the
   **utilization reached since the fiscal year started**, up to the current week.
   The FY goal is spread evenly over the fiscal year's weeks
