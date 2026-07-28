@@ -182,21 +182,30 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	fyStart, fyEnd := forecast.FiscalYear(d.Settings.Year, d.Settings.FiscalYearStartMonth)
 	sankeyOffset, _ := strconv.Atoi(trim(r.URL.Query().Get("soff")))
 	sankey := forecast.BuildSankey(d, cal, r.URL.Query().Get("sankey"), sankeyOffset)
+	// Extra context for the KPI tooltips.
+	curWeek := forecast.CurrentFYWeek(d.Settings.Year, d.Settings.FiscalYearStartMonth)
+	curWeekRange := ""
+	if curWeek >= 1 && curWeek <= len(ys.WeekTotals) {
+		curWeekRange = ys.WeekTotals[curWeek-1].RangeLabel
+	}
 	s.render(w, r, "dashboard.html", map[string]any{
-		"Active":       "dashboard",
-		"Wide":         true,
-		"Settings":     d.Settings,
-		"FYYears":      fyYears(d),
-		"Summary":      ys,
-		"WeekToDate":   forecast.BuildWeekToDate(d),
-		"Projects":     projects,
-		"CurrentWeek":  forecast.CurrentFYWeek(d.Settings.Year, d.Settings.FiscalYearStartMonth),
-		"FYStart":      fyStart.Format("02.01.2006"),
-		"FYEnd":        fyEnd.Format("02.01.2006"),
-		"Sankey":       sankey,
-		"SankeyRanges": forecast.SankeyRanges,
-		"SankeySVG":    sankeySVG(sankey, private),
-		"FreeTimeSVG":  freeTimeSVG(sankey, private),
+		"Active":         "dashboard",
+		"Wide":           true,
+		"Settings":       d.Settings,
+		"FYYears":        fyYears(d),
+		"Summary":        ys,
+		"WeekToDate":     forecast.BuildWeekToDate(d),
+		"Projects":       projects,
+		"ActiveProjects": len(activeProjects(projects)),
+		"CurrentWeek":    curWeek,
+		"CurrentRange":   curWeekRange,
+		"FYWeekCount":    len(ys.WeekTotals),
+		"FYStart":        fyStart.Format("02.01.2006"),
+		"FYEnd":          fyEnd.Format("02.01.2006"),
+		"Sankey":         sankey,
+		"SankeyRanges":   forecast.SankeyRanges,
+		"SankeySVG":      sankeySVG(sankey, private),
+		"FreeTimeSVG":    freeTimeSVG(sankey, private),
 	})
 }
 

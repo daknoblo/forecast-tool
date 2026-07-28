@@ -14,20 +14,19 @@
     <div class="kpi-label">Week-to-date</div>
   </div>
   {{end}}
-  <div class="card kpi">
+  <div class="card kpi" title="Summe der Budgets aller {{len .Projects}} Projekte im Fiskaljahr {{.Settings.Year}}.&#10;&#10;{{if .Summary.HasCarryOver}}Übertrag aus früheren Fiskaljahren: −{{hours .Summary.TotalCarryOver}} h&#10;In diesem Fiskaljahr verfügbar: {{hours .Summary.TotalAvailable}} h&#10;{{end}}Bereits verplant (gebucht + Forecast): {{hours .Summary.TotalHours}} h&#10;Noch nicht verplant: {{hours .Summary.TotalRemaining}} h">
     <div class="kpi-value">{{hours .Summary.TotalBudget}} h</div>
     <div class="kpi-label">Budget gesamt</div>
-    {{if .Summary.HasCarryOver}}<div class="kpi-sub" title="In früheren Fiskaljahren auf dieselben Assignments gebuchte Stunden sind bereits abgezogen">−{{hours .Summary.TotalCarryOver}} h Übertrag · <strong>{{hours .Summary.TotalAvailable}} h</strong> in FY {{.Settings.Year}}</div>{{end}}
   </div>
-  <div class="card kpi">
+  <div class="card kpi" title="Stunden, die ab heute im Fiskaljahr {{.Settings.Year}} geplant sind ({{.FYStart}} – {{.FYEnd}}).&#10;&#10;Bereits gebucht (vergangene Tage): {{hours .Summary.TotalActual}} h&#10;Gebucht + Forecast zusammen: {{hours .Summary.TotalHours}} h">
     <div class="kpi-value">{{hours .Summary.TotalForecast}} h</div>
     <div class="kpi-label">Forecast gesamt</div>
   </div>
-  <div class="card kpi">
+  <div class="card kpi" title="Projekte im Fiskaljahr {{.Settings.Year}} – inklusive Urlaubsprojekt.&#10;&#10;Davon aktiv: {{.ActiveProjects}}&#10;Nur aktive Projekte erscheinen im Forecast-Raster.">
     <div class="kpi-value">{{len .Projects}}</div>
     <div class="kpi-label">Projekte</div>
   </div>
-  <div class="card kpi">
+  <div class="card kpi" title="Woche {{.CurrentWeek}} von {{.FYWeekCount}} im Fiskaljahr {{.Settings.Year}}{{if .CurrentRange}}&#10;{{.CurrentRange}}{{end}}&#10;&#10;Klick öffnet die Forecast-Ansicht dieser Woche.">
     <div class="kpi-value"><a href="/week/{{.CurrentWeek}}">W {{.CurrentWeek}}</a></div>
     <div class="kpi-label">Aktuelle FY-Woche</div>
   </div>

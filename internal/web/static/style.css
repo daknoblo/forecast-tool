@@ -326,6 +326,10 @@ table.week tfoot td.center { text-align: center; }
 .sankey-shift { margin: -0.35rem 0 0.6rem; text-align: center; }
 .sankey-wrap { width: 100%; overflow-x: auto; }
 .sankey, .freetime { width: 100%; height: auto; display: block; }
+/* highlight the hovered sankey band/ribbon so its tooltip is discoverable */
+.sankey .ribbon { transition: fill-opacity 0.12s ease; }
+.sankey .ribbon:hover { fill-opacity: 0.65; }
+.sankey .node:hover { stroke: #0f172a; stroke-width: 1.5; }
 .chart-sub { margin: 1rem 0 0.2rem; font-size: 0.95rem; }
 .chart-sub small { font-weight: 400; color: var(--muted); font-size: 0.8rem; margin-left: 0.4rem; }
 

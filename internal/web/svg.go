@@ -409,9 +409,12 @@ func sankeySVG(data forecast.SankeyData, private bool) template.HTML {
 			}
 			col := sanitizeColor(p.Color)
 			fmt.Fprintf(&b,
-				`<path d="M%g %g C%g %g %g %g %g %g L%g %g C%g %g %g %g %g %g Z" fill="%s" fill-opacity="0.3"/>`,
+				`<path class="ribbon" d="M%g %g C%g %g %g %g %g %g L%g %g C%g %g %g %g %g %g Z" fill="%s" fill-opacity="0.3"><title>%s&#10;%s: %s h → %s: %s h</title></path>`,
 				x0, a.top, xc, a.top, xc, c.top, x1, c.top,
-				x1, c.bot, xc, c.bot, xc, a.bot, x0, a.bot, col)
+				x1, c.bot, xc, c.bot, xc, a.bot, x0, a.bot, col,
+				template.HTMLEscapeString(p.Name),
+				template.HTMLEscapeString(data.Buckets[i].Label), chartHours(data.Buckets[i].Hours[p.ID], private),
+				template.HTMLEscapeString(data.Buckets[i+1].Label), chartHours(data.Buckets[i+1].Hours[p.ID], private))
 		}
 	}
 
@@ -427,9 +430,10 @@ func sankeySVG(data forecast.SankeyData, private bool) template.HTML {
 			}
 			col := sanitizeColor(p.Color)
 			fmt.Fprintf(&b,
-				`<rect x="%g" y="%g" width="%g" height="%g" fill="%s" rx="1"><title>%s · %s h</title></rect>`,
+				`<rect class="node" x="%g" y="%g" width="%g" height="%g" fill="%s" rx="1"><title>%s&#10;%s: %s h von %s h gesamt</title></rect>`,
 				x, bd.top, g.nodeW, bd.bot-bd.top, col,
-				template.HTMLEscapeString(p.Name), chartHours(bk.Hours[p.ID], private))
+				template.HTMLEscapeString(p.Name),
+				template.HTMLEscapeString(bk.Label), chartHours(bk.Hours[p.ID], private), chartHours(bk.Total, private))
 		}
 		// summed planned hours above the stack (muted when empty)
 		top := baseY - scale(bk.Total)

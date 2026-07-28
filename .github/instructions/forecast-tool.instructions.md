@@ -258,9 +258,14 @@ collects every requirement stated so far as the binding reference.
   3 months/half-year/fiscal year) as `.chip` links (`GET /?sankey=<key>`, default
   `4w`, unknown → default via `NormalizeSankeyRange`).
 - **KPI tiles (`.cards.kpi-row`, five columns, always evenly spread across the
-  width):** Week-to-date · Budget gesamt (`Summary.TotalBudget`, plus a
-  `.kpi-sub` line with the carry-over and `TotalAvailable` when `HasCarryOver`) ·
-  Forecast gesamt (`Summary.TotalForecast`) · Projekte · Aktuelle FY-Woche.
+  width):** Week-to-date · Budget gesamt (`Summary.TotalBudget`) · Forecast
+  gesamt (`Summary.TotalForecast`) · Projekte · Aktuelle FY-Woche.
+  **Every tile shows only its value and label**; the details live in a
+  multi-line `title` tooltip on the card (`&#10;` for the line breaks): budget
+  shows carry-over/available/planned/remaining, forecast shows the booked hours
+  and the combined total, projects the active count, the FY week its range and
+  the total number of weeks. All figures go through `hours`/`pct`, so private
+  mode masks the tooltips too.
 - **Week-to-date tile (first):** `forecast.BuildWeekToDate(d)` reports the
   **utilization reached since the fiscal year started**, up to the current week.
   The FY goal is spread evenly over the fiscal year's weeks
@@ -313,6 +318,12 @@ collects every requirement stated so far as the binding reference.
   "+N weitere"), no longer as HTML below it. **Planned vacation** appears as a
   **grey block in the axis zone** directly above the week/month label
   (`web.vacationBlocks`).
+- **Sankey tooltips:** every band segment (`rect.node`) and every connecting
+  ribbon (`path.ribbon`) carries an SVG `<title>` with the project name and the
+  hours (`Alpha⏎KW31: 24 h → KW32: 25 h`) – the JavaScript-free way to a hover
+  tooltip. CSS highlights the hovered band
+  (`.sankey .ribbon:hover { fill-opacity: 0.65 }`, `.sankey .node:hover` gets an
+  outline). The hours go through `chartHours`, so private mode masks them too.
 - **Free-capacity chart:** below the Sankey – on **the same time axis** (shared
   geometry `web.sankeyGeom`) – sits the column chart `web.freeTimeSVG` under the
   heading "Freie Kapazität": per bucket `FreeHours = CapacityHours − Total` with

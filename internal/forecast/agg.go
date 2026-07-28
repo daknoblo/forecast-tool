@@ -450,6 +450,7 @@ type YearSummary struct {
 	TotalBudget    float64 // summed budget of all projects
 	TotalCarryOver float64 // summed hours carried over from earlier fiscal years
 	TotalAvailable float64 // TotalBudget - TotalCarryOver (usable in this fiscal year)
+	TotalRemaining float64 // TotalAvailable - TotalHours (not planned yet)
 	TotalForecast  float64 // summed forecast hours (today and later)
 	TotalActual    float64 // summed booked hours (past days)
 	HasCarryOver   bool    // true when at least one project carries hours over
@@ -748,6 +749,7 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 	ys.TotalBudget = round1(ys.TotalBudget)
 	ys.TotalCarryOver = round1(ys.TotalCarryOver)
 	ys.TotalAvailable = round1(ys.TotalBudget - ys.TotalCarryOver)
+	ys.TotalRemaining = round1(ys.TotalAvailable - ys.TotalHours)
 	ys.TotalForecast = round1(ys.TotalForecast)
 	ys.TotalActual = round1(ys.TotalActual)
 
