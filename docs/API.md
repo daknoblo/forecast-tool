@@ -156,6 +156,10 @@ curl -H "Authorization: Bearer $READ" "https://host/api/v1/projects/summary"
 }
 ```
 
+> `totalHours` and `totalCarryOver` sum the **assignments** of the fiscal year;
+> the auto-managed vacation project is not part of them (it has no assignment and
+> never counts towards the goal). It does appear in `projects` with its own row.
+
 | Field | Meaning |
 |-------|---------|
 | `carryOverHours` | hours of the same assignment dated in **earlier** fiscal years |

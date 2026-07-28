@@ -73,6 +73,35 @@ func TestYearSummaryRemaining(t *testing.T) {
 	}
 }
 
+// The dashboard roll-ups describe the assignment work of the fiscal year, so the
+// vacation project must not inflate the budget or the planned hours - otherwise
+// TotalRemaining (budget minus booked minus forecast) would be meaningless.
+func TestYearTotalsExcludeVacation(t *testing.T) {
+	d := vacationData()
+	ys := BuildYearSummary(d, holidays.New(2026, "BY"))
+
+	if len(ys.Projects) != 2 {
+		t.Fatalf("summary covers %d projects, want 2 (vacation still has its own row)", len(ys.Projects))
+	}
+	// p1 has a 100h budget and 8h booked; the vacation project adds 240h budget
+	// and 16h of planned vacation, none of which may show up in the totals.
+	if ys.TotalBudget != 100 {
+		t.Errorf("TotalBudget = %v, want 100 (vacation budget excluded)", ys.TotalBudget)
+	}
+	if ys.TotalAvailable != 100 {
+		t.Errorf("TotalAvailable = %v, want 100", ys.TotalAvailable)
+	}
+	if ys.TotalHours != 8 {
+		t.Errorf("TotalHours = %v, want 8 (vacation hours excluded)", ys.TotalHours)
+	}
+	if ys.TotalRemaining != 92 {
+		t.Errorf("TotalRemaining = %v, want 92 (100 - 8)", ys.TotalRemaining)
+	}
+	if ys.TotalActual+ys.TotalForecast != ys.TotalHours {
+		t.Errorf("TotalActual+TotalForecast = %v, want %v", ys.TotalActual+ys.TotalForecast, ys.TotalHours)
+	}
+}
+
 // An assignment may run across several fiscal years. The project is re-created
 // per fiscal year and carries the assignment's total budget again, so the hours
 // already booked in earlier years must be deducted instead of being granted a

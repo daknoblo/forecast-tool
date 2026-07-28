@@ -444,13 +444,19 @@ type ProjectSummary struct {
 }
 
 // YearSummary aggregates all projects and weekly totals for the fiscal year.
+//
+// The Total* roll-ups describe the ASSIGNMENT work of the fiscal year and
+// therefore leave the vacation project out: its budget is derived from the
+// configured vacation days and its hours never count towards the goal, so
+// mixing it in would inflate the budget and make TotalRemaining meaningless.
+// Projects still contains the vacation project as its own row.
 type YearSummary struct {
 	Projects       []ProjectSummary
-	TotalHours     float64 // all hours dated inside the fiscal year
-	TotalBudget    float64 // summed budget of all projects
-	TotalCarryOver float64 // summed hours carried over from earlier fiscal years
+	TotalHours     float64 // booked + forecast hours dated inside the fiscal year
+	TotalBudget    float64 // summed budget of the assignments
+	TotalCarryOver float64 // hours of those assignments already spent in earlier fiscal years
 	TotalAvailable float64 // TotalBudget - TotalCarryOver (usable in this fiscal year)
-	TotalRemaining float64 // TotalAvailable - TotalHours (not planned yet)
+	TotalRemaining float64 // TotalAvailable - TotalHours (neither booked nor planned yet)
 	TotalForecast  float64 // summed forecast hours (today and later)
 	TotalActual    float64 // summed booked hours (past days)
 	HasCarryOver   bool    // true when at least one project carries hours over
@@ -733,13 +739,18 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 			RequiredPerWeek:    round1(requiredPerWorkday * 5),
 			OutOfWindow:        round1(outByP[p.ID]),
 		})
-		ys.TotalHours += c
-		ys.TotalBudget += p.BudgetHours
-		ys.TotalCarryOver += over
-		ys.TotalForecast += forecastByGroup[g]
-		ys.TotalActual += actualByGroup[g]
-		if over > 0 {
-			ys.HasCarryOver = true
+		// The roll-ups describe the assignment work of the fiscal year; the
+		// vacation project has its own derived budget and never counts towards
+		// the goal, so it stays out of them.
+		if !p.IsVacation() {
+			ys.TotalHours += c
+			ys.TotalBudget += p.BudgetHours
+			ys.TotalCarryOver += over
+			ys.TotalForecast += forecastByGroup[g]
+			ys.TotalActual += actualByGroup[g]
+			if over > 0 {
+				ys.HasCarryOver = true
+			}
 		}
 		if len(split) > 1 {
 			ys.HasFYSplit = true

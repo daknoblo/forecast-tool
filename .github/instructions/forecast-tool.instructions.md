@@ -257,15 +257,24 @@ collects every requirement stated so far as the binding reference.
   the horizon switches (`forecast.SankeyRanges`: 1 week/2 weeks/4 weeks/2 months/
   3 months/half-year/fiscal year) as `.chip` links (`GET /?sankey=<key>`, default
   `4w`, unknown → default via `NormalizeSankeyRange`).
-- **KPI tiles (`.cards.kpi-row`, five columns, always evenly spread across the
-  width):** Week-to-date · Budget gesamt (`Summary.TotalBudget`) · Forecast
-  gesamt (`Summary.TotalForecast`) · Projekte · Aktuelle FY-Woche.
+- **KPI tiles (`.cards.kpi-row`, six columns, always evenly spread across the
+  width):** Week-to-date · Budget gesamt · Forecast gesamt · Offen bis Ziel ·
+  Projekte · Aktuelle FY-Woche.
   **Every tile shows only its value and label**; the details live in a
-  multi-line `title` tooltip on the card (`&#10;` for the line breaks): budget
-  shows carry-over/available/planned/remaining, forecast shows the booked hours
-  and the combined total, projects the active count, the FY week its range and
-  the total number of weeks. All figures go through `hours`/`pct`, so private
-  mode masks the tooltips too.
+  multi-line `title` tooltip on the card (`&#10;` for the line breaks). All
+  figures go through `hours`/`pct`, so private mode masks the tooltips too.
+- **The `YearSummary.Total*` roll-ups describe the ASSIGNMENT work of the fiscal
+  year and exclude the vacation project** (its budget is derived from the
+  vacation days and its hours never count towards the goal, so it would inflate
+  the budget and make `TotalRemaining` meaningless). `Projects` still contains
+  the vacation row.
+  - **Budget gesamt** shows `TotalAvailable` = `TotalBudget - TotalCarryOver`,
+    i.e. what is really left for this fiscal year after the hours an assignment
+    already spent in earlier years.
+  - **Offen bis Ziel** shows `TotalRemaining` = `TotalAvailable - TotalHours`
+    (neither booked nor forecast yet). A negative value gets
+    `.kpi-value.negative`, but never in private mode, where the colour would
+    leak the sign of the masked figure.
 - **Week-to-date tile (first):** `forecast.BuildWeekToDate(d)` reports the
   **utilization reached since the fiscal year started**, up to the current week.
   The FY goal is spread evenly over the fiscal year's weeks
