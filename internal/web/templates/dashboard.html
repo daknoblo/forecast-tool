@@ -3,17 +3,17 @@
 <p class="hint">Zeitraum {{.FYStart}} – {{.FYEnd}}</p>
 
 <section class="cards kpi-row">
-  <div class="card kpi">
-    {{if .WeekToDate.HasData}}
+  {{if .WeekToDate.HasData}}
+  <div class="card kpi" title="Auslastung seit FY-Start ({{.WeekToDate.StartLabel}}) bis {{.WeekToDate.ToLabel}} – heute zählt noch nicht.&#10;&#10;Ø {{hours .WeekToDate.PerWeek}} h/Woche tatsächlich gegenüber {{hours .WeekToDate.TargetPerWeek}} h/Woche geplant ({{hours .WeekToDate.DeltaPerWeek}} h Differenz).&#10;{{hours .WeekToDate.Hours}} von {{hours .WeekToDate.ExpectedHours}} h in {{hours .WeekToDate.ElapsedWeeks}} Wochen.&#10;&#10;Das FY-Ziel ist gleichmäßig auf {{.WeekToDate.FYWeeks}} Wochen verteilt; Urlaub zählt nicht aufs Ziel.">
     <div class="kpi-value{{if and (not .Private) (lt .WeekToDate.RatePct 100.0)}} under{{end}}">{{pct .WeekToDate.RatePct}}</div>
     <div class="kpi-label">Week-to-date</div>
-    <div class="kpi-sub" title="Auslastung seit FY-Start ({{.WeekToDate.StartLabel}}) bis {{.WeekToDate.ToLabel}} – heute zählt noch nicht. Das FY-Ziel ist gleichmäßig auf {{.WeekToDate.FYWeeks}} Wochen verteilt; Urlaub zählt nicht aufs Ziel.">Ø {{hours .WeekToDate.PerWeek}} von {{hours .WeekToDate.TargetPerWeek}} h/Woche · {{hours .WeekToDate.Hours}} von {{hours .WeekToDate.ExpectedHours}} h seit FY-Start</div>
-    {{else}}
+  </div>
+  {{else}}
+  <div class="card kpi" title="Es gibt noch keine abgeschlossenen Tage im Fiskaljahr, oder für dieses Fiskaljahr ist kein Ziel hinterlegt.">
     <div class="kpi-value muted">–</div>
     <div class="kpi-label">Week-to-date</div>
-    <div class="kpi-sub">Noch keine abgeschlossenen Tage im Fiskaljahr oder kein FY-Ziel hinterlegt.</div>
-    {{end}}
   </div>
+  {{end}}
   <div class="card kpi">
     <div class="kpi-value">{{hours .Summary.TotalBudget}} h</div>
     <div class="kpi-label">Budget gesamt</div>

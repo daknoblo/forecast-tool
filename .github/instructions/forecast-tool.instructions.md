@@ -276,6 +276,10 @@ collects every requirement stated so far as the binding reference.
   `HasData` is false when the reviewed fiscal year does not contain today, has
   no goal, or has not had a single weekday yet; the tile then shows a
   placeholder.
+  The tile itself shows **only the percentage and the label** – the whole
+  calculation (achieved vs. planned h/week, hours since the FY start, elapsed
+  weeks) lives in a multi-line `title` tooltip on the card (`&#10;` for the line
+  breaks).
 - **Budgets table (`table.grid.budgets`), columns in this order:** project
   (colour dot + name + `assignmentid` badge) · budget · **Übertrag** (only
   rendered when `Summary.HasCarryOver`, shows `−CarryOver`) · forecast · booked ·
