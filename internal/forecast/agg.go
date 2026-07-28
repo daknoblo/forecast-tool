@@ -776,82 +776,98 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 	return ys
 }
 
-// WeekToDate reports the pace of the current fiscal-year week: the hours booked
-// on the working days that are already over, compared with the share of the
-// weekly target those days represent. Today is deliberately excluded — it is
-// still forecast and would drag the rate down while the day is running.
+// WeekToDate reports the utilization reached since the fiscal year started, up
+// to the current week. The FY goal is spread evenly over the fiscal year's
+// weeks, which yields an average weekly burn rate (e.g. 1440 h / 52 weeks =
+// 27.7 h). Booking 40 h in such a week means 12.3 h above plan and pushes the
+// rate above 100 %.
+//
+// Only days that are already over count — today is still forecast and would
+// drag the rate down while it is running. Weekends are not part of the elapsed
+// weeks; public holidays are, because the annual goal does not shrink because of
+// them. Vacation hours never count towards the FY goal and are excluded, exactly
+// as on the goal page.
 type WeekToDate struct {
-	HasData       bool    // today lies inside the fiscal year and a working day is over
-	Week          int     // fiscal-year week index
-	ISOWeek       int     // ISO calendar week
-	RangeLabel    string  // "Mo. 27.07.2026 – Fr. 31.07.2026"
-	ElapsedDays   int     // finished working days of the week (Mon .. yesterday)
-	WorkdaysWeek  int     // working days in the whole week (Mon-Fri minus holidays)
-	Hours         float64 // hours booked on the finished working days
-	TargetHours   float64 // weekly target
-	ProRataTarget float64 // TargetHours/5 * ElapsedDays
-	RatePct       float64 // Hours / ProRataTarget * 100 (100 = exactly on pace)
-	PerDay        float64 // Hours / ElapsedDays
-	WeekPct       float64 // Hours / TargetHours * 100 (progress towards the week)
+	HasData bool // today lies inside the fiscal year and the FY has a goal
+
+	Week       int    // current fiscal-year week index
+	ISOWeek    int    // ISO calendar week
+	StartLabel string // fiscal-year start, DD.MM.YYYY
+	ToLabel    string // last counted day (yesterday), DD.MM.YYYY
+
+	ElapsedWeeks  float64 // elapsed weekdays since the FY start / 5
+	FYWeeks       int     // weeks in the whole fiscal year
+	Hours         float64 // hours booked since the FY start (vacation excluded)
+	ExpectedHours float64 // TargetPerWeek * ElapsedWeeks
+	TargetPerWeek float64 // FY goal / FYWeeks (the evenly spread plan)
+	PerWeek       float64 // Hours / ElapsedWeeks (the rate actually achieved)
+	DeltaPerWeek  float64 // PerWeek - TargetPerWeek (hours per week above/below plan)
+	RatePct       float64 // PerWeek / TargetPerWeek * 100 (100 = exactly on plan)
 }
 
-// BuildWeekToDate computes the week-to-date pace of the current fiscal-year
-// week. Public holidays do not count as elapsed days, so a short week is not
-// penalised. The daily share of the weekly target is always target/5, matching
-// the 8h-per-day convention used for holidays and vacation elsewhere.
-// When the reviewed fiscal year does not contain today, or no working day of the
-// week is over yet, HasData stays false and the caller shows a placeholder.
-func BuildWeekToDate(d models.Data, cal *holidays.Calendar) WeekToDate {
+// BuildWeekToDate computes the utilization achieved since the fiscal year
+// started. It returns HasData == false when the reviewed fiscal year does not
+// contain today, when it has no goal, or before the first weekday is over; the
+// caller then shows a placeholder.
+func BuildWeekToDate(d models.Data) WeekToDate {
 	year := d.Settings.Year
 	startMonth := d.Settings.FiscalYearStartMonth
 	now := time.Now().UTC().Truncate(24 * time.Hour)
 	fyStart, fyEnd := FiscalYear(year, startMonth)
 	if now.Before(fyStart) || now.After(fyEnd) {
-		return WeekToDate{} // another fiscal year is under review: no "this week"
+		return WeekToDate{} // another fiscal year is under review: nothing to date
 	}
 
+	weeks := FYWeeks(year, startMonth)
+	if weeks < 1 {
+		weeks = 1
+	}
 	week := CurrentFYWeek(year, startMonth)
-	monday := FYWeekMonday(year, startMonth, week)
-	_, isoWeek := monday.ISOWeek()
+	_, isoWeek := FYWeekMonday(year, startMonth, week).ISOWeek()
+	target := d.CurrentFY().TargetHours
+
 	wtd := WeekToDate{
-		Week:        week,
-		ISOWeek:     isoWeek,
-		RangeLabel:  formatDayWithWeekday(monday) + " – " + formatDayWithWeekday(monday.AddDate(0, 0, 4)),
-		TargetHours: d.Settings.WeeklyTargetHours,
+		Week:          week,
+		ISOWeek:       isoWeek,
+		FYWeeks:       weeks,
+		StartLabel:    fyStart.Format("02.01.2006"),
+		ToLabel:       now.AddDate(0, 0, -1).Format("02.01.2006"),
+		TargetPerWeek: round1(target / float64(weeks)),
 	}
 
-	todayStr := now.Format("2006-01-02")
-	elapsed := make(map[string]bool, 5)
-	for i := 0; i < 5; i++ {
-		iso := monday.AddDate(0, 0, i).Format("2006-01-02")
-		if cal.IsHoliday(iso) {
-			continue
+	// Count the weekdays that are already over. Holidays are deliberately
+	// included: the annual goal stays the same, so a holiday really does put you
+	// behind the evenly spread plan.
+	weekdays := 0
+	for day := fyStart; day.Before(now); day = day.AddDate(0, 0, 1) {
+		if wd := day.Weekday(); wd != time.Saturday && wd != time.Sunday {
+			weekdays++
 		}
-		wtd.WorkdaysWeek++
-		if iso >= todayStr {
-			continue // today is still running, later days have not happened yet
-		}
-		wtd.ElapsedDays++
-		elapsed[iso] = true
 	}
-	if wtd.ElapsedDays == 0 {
+	if weekdays == 0 || target <= 0 {
 		return wtd
 	}
+
+	// Hours booked between the fiscal-year start and yesterday.
+	fromISO := fyStart.Format("2006-01-02")
+	todayISO := now.Format("2006-01-02")
+	vac := vacationSet(d.Projects)
 	for _, e := range d.Entries {
-		if elapsed[e.Date] {
-			wtd.Hours += e.Hours
+		if e.Date < fromISO || e.Date >= todayISO || vac[e.ProjectID] {
+			continue
 		}
+		wtd.Hours += e.Hours
 	}
 
+	elapsedWeeks := float64(weekdays) / 5
 	wtd.HasData = true
 	wtd.Hours = round1(wtd.Hours)
-	wtd.ProRataTarget = round1(wtd.TargetHours / 5 * float64(wtd.ElapsedDays))
-	wtd.PerDay = round1(wtd.Hours / float64(wtd.ElapsedDays))
-	if wtd.ProRataTarget > 0 {
-		wtd.RatePct = round1(wtd.Hours / wtd.ProRataTarget * 100)
-	}
-	if wtd.TargetHours > 0 {
-		wtd.WeekPct = round1(wtd.Hours / wtd.TargetHours * 100)
+	wtd.ElapsedWeeks = round1(elapsedWeeks)
+	wtd.ExpectedHours = round1(wtd.TargetPerWeek * elapsedWeeks)
+	wtd.PerWeek = round1(wtd.Hours / elapsedWeeks)
+	wtd.DeltaPerWeek = round1(wtd.PerWeek - wtd.TargetPerWeek)
+	if wtd.TargetPerWeek > 0 {
+		wtd.RatePct = round1(wtd.PerWeek / wtd.TargetPerWeek * 100)
 	}
 	return wtd
 }

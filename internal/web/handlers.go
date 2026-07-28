@@ -188,7 +188,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		"Settings":     d.Settings,
 		"FYYears":      fyYears(d),
 		"Summary":      ys,
-		"WeekToDate":   forecast.BuildWeekToDate(d, cal),
+		"WeekToDate":   forecast.BuildWeekToDate(d),
 		"Projects":     projects,
 		"CurrentWeek":  forecast.CurrentFYWeek(d.Settings.Year, d.Settings.FiscalYearStartMonth),
 		"FYStart":      fyStart.Format("02.01.2006"),

@@ -261,16 +261,21 @@ collects every requirement stated so far as the binding reference.
   width):** Week-to-date · Budget gesamt (`Summary.TotalBudget`, plus a
   `.kpi-sub` line with the carry-over and `TotalAvailable` when `HasCarryOver`) ·
   Forecast gesamt (`Summary.TotalForecast`) · Projekte · Aktuelle FY-Woche.
-- **Week-to-date tile (first):** `forecast.BuildWeekToDate(d, cal)` reports the
-  **pace** of the current fiscal-year week: `RatePct` = hours booked on the
-  working days that are already over, divided by their share of the weekly
-  target (`WeeklyTargetHours/5` per day, matching the 8h-per-day convention).
-  **Today is excluded on purpose** – it is still forecast and would drag the rate
-  down while the day runs. Public holidays do not count as elapsed days, so a
-  short week is not penalised. `< 100 %` colours the value (`.kpi-value.under`),
-  but never in private mode, where the class would leak the masked figure.
-  `HasData` is false while no working day is over or when the reviewed fiscal
-  year does not contain today; the tile then shows a placeholder.
+- **Week-to-date tile (first):** `forecast.BuildWeekToDate(d)` reports the
+  **utilization reached since the fiscal year started**, up to the current week.
+  The FY goal is spread evenly over the fiscal year's weeks
+  (`TargetPerWeek = TargetHours / FYWeeks`, e.g. 1440 h / 52 = 27.7 h); booking
+  40 h in such a week is 12.3 h above plan, so `RatePct = PerWeek /
+  TargetPerWeek * 100` lands above 100 %. Elapsed time is measured in weekdays
+  since the FY start divided by 5 (`ElapsedWeeks`), so the tile moves every day.
+  **Today is excluded on purpose** – it is still forecast. **Public holidays DO
+  count** as elapsed: the annual goal does not shrink because of them, so they
+  really do put you behind the even split. **Vacation is excluded**, exactly as
+  in `BuildGoalSummary`. `< 100 %` colours the value (`.kpi-value.under`), but
+  never in private mode, where the class would leak the masked figure.
+  `HasData` is false when the reviewed fiscal year does not contain today, has
+  no goal, or has not had a single weekday yet; the tile then shows a
+  placeholder.
 - **Budgets table (`table.grid.budgets`), columns in this order:** project
   (colour dot + name + `assignmentid` badge) · budget · **Übertrag** (only
   rendered when `Summary.HasCarryOver`, shows `−CarryOver`) · forecast · booked ·

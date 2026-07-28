@@ -48,9 +48,10 @@ optionally updated through an AI prompt.
 - Remaining budget per project plus a burn-down chart (server-rendered SVG)
 - Dashboard with a **utilization Sankey diagram** and a **free capacity** chart,
   both rendered server-side as inline SVG (no JavaScript dependencies)
-- **Week-to-date pace** tile: hours booked on the working days of the current
-  week that are already over, against their share of the weekly target (today is
-  excluded while it is still running, public holidays do not count as elapsed days)
+- **Week-to-date** tile: the utilization reached since the fiscal year started —
+  the hours actually booked against the FY goal spread evenly over the year's
+  weeks. Working 40 h where the even split only asks for 27.7 h shows as ~147 %
+  (today is excluded while it is still running, vacation does not count)
 - **Private mode**: a header toggle that masks all project names and figures —
   useful when sharing a screen
 - **JSON editor** in the browser: edit, export and save the whole data file with

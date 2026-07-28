@@ -7,11 +7,11 @@
     {{if .WeekToDate.HasData}}
     <div class="kpi-value{{if and (not .Private) (lt .WeekToDate.RatePct 100.0)}} under{{end}}">{{pct .WeekToDate.RatePct}}</div>
     <div class="kpi-label">Week-to-date</div>
-    <div class="kpi-sub" title="KW {{.WeekToDate.ISOWeek}} · {{.WeekToDate.RangeLabel}} · abgeschlossene Arbeitstage ohne heute">{{hours .WeekToDate.Hours}} von {{hours .WeekToDate.ProRataTarget}} h · Ø {{hours .WeekToDate.PerDay}} h/Tag ({{.WeekToDate.ElapsedDays}}/{{.WeekToDate.WorkdaysWeek}} Tage)</div>
+    <div class="kpi-sub" title="Auslastung seit FY-Start ({{.WeekToDate.StartLabel}}) bis {{.WeekToDate.ToLabel}} – heute zählt noch nicht. Das FY-Ziel ist gleichmäßig auf {{.WeekToDate.FYWeeks}} Wochen verteilt; Urlaub zählt nicht aufs Ziel.">Ø {{hours .WeekToDate.PerWeek}} von {{hours .WeekToDate.TargetPerWeek}} h/Woche · {{hours .WeekToDate.Hours}} von {{hours .WeekToDate.ExpectedHours}} h seit FY-Start</div>
     {{else}}
     <div class="kpi-value muted">–</div>
     <div class="kpi-label">Week-to-date</div>
-    <div class="kpi-sub">Noch kein abgeschlossener Arbeitstag in dieser Woche.</div>
+    <div class="kpi-sub">Noch keine abgeschlossenen Tage im Fiskaljahr oder kein FY-Ziel hinterlegt.</div>
     {{end}}
   </div>
   <div class="card kpi">
