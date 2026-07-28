@@ -173,20 +173,22 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, dat
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	private := isPrivate(r)
 	d := maskIfPrivate(s.store.Snapshot(), r)
+	cal := s.calendar(d)
 	// BuildYearSummary needs every fiscal year's projects to resolve the
 	// per-assignment carry-over; it scopes the summary to the active FY itself.
-	ys := forecast.BuildYearSummary(d, s.calendar(d))
+	ys := forecast.BuildYearSummary(d, cal)
 	d.Projects = models.ProjectsForFY(d.Projects, d.Settings.Year)
 	projects := forecast.SortedProjects(d.Projects)
 	fyStart, fyEnd := forecast.FiscalYear(d.Settings.Year, d.Settings.FiscalYearStartMonth)
 	sankeyOffset, _ := strconv.Atoi(trim(r.URL.Query().Get("soff")))
-	sankey := forecast.BuildSankey(d, s.calendar(d), r.URL.Query().Get("sankey"), sankeyOffset)
+	sankey := forecast.BuildSankey(d, cal, r.URL.Query().Get("sankey"), sankeyOffset)
 	s.render(w, r, "dashboard.html", map[string]any{
 		"Active":       "dashboard",
 		"Wide":         true,
 		"Settings":     d.Settings,
 		"FYYears":      fyYears(d),
 		"Summary":      ys,
+		"WeekToDate":   forecast.BuildWeekToDate(d, cal),
 		"Projects":     projects,
 		"CurrentWeek":  forecast.CurrentFYWeek(d.Settings.Year, d.Settings.FiscalYearStartMonth),
 		"FYStart":      fyStart.Format("02.01.2006"),

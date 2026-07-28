@@ -776,6 +776,86 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 	return ys
 }
 
+// WeekToDate reports the pace of the current fiscal-year week: the hours booked
+// on the working days that are already over, compared with the share of the
+// weekly target those days represent. Today is deliberately excluded — it is
+// still forecast and would drag the rate down while the day is running.
+type WeekToDate struct {
+	HasData       bool    // today lies inside the fiscal year and a working day is over
+	Week          int     // fiscal-year week index
+	ISOWeek       int     // ISO calendar week
+	RangeLabel    string  // "Mo. 27.07.2026 – Fr. 31.07.2026"
+	ElapsedDays   int     // finished working days of the week (Mon .. yesterday)
+	WorkdaysWeek  int     // working days in the whole week (Mon-Fri minus holidays)
+	Hours         float64 // hours booked on the finished working days
+	TargetHours   float64 // weekly target
+	ProRataTarget float64 // TargetHours/5 * ElapsedDays
+	RatePct       float64 // Hours / ProRataTarget * 100 (100 = exactly on pace)
+	PerDay        float64 // Hours / ElapsedDays
+	WeekPct       float64 // Hours / TargetHours * 100 (progress towards the week)
+}
+
+// BuildWeekToDate computes the week-to-date pace of the current fiscal-year
+// week. Public holidays do not count as elapsed days, so a short week is not
+// penalised. The daily share of the weekly target is always target/5, matching
+// the 8h-per-day convention used for holidays and vacation elsewhere.
+// When the reviewed fiscal year does not contain today, or no working day of the
+// week is over yet, HasData stays false and the caller shows a placeholder.
+func BuildWeekToDate(d models.Data, cal *holidays.Calendar) WeekToDate {
+	year := d.Settings.Year
+	startMonth := d.Settings.FiscalYearStartMonth
+	now := time.Now().UTC().Truncate(24 * time.Hour)
+	fyStart, fyEnd := FiscalYear(year, startMonth)
+	if now.Before(fyStart) || now.After(fyEnd) {
+		return WeekToDate{} // another fiscal year is under review: no "this week"
+	}
+
+	week := CurrentFYWeek(year, startMonth)
+	monday := FYWeekMonday(year, startMonth, week)
+	_, isoWeek := monday.ISOWeek()
+	wtd := WeekToDate{
+		Week:        week,
+		ISOWeek:     isoWeek,
+		RangeLabel:  formatDayWithWeekday(monday) + " – " + formatDayWithWeekday(monday.AddDate(0, 0, 4)),
+		TargetHours: d.Settings.WeeklyTargetHours,
+	}
+
+	todayStr := now.Format("2006-01-02")
+	elapsed := make(map[string]bool, 5)
+	for i := 0; i < 5; i++ {
+		iso := monday.AddDate(0, 0, i).Format("2006-01-02")
+		if cal.IsHoliday(iso) {
+			continue
+		}
+		wtd.WorkdaysWeek++
+		if iso >= todayStr {
+			continue // today is still running, later days have not happened yet
+		}
+		wtd.ElapsedDays++
+		elapsed[iso] = true
+	}
+	if wtd.ElapsedDays == 0 {
+		return wtd
+	}
+	for _, e := range d.Entries {
+		if elapsed[e.Date] {
+			wtd.Hours += e.Hours
+		}
+	}
+
+	wtd.HasData = true
+	wtd.Hours = round1(wtd.Hours)
+	wtd.ProRataTarget = round1(wtd.TargetHours / 5 * float64(wtd.ElapsedDays))
+	wtd.PerDay = round1(wtd.Hours / float64(wtd.ElapsedDays))
+	if wtd.ProRataTarget > 0 {
+		wtd.RatePct = round1(wtd.Hours / wtd.ProRataTarget * 100)
+	}
+	if wtd.TargetHours > 0 {
+		wtd.WeekPct = round1(wtd.Hours / wtd.TargetHours * 100)
+	}
+	return wtd
+}
+
 // BurnPoint is a single data point of a project burn-down curve.
 type BurnPoint struct {
 	ISOWeek   int // ISO calendar week of the point's Monday

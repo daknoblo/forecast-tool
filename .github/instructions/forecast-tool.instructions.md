@@ -257,10 +257,20 @@ collects every requirement stated so far as the binding reference.
   the horizon switches (`forecast.SankeyRanges`: 1 week/2 weeks/4 weeks/2 months/
   3 months/half-year/fiscal year) as `.chip` links (`GET /?sankey=<key>`, default
   `4w`, unknown → default via `NormalizeSankeyRange`).
-- **KPI tiles (`.cards.kpi-row`, always evenly spread across the width):** Budget
-  gesamt (`Summary.TotalBudget`, plus a `.kpi-sub` line with the carry-over and
-  `TotalAvailable` when `HasCarryOver`) · Forecast gesamt
-  (`Summary.TotalForecast`) · Projekte · Aktuelle FY-Woche.
+- **KPI tiles (`.cards.kpi-row`, five columns, always evenly spread across the
+  width):** Week-to-date · Budget gesamt (`Summary.TotalBudget`, plus a
+  `.kpi-sub` line with the carry-over and `TotalAvailable` when `HasCarryOver`) ·
+  Forecast gesamt (`Summary.TotalForecast`) · Projekte · Aktuelle FY-Woche.
+- **Week-to-date tile (first):** `forecast.BuildWeekToDate(d, cal)` reports the
+  **pace** of the current fiscal-year week: `RatePct` = hours booked on the
+  working days that are already over, divided by their share of the weekly
+  target (`WeeklyTargetHours/5` per day, matching the 8h-per-day convention).
+  **Today is excluded on purpose** – it is still forecast and would drag the rate
+  down while the day runs. Public holidays do not count as elapsed days, so a
+  short week is not penalised. `< 100 %` colours the value (`.kpi-value.under`),
+  but never in private mode, where the class would leak the masked figure.
+  `HasData` is false while no working day is over or when the reviewed fiscal
+  year does not contain today; the tile then shows a placeholder.
 - **Budgets table (`table.grid.budgets`), columns in this order:** project
   (colour dot + name + `assignmentid` badge) · budget · **Übertrag** (only
   rendered when `Summary.HasCarryOver`, shows `−CarryOver`) · forecast · booked ·

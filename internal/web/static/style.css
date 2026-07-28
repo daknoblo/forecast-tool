@@ -59,11 +59,14 @@ h2 { font-size: 1.1rem; margin: 1.5rem 0 0.75rem; }
 }
 .kpi { text-align: center; }
 .kpi-value { font-size: 1.8rem; font-weight: 700; }
+.kpi-value.under { color: #b45309; }
+.kpi-value.muted { color: var(--muted); }
 .kpi-label { color: var(--muted); font-size: 0.85rem; }
 /* secondary KPI line, e.g. the cross-fiscal-year carry-over */
 .kpi-sub { color: var(--muted); font-size: 0.76rem; margin-top: 0.2rem; }
 /* dashboard KPI row: always split evenly across the full width */
-.kpi-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.kpi-row { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+@media (max-width: 1200px) { .kpi-row { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 760px) { .kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 /* private ("presentation") mode: hide every proportional bar as well, so no

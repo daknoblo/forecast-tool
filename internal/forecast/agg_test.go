@@ -227,6 +227,79 @@ func TestHoursSplitAtFiscalYearBoundary(t *testing.T) {
 	}
 }
 
+// The week-to-date pace counts only working days that are already over: today
+// is still running and must not drag the rate down.
+func TestBuildWeekToDate(t *testing.T) {
+	now := time.Now().UTC().Truncate(24 * time.Hour)
+	// Put the fiscal year around today so the current week lies inside it.
+	startMonth := int(now.AddDate(0, -5, 0).Month())
+	year := FiscalYearOf(now, startMonth)
+	cal := holidays.New(year, "BY")
+
+	d := models.Data{
+		Settings: models.Settings{Year: year, FederalState: "BY", WeeklyTargetHours: 40, FiscalYearStartMonth: startMonth},
+		Projects: []models.Project{{ID: "p1", Name: "Alpha", BudgetHours: 500, Active: true, FiscalYear: year}},
+	}
+
+	monday := FYWeekMonday(year, startMonth, CurrentFYWeek(year, startMonth))
+	todayStr := now.Format("2006-01-02")
+	wantDays, wantWorkdays := 0, 0
+	for i := 0; i < 5; i++ {
+		iso := monday.AddDate(0, 0, i).Format("2006-01-02")
+		if cal.IsHoliday(iso) {
+			continue
+		}
+		wantWorkdays++
+		if iso >= todayStr {
+			continue
+		}
+		wantDays++
+		d.Entries = append(d.Entries, models.Entry{Date: iso, ProjectID: "p1", Hours: 8})
+	}
+	// Today must not count, even though hours are already planned for it.
+	d.Entries = append(d.Entries, models.Entry{Date: todayStr, ProjectID: "p1", Hours: 8})
+
+	wtd := BuildWeekToDate(d, cal)
+	if wtd.WorkdaysWeek != wantWorkdays {
+		t.Errorf("WorkdaysWeek = %d, want %d", wtd.WorkdaysWeek, wantWorkdays)
+	}
+	if wtd.ElapsedDays != wantDays {
+		t.Fatalf("ElapsedDays = %d, want %d", wtd.ElapsedDays, wantDays)
+	}
+	if wantDays == 0 { // today is the week's first working day
+		if wtd.HasData {
+			t.Error("HasData = true, want false while no working day is over")
+		}
+		return
+	}
+	if !wtd.HasData {
+		t.Fatal("HasData = false, want true")
+	}
+	if want := float64(wantDays) * 8; wtd.Hours != want {
+		t.Errorf("Hours = %v, want %v (today excluded)", wtd.Hours, want)
+	}
+	if want := float64(wantDays) * 8; wtd.ProRataTarget != want {
+		t.Errorf("ProRataTarget = %v, want %v (40h/5 per elapsed day)", wtd.ProRataTarget, want)
+	}
+	if wtd.RatePct != 100 {
+		t.Errorf("RatePct = %v, want 100 (exactly on pace)", wtd.RatePct)
+	}
+	if wtd.PerDay != 8 {
+		t.Errorf("PerDay = %v, want 8", wtd.PerDay)
+	}
+}
+
+// A fiscal year that does not contain today has no "current week".
+func TestBuildWeekToDateOutsideFiscalYear(t *testing.T) {
+	year := time.Now().UTC().Year() + 5
+	d := models.Data{
+		Settings: models.Settings{Year: year, FederalState: "BY", WeeklyTargetHours: 40, FiscalYearStartMonth: 7},
+	}
+	if wtd := BuildWeekToDate(d, holidays.New(year, "BY")); wtd.HasData {
+		t.Errorf("HasData = true for FY %d, want false", year)
+	}
+}
+
 func TestFiscalYearOf(t *testing.T) {
 	cases := []struct {
 		date       string

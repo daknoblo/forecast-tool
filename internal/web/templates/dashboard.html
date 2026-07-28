@@ -4,6 +4,17 @@
 
 <section class="cards kpi-row">
   <div class="card kpi">
+    {{if .WeekToDate.HasData}}
+    <div class="kpi-value{{if and (not .Private) (lt .WeekToDate.RatePct 100.0)}} under{{end}}">{{pct .WeekToDate.RatePct}}</div>
+    <div class="kpi-label">Week-to-date</div>
+    <div class="kpi-sub" title="KW {{.WeekToDate.ISOWeek}} · {{.WeekToDate.RangeLabel}} · abgeschlossene Arbeitstage ohne heute">{{hours .WeekToDate.Hours}} von {{hours .WeekToDate.ProRataTarget}} h · Ø {{hours .WeekToDate.PerDay}} h/Tag ({{.WeekToDate.ElapsedDays}}/{{.WeekToDate.WorkdaysWeek}} Tage)</div>
+    {{else}}
+    <div class="kpi-value muted">–</div>
+    <div class="kpi-label">Week-to-date</div>
+    <div class="kpi-sub">Noch kein abgeschlossener Arbeitstag in dieser Woche.</div>
+    {{end}}
+  </div>
+  <div class="card kpi">
     <div class="kpi-value">{{hours .Summary.TotalBudget}} h</div>
     <div class="kpi-label">Budget gesamt</div>
     {{if .Summary.HasCarryOver}}<div class="kpi-sub" title="In früheren Fiskaljahren auf dieselben Assignments gebuchte Stunden sind bereits abgezogen">−{{hours .Summary.TotalCarryOver}} h Übertrag · <strong>{{hours .Summary.TotalAvailable}} h</strong> in FY {{.Settings.Year}}</div>{{end}}
