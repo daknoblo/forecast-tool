@@ -145,10 +145,9 @@ collects every requirement stated so far as the binding reference.
   (`BuildWeek`/`BuildSpan` `Total`, `BuildYearSummary` `WeekTotals`), because
   vacation consumes available working time, but **not towards the FY goal**
   (`BuildGoalSummary` skips vacation via `vacationSet`). In the dashboard Sankey
-  vacation is not a band: it appears as a grey block in the axis zone and reduces
-  the capacity in the free-time chart. The flat vacation deduction in the FY
-  capacity (goal page) stays. The projects page additionally shows the badge
-  "automatisch · Urlaub".
+  vacation is an **ordinary band** like any other project. The flat vacation
+  deduction in the FY capacity (goal page) stays. The projects page additionally
+  shows the badge "automatisch · Urlaub".
 - The AI blueprint (`internal/ai`) contains the vacation project including its
   `system` field; the model must not delete it or change its budget.
 
@@ -329,9 +328,15 @@ collects every requirement stated so far as the binding reference.
   hours); the **vacation project is not a band**. Vertical separators delimit the
   weeks/months, and every column is labelled with the **summed planned project
   hours**. The **legend lives inside the diagram** (top left, max. 2 rows, then
-  "+N weitere"), no longer as HTML below it. **Planned vacation** appears as a
-  **grey block in the axis zone** directly above the week/month label
-  (`web.vacationBlocks`).
+  "+N weitere"), no longer as HTML below it.
+- **Vacation is a normal band in the Sankey** (grey, `BuildSankey` no longer
+  filters it out) and additionally acts as the **hub for paused projects**: a
+  project with hours in one bucket but none in the neighbouring vacation bucket
+  gets a ribbon into (or out of) the vacation band instead of just stopping, so a
+  vacation week visibly absorbs the other projects and releases them again
+  afterwards. `web.pausedProjects` collects those projects and `web.splitBand`
+  divides the vacation band proportionally (bottom-up, matching the stack order).
+  There are no grey vacation blocks in the axis zone any more.
 - **Sankey tooltips:** every band segment (`rect.node`) and every connecting
   ribbon (`path.ribbon`) carries an SVG `<title>` with the project name and the
   hours (`Alpha⏎KW31: 24 h → KW32: 25 h`) – the JavaScript-free way to a hover
@@ -347,8 +352,9 @@ collects every requirement stated so far as the binding reference.
 - **Free-capacity chart:** below the Sankey – on **the same time axis** (shared
   geometry `web.sankeyGeom`) – sits the column chart `web.freeTimeSVG` under the
   heading "Freie Kapazität": per bucket `FreeHours = CapacityHours − Total` with
-  `CapacityHours = weekdays × 8h − holidays − vacation`. Columns above the zero
-  line = free time (blue), below = overbooked (red).
+  `CapacityHours = weekdays × 8h − holidays`. Because vacation is part of `Total`
+  now, the resulting free time is unchanged. Columns above the zero line = free
+  time (blue), below = overbooked (red).
 - `BuildSankey(d, cal, rangeKey, offset)` therefore needs the holiday calendar.
 
 ## Private mode (presentation mode)

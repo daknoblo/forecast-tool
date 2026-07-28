@@ -1263,17 +1263,16 @@ type SankeyBucket struct {
 	Hours         map[string]float64 // projectID -> planned hours in this bucket
 	WeekdayHours  float64            // in-FY weekdays (Mon-Fri) in the bucket * 8h
 	HolidayHours  float64            // public holidays among those weekdays * 8h
-	VacationHours float64            // planned vacation hours in the bucket
-	VacationDays  float64            // VacationHours / 8h
-	CapacityHours float64            // WeekdayHours - HolidayHours - VacationHours
+	CapacityHours float64            // WeekdayHours - HolidayHours
 	FreeHours     float64            // CapacityHours - Total (negative = overbooked)
 }
 
 // SankeyData is the dashboard utilization time-flow. Buckets are evenly spaced
 // columns (weeks or months) drawn across the full width; each project forms a
 // coloured band whose height is proportional to its planned hours, connected by
-// ribbons between adjacent buckets. The vacation project is not part of the
-// bands (it is reported per bucket instead) and never counts towards Total.
+// ribbons between adjacent buckets. The vacation project is an ordinary band
+// here: a vacation week shows the other projects flowing into the grey vacation
+// band and back out again afterwards.
 type SankeyData struct {
 	RangeKey      string             // selected range key
 	Unit          string             // "week" | "month" bucket granularity
@@ -1293,7 +1292,6 @@ type SankeyData struct {
 	CanNext    bool // false when the span already ends at the FY end
 
 	// Capacity roll-up over the whole span (drives the free-time chart).
-	VacationTotal float64 // planned vacation hours over the span
 	CapacityTotal float64 // available working hours over the span
 	FreeTotal     float64 // CapacityTotal - Total
 	MaxFree       float64 // largest absolute per-bucket free/overbooked value
@@ -1377,8 +1375,8 @@ func shiftSankeySpan(baseWeek, weeks, maxW, offset int) (startWeek, applied int)
 // BuildSankey aggregates planned project hours into week or month buckets over
 // the horizon selected by rangeKey, for the dashboard utilization Sankey. The
 // horizon can be shifted by whole spans via offset (negative = into the past).
-// Only days within the fiscal year are counted; vacation hours are reported per
-// bucket instead of being part of the stacked bands.
+// Only days within the fiscal year are counted; the vacation project is treated
+// like any other project and forms its own band.
 func BuildSankey(d models.Data, cal *holidays.Calendar, rangeKey string, offset int) SankeyData {
 	year := d.Settings.Year
 	startMonth := normMonth(d.Settings.FiscalYearStartMonth)
@@ -1398,7 +1396,6 @@ func BuildSankey(d models.Data, cal *holidays.Calendar, rangeKey string, offset 
 	fyStartISO := fyStart.Format("2006-01-02")
 	fyEndISO := fyEnd.Format("2006-01-02")
 	hidx := hoursIndex(d.Entries)
-	vac := vacationSet(d.Projects)
 
 	data := SankeyData{
 		RangeKey:      rangeKey,
@@ -1429,10 +1426,6 @@ func BuildSankey(d models.Data, cal *holidays.Calendar, rangeKey string, offset 
 		for _, p := range d.Projects {
 			h := hidx[iso+"|"+p.ID]
 			if h == 0 {
-				continue
-			}
-			if vac[p.ID] {
-				b.VacationHours += h
 				continue
 			}
 			b.Hours[p.ID] += h
@@ -1518,13 +1511,10 @@ func BuildSankey(d models.Data, cal *holidays.Calendar, rangeKey string, offset 
 	}
 	for i := range data.Buckets {
 		bk := &data.Buckets[i]
-		bk.VacationHours = round1(bk.VacationHours)
-		bk.VacationDays = round1(bk.VacationHours / HolidayDayHours)
-		bk.CapacityHours = round1(bk.WeekdayHours - bk.HolidayHours - bk.VacationHours)
+		bk.CapacityHours = round1(bk.WeekdayHours - bk.HolidayHours)
 		bk.FreeHours = round1(bk.CapacityHours - bk.Total)
 
 		data.Total += bk.Total
-		data.VacationTotal += bk.VacationHours
 		data.CapacityTotal += bk.CapacityHours
 		if bk.Total > data.MaxBucket {
 			data.MaxBucket = bk.Total
@@ -1536,7 +1526,6 @@ func BuildSankey(d models.Data, cal *holidays.Calendar, rangeKey string, offset 
 		}
 	}
 	data.Total = round1(data.Total)
-	data.VacationTotal = round1(data.VacationTotal)
 	data.CapacityTotal = round1(data.CapacityTotal)
 	data.FreeTotal = round1(data.CapacityTotal - data.Total)
 	if firstISO != "" {

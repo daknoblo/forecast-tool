@@ -738,31 +738,29 @@ func TestSankeySpanUnits(t *testing.T) {
 	}
 }
 
-func TestBuildSankeyFiscalYearSeparatesVacation(t *testing.T) {
+func TestBuildSankeyIncludesVacationAsBand(t *testing.T) {
 	d := vacationData() // FY 2026 (calendar year), all entries in January
 	sk := BuildSankey(d, holidays.New(2026, "BY"), "fy", 0)
 
 	if sk.Unit != "month" {
 		t.Fatalf("unit = %q, want month", sk.Unit)
 	}
-	// Vacation hours (16h) are not part of the bands; only p1's 8h remain.
-	if sk.Total != 8 {
-		t.Errorf("total = %v, want 8 (vacation not in the bands)", sk.Total)
+	// Vacation is an ordinary band: 8h on p1 plus 16h of vacation.
+	if sk.Total != 24 {
+		t.Errorf("total = %v, want 24 (vacation is part of the bands)", sk.Total)
 	}
-	if _, ok := sk.ProjectTotals["vacation-2026"]; ok {
-		t.Errorf("vacation must not appear as a Sankey band")
-	}
-	if sk.VacationTotal != 16 {
-		t.Errorf("vacation total = %v, want 16", sk.VacationTotal)
+	if sk.ProjectTotals["vacation-2026"] != 16 {
+		t.Errorf("vacation total = %v, want 16", sk.ProjectTotals["vacation-2026"])
 	}
 	if sk.ProjectTotals["p1"] != 8 {
 		t.Errorf("p1 total = %v, want 8", sk.ProjectTotals["p1"])
 	}
-	if len(sk.Projects) != 1 || sk.Projects[0].ID != "p1" {
-		t.Fatalf("projects = %+v, want only p1", sk.Projects)
+	// Stack order is by total desc, so vacation (16h) comes before p1 (8h).
+	if len(sk.Projects) != 2 || sk.Projects[0].ID != "vacation-2026" || sk.Projects[1].ID != "p1" {
+		t.Fatalf("projects = %+v, want vacation before p1", sk.Projects)
 	}
-	if sk.MaxBucket != 8 {
-		t.Errorf("max bucket = %v, want 8", sk.MaxBucket)
+	if sk.MaxBucket != 24 {
+		t.Errorf("max bucket = %v, want 24", sk.MaxBucket)
 	}
 	// The January column carries the hours; every FY month is a bucket.
 	var jan *SankeyBucket
@@ -771,14 +769,14 @@ func TestBuildSankeyFiscalYearSeparatesVacation(t *testing.T) {
 			jan = &sk.Buckets[i]
 		}
 	}
-	if jan == nil || jan.Total != 8 {
-		t.Fatalf("january bucket = %+v, want total 8", jan)
+	if jan == nil || jan.Total != 24 {
+		t.Fatalf("january bucket = %+v, want total 24", jan)
 	}
-	if jan.VacationHours != 16 || jan.VacationDays != 2 {
-		t.Errorf("january vacation = %v h / %v days, want 16 h / 2 days", jan.VacationHours, jan.VacationDays)
+	if jan.Hours["vacation-2026"] != 16 {
+		t.Errorf("january vacation band = %v, want 16", jan.Hours["vacation-2026"])
 	}
-	// Free time = weekdays*8 - holidays - vacation - planned hours.
-	wantFree := jan.WeekdayHours - jan.HolidayHours - jan.VacationHours - jan.Total
+	// Free time = weekdays*8 - holidays - planned hours (vacation included).
+	wantFree := jan.WeekdayHours - jan.HolidayHours - jan.Total
 	if jan.FreeHours != round1(wantFree) {
 		t.Errorf("january free = %v, want %v", jan.FreeHours, round1(wantFree))
 	}

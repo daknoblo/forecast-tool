@@ -253,14 +253,6 @@ func (g sankeyGeom) nodeX(i int) float64 {
 // centerX returns the horizontal centre of bucket i.
 func (g sankeyGeom) centerX(i int) float64 { return g.nodeX(i) + g.nodeW/2 }
 
-// colWidth returns the horizontal room available per bucket.
-func (g sankeyGeom) colWidth() float64 {
-	if g.n <= 1 {
-		return g.plotW
-	}
-	return (g.plotW - g.nodeW) / float64(g.n-1)
-}
-
 // estTextWidth approximates the rendered width of a label, which is enough to
 // lay out the in-chart legend without measuring actual glyphs.
 func estTextWidth(s string, fontSize float64) float64 {
@@ -310,16 +302,62 @@ func sankeyLegend(g sankeyGeom, data forecast.SankeyData, maxRows int, private b
 	return out, row + 1
 }
 
+// sankeyBand is the vertical extent of one project's band inside a bucket.
+type sankeyBand struct{ top, bot float64 }
+
+// splitBand divides a band into one slot per weight, stacked bottom-up so the
+// slots follow the same order as the stacked project bands.
+func splitBand(bd sankeyBand, weights []float64) []sankeyBand {
+	total := 0.0
+	for _, w := range weights {
+		total += w
+	}
+	out := make([]sankeyBand, len(weights))
+	if total <= 0 {
+		return out
+	}
+	h := bd.bot - bd.top
+	y := bd.bot
+	for i, w := range weights {
+		hh := h * w / total
+		out[i] = sankeyBand{top: y - hh, bot: y}
+		y -= hh
+	}
+	return out
+}
+
+// pausedProjects returns the projects that have a band in `from` but none in
+// `to` (the vacation project itself excluded), together with their hours in
+// bucket `hoursIdx`. Those are the projects a vacation column interrupts.
+func pausedProjects(data forecast.SankeyData, from, to map[string]sankeyBand, vacID string, hoursIdx int) ([]models.Project, []float64) {
+	var ps []models.Project
+	var weights []float64
+	for _, p := range data.Projects {
+		if p.ID == vacID {
+			continue
+		}
+		if _, ok := from[p.ID]; !ok {
+			continue
+		}
+		if _, ok := to[p.ID]; ok {
+			continue
+		}
+		ps = append(ps, p)
+		weights = append(weights, data.Buckets[hoursIdx].Hours[p.ID])
+	}
+	return ps, weights
+}
+
 // sankeySVG renders the dashboard utilization flow as a dependency-free inline
 // SVG. Time buckets (weeks or months) are evenly spaced columns across the full
 // width; each project forms a coloured band whose height is proportional to its
 // planned hours, and adjacent buckets are joined by translucent ribbons.
 // Vertical dividers separate the weeks/months and every column is annotated
 // with its summed planned project hours. The project legend is drawn inside the
-// chart and planned vacation shows up as a grey block in the axis strip, right
-// above the week/month label. Project colours are sanitised and project names
-// are HTML-escaped, so the emitted markup (returned as template.HTML) carries
-// no untrusted content.
+// chart. Vacation is an ordinary band, so a vacation week visibly absorbs the
+// other projects' ribbons and releases them again afterwards. Project colours
+// are sanitised and project names are HTML-escaped, so the emitted markup
+// (returned as template.HTML) carries no untrusted content.
 //
 // In private mode every figure is masked AND each column is normalised to the
 // same height, so neither the labels nor the band heights reveal how many hours
@@ -328,7 +366,7 @@ func sankeySVG(data forecast.SankeyData, private bool) template.HTML {
 	const (
 		h        = 376.0 // ~20 % shorter than the original 470
 		headroom = 22.0  // room above the tallest column for its value label
-		axisH    = 52.0  // vacation strip + week/month labels below the baseline
+		axisH    = 34.0  // week/month labels below the baseline
 		legRowH  = 15.0
 	)
 	g := newSankeyGeom(len(data.Buckets))
@@ -365,10 +403,9 @@ func sankeySVG(data forecast.SankeyData, private bool) template.HTML {
 	}
 
 	// Per bucket, the top/bottom Y of each project's band (bottom-aligned stack).
-	type band struct{ top, bot float64 }
-	bands := make([]map[string]band, g.n)
+	bands := make([]map[string]sankeyBand, g.n)
 	for i, bk := range data.Buckets {
-		bands[i] = make(map[string]band, len(bk.Hours))
+		bands[i] = make(map[string]sankeyBand, len(bk.Hours))
 		scale := bucketScale(bk)
 		y := baseY
 		for _, p := range data.Projects {
@@ -377,8 +414,18 @@ func sankeySVG(data forecast.SankeyData, private bool) template.HTML {
 				continue
 			}
 			bh := scale(hh)
-			bands[i][p.ID] = band{top: y - bh, bot: y}
+			bands[i][p.ID] = sankeyBand{top: y - bh, bot: y}
 			y -= bh
+		}
+	}
+
+	// The vacation project is an ordinary band, but it also acts as the hub a
+	// paused project flows into and comes back out of.
+	vacID, vacName := "", ""
+	for _, p := range data.Projects {
+		if p.IsVacation() {
+			vacID, vacName = p.ID, p.Name
+			break
 		}
 	}
 
@@ -420,20 +467,50 @@ func sankeySVG(data forecast.SankeyData, private bool) template.HTML {
 		x0 := nodeX(i) + g.nodeW
 		x1 := nodeX(i + 1)
 		xc := (x0 + x1) / 2
+		ribbon := func(a, c sankeyBand, color, title string) {
+			fmt.Fprintf(&b,
+				`<path class="ribbon" d="M%g %g C%g %g %g %g %g %g L%g %g C%g %g %g %g %g %g Z" fill="%s" fill-opacity="0.3"><title>%s</title></path>`,
+				x0, a.top, xc, a.top, xc, c.top, x1, c.top,
+				x1, c.bot, xc, c.bot, xc, a.bot, x0, a.bot, color, title)
+		}
+
 		for _, p := range data.Projects {
 			a, okA := bands[i][p.ID]
 			c, okC := bands[i+1][p.ID]
 			if !okA || !okC {
 				continue
 			}
-			col := sanitizeColor(p.Color)
-			fmt.Fprintf(&b,
-				`<path class="ribbon" d="M%g %g C%g %g %g %g %g %g L%g %g C%g %g %g %g %g %g Z" fill="%s" fill-opacity="0.3"><title>%s&#10;%s: %s h → %s: %s h</title></path>`,
-				x0, a.top, xc, a.top, xc, c.top, x1, c.top,
-				x1, c.bot, xc, c.bot, xc, a.bot, x0, a.bot, col,
+			ribbon(a, c, sanitizeColor(p.Color), fmt.Sprintf("%s&#10;%s: %s h → %s: %s h",
 				template.HTMLEscapeString(p.Name),
 				template.HTMLEscapeString(data.Buckets[i].Label), chartHours(data.Buckets[i].Hours[p.ID], private),
-				template.HTMLEscapeString(data.Buckets[i+1].Label), chartHours(data.Buckets[i+1].Hours[p.ID], private))
+				template.HTMLEscapeString(data.Buckets[i+1].Label), chartHours(data.Buckets[i+1].Hours[p.ID], private)))
+		}
+
+		if vacID == "" {
+			continue
+		}
+		// A project that pauses for a vacation column must not just stop: it flows
+		// into the vacation band and comes back out of it on the far side. The
+		// band is split proportionally, so the whole grey stripe is fed.
+		if vac, ok := bands[i+1][vacID]; ok {
+			ps, weights := pausedProjects(data, bands[i], bands[i+1], vacID, i)
+			for k, slot := range splitBand(vac, weights) {
+				ribbon(bands[i][ps[k].ID], slot, sanitizeColor(ps[k].Color),
+					fmt.Sprintf("%s&#10;%s: %s h → %s (%s)",
+						template.HTMLEscapeString(ps[k].Name),
+						template.HTMLEscapeString(data.Buckets[i].Label), chartHours(data.Buckets[i].Hours[ps[k].ID], private),
+						template.HTMLEscapeString(vacName), template.HTMLEscapeString(data.Buckets[i+1].Label)))
+			}
+		}
+		if vac, ok := bands[i][vacID]; ok {
+			ps, weights := pausedProjects(data, bands[i+1], bands[i], vacID, i+1)
+			for k, slot := range splitBand(vac, weights) {
+				ribbon(slot, bands[i+1][ps[k].ID], sanitizeColor(ps[k].Color),
+					fmt.Sprintf("%s&#10;%s (%s) → %s: %s h",
+						template.HTMLEscapeString(ps[k].Name),
+						template.HTMLEscapeString(vacName), template.HTMLEscapeString(data.Buckets[i].Label),
+						template.HTMLEscapeString(data.Buckets[i+1].Label), chartHours(data.Buckets[i+1].Hours[ps[k].ID], private)))
+			}
 		}
 	}
 
@@ -465,51 +542,15 @@ func sankeySVG(data forecast.SankeyData, private bool) template.HTML {
 			cx, top-6, fill, chartHours(bk.Total, private))
 	}
 
-	// planned vacation: a grey block in the axis strip, right above the label
-	vacationBlocks(&b, g, data.Buckets, baseY+5, 15, private)
-	axisLabels(&b, g, data.Buckets, baseY+34)
+	axisLabels(&b, g, data.Buckets, baseY+16)
 
 	b.WriteString(`</svg>`)
 	return template.HTML(b.String()) // #nosec G203 -- sanitised colours + escaped names; other values numeric/controlled
 }
 
-// vacationBlocks draws a grey block per bucket that has planned vacation, laid
-// out like the week/month label right below it. In private mode the block only
-// says "Urlaub" - the number of hours stays hidden.
-func vacationBlocks(b *strings.Builder, g sankeyGeom, buckets []forecast.SankeyBucket, y, height float64, private bool) {
-	bw := g.colWidth() * 0.86
-	if bw > 130 {
-		bw = 130
-	}
-	for i, bk := range buckets {
-		if bk.VacationHours <= 0 {
-			continue
-		}
-		cx := g.centerX(i)
-		if private {
-			fmt.Fprintf(b, `<rect x="%g" y="%g" width="%g" height="%g" rx="3" fill="#cbd5e1"><title>Urlaub geplant</title></rect>`,
-				cx-bw/2, y, bw, height)
-			if estTextWidth("Urlaub", 9) <= bw-4 {
-				fmt.Fprintf(b, `<text x="%g" y="%g" font-size="9" fill="#334155" text-anchor="middle">Urlaub</text>`, cx, y+height-4)
-			}
-			continue
-		}
-		fmt.Fprintf(b, `<rect x="%g" y="%g" width="%g" height="%g" rx="3" fill="#cbd5e1"><title>Urlaub geplant: %s h (%s Tage)</title></rect>`,
-			cx-bw/2, y, bw, height, formatHours(bk.VacationHours), formatHours(bk.VacationDays))
-		label := "Urlaub " + formatHours(bk.VacationHours) + " h"
-		if estTextWidth(label, 9) > bw-8 {
-			label = formatHours(bk.VacationHours) + " h"
-		}
-		if estTextWidth(label, 9) <= bw-4 {
-			fmt.Fprintf(b, `<text x="%g" y="%g" font-size="9" fill="#334155" text-anchor="middle">%s</text>`,
-				cx, y+height-4, label)
-		}
-	}
-}
-
 // freeTimeSVG renders the remaining free working time per bucket as a column
 // chart on the same time axis as the Sankey above it: capacity (weekdays minus
-// public holidays and planned vacation) minus the planned project hours.
+// public holidays) minus the planned hours, vacation included.
 // Columns below the zero line mark an overbooked bucket.
 //
 // In private mode the columns only carry the sign (free vs. overbooked) at a
