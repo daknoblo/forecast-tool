@@ -3,6 +3,7 @@ package web
 import (
 	"fmt"
 	"html/template"
+	"math"
 	"sort"
 	"strings"
 
@@ -114,20 +115,35 @@ func burndownSVG(points []forecast.BurnPoint, budget float64, color string, priv
 	return template.HTML(b.String()) // #nosec G203 -- numeric values only, no user input
 }
 
-// progressSVG renders a compact cumulative burn-up chart: the cumulative
-// projected hours across the sub-periods (months) versus the ideal even pace
-// towards the target, plus a horizontal target line. Slope conveys the burn
-// rate, the gap to the ideal line conveys progress and the fill relative to the
-// target line conveys utilization. Inputs are numeric plus controlled month
-// labels, so the inline SVG carries no untrusted markup. In private mode the
-// axis and target figures are masked.
-func progressSVG(labels []string, cumulative []float64, target float64, private bool) template.HTML {
+// niceStep returns a rounded axis step (1/2/2.5/5 x 10^k) that splits max into
+// roughly the requested number of gridlines.
+func niceStep(max float64, want int) float64 {
+	if max <= 0 || want < 1 {
+		return 1
+	}
+	raw := max / float64(want)
+	mag := math.Pow(10, math.Floor(math.Log10(raw)))
+	for _, m := range []float64{1, 2, 2.5, 5, 10} {
+		if step := m * mag; step >= raw {
+			return step
+		}
+	}
+	return 10 * mag
+}
+
+// progressSVG renders a compact cumulative burn-up chart of one period: the
+// hours accumulated over its sub-periods (months) against the evenly paced ideal
+// and the period's target. The first `done` sub-periods are already over, so
+// their part of the curve is drawn solid and filled ("gebucht"), the rest dashed
+// ("Forecast"). Inputs are numeric plus controlled month labels, so the inline
+// SVG carries no untrusted markup. In private mode every figure is masked.
+func progressSVG(labels []string, cumulative []float64, target float64, done int, private bool) template.HTML {
 	const (
-		w    = 640.0
-		h    = 220.0
-		padL = 44.0
-		padR = 12.0
-		padT = 14.0
+		w    = 560.0
+		h    = 232.0
+		padL = 48.0
+		padR = 14.0
+		padT = 30.0
 		padB = 40.0
 	)
 	n := len(cumulative)
@@ -137,14 +153,25 @@ func progressSVG(labels []string, cumulative []float64, target float64, private 
 		return template.HTML(fmt.Sprintf( // #nosec G203 -- constant SVG shell, numeric values only
 			`<svg viewBox="0 0 %g %g" class="progress-chart" role="img" aria-label="Fortschritt"></svg>`, w, h))
 	}
-	yMax := target
+	if done < 0 {
+		done = 0
+	}
+	if done > n {
+		done = n
+	}
+	peak := target
 	for _, v := range cumulative {
-		if v > yMax {
-			yMax = v
+		if v > peak {
+			peak = v
 		}
 	}
+	if peak <= 0 {
+		peak = 1
+	}
+	step := niceStep(peak, 4)
+	yMax := math.Ceil(peak/step) * step
 	if yMax <= 0 {
-		yMax = 1
+		yMax = step
 	}
 	x := func(i int) float64 {
 		if n == 1 {
@@ -158,63 +185,148 @@ func progressSVG(labels []string, cumulative []float64, target float64, private 
 		}
 		return padT + plotH*(1-val/yMax)
 	}
+	// The i-th point is the state AFTER sub-period i+1, so the even pace has to
+	// be measured against i+1 of n sub-periods - otherwise the ideal line would
+	// start a whole period behind the actual curve.
+	ideal := func(i int) float64 { return target * float64(i+1) / float64(n) }
+
+	const (
+		colDone     = "#0891b2"
+		colForecast = "#2563eb"
+		colIdeal    = "#a5b4c4"
+		colTarget   = "#16a34a"
+	)
 
 	var b strings.Builder
 	fmt.Fprintf(&b, `<svg viewBox="0 0 %g %g" class="progress-chart" role="img" aria-label="Fortschritt">`, w, h)
 
-	// axes
+	legend := []struct{ color, text string }{
+		{colDone, "Gebucht"}, {colForecast, "Forecast"}, {colIdeal, "Ideal"}, {colTarget, "Ziel"},
+	}
+	lx := padL
+	for _, l := range legend {
+		fmt.Fprintf(&b, `<rect x="%g" y="5" width="9" height="9" rx="2" fill="%s"/>`, lx, l.color)
+		fmt.Fprintf(&b, `<text x="%g" y="14" font-size="11" fill="#64748b">%s</text>`, lx+13, l.text)
+		lx += 26 + estTextWidth(l.text, 11)
+	}
+
+	for v := 0.0; v <= yMax+step/2; v += step {
+		yy := y(v)
+		fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#eef2f7"/>`, padL, yy, padL+plotW, yy)
+		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" fill="#94a3b8" text-anchor="end">%s</text>`,
+			padL-7, yy+4, chartHours(round1(v), private))
+	}
 	fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#cbd5e1"/>`, padL, padT, padL, padT+plotH)
 	fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#cbd5e1"/>`, padL, padT+plotH, padL+plotW, padT+plotH)
 
-	// y gridlines / labels (0, 50%, 100% of the scale max)
-	for _, frac := range []float64{0, 0.5, 1} {
-		val := yMax * frac
-		yy := y(val)
-		fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#eef2f7"/>`, padL, yy, padL+plotW, yy)
-		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="10" fill="#64748b" text-anchor="end">%s</text>`, padL-6, yy+3, chartHours(round1(val), private))
-	}
-
-	// target line (green, dashed)
 	if target > 0 && target <= yMax {
 		ty := y(target)
-		fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#16a34a" stroke-dasharray="5 4"/>`, padL, ty, padL+plotW, ty)
-		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="10" fill="#16a34a" text-anchor="end">Ziel %s</text>`, padL+plotW, ty-4, chartHours(round1(target), private))
+		fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s" stroke-width="1.5" stroke-dasharray="6 4"/>`,
+			padL, ty, padL+plotW, ty, colTarget)
+		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" font-weight="600" fill="%s">Ziel %s h</text>`,
+			padL+5, ty-5, colTarget, chartHours(round1(target), private))
 	}
 
-	// ideal even-pace line (0 at the start -> target at the end)
-	fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#94a3b8" stroke-dasharray="4 4"/>`, x(0), y(0), x(n-1), y(target))
-
-	// cumulative projected polyline
-	var pts strings.Builder
-	for i, v := range cumulative {
-		fmt.Fprintf(&pts, "%g,%g ", x(i), y(v))
-	}
-	fmt.Fprintf(&b, `<polyline fill="none" stroke="#2563eb" stroke-width="2" points="%s"/>`, strings.TrimSpace(pts.String()))
-
-	// x labels (sub-period labels, thinned to avoid crowding)
-	step := (n-1)/8 + 1
+	// ideal even pace
+	var idealPts strings.Builder
 	for i := 0; i < n; i++ {
-		if i%step == 0 || i == n-1 {
-			lbl := ""
-			if i < len(labels) {
-				lbl = shortLabel(labels[i])
-			}
-			fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="10" fill="#64748b" text-anchor="middle">%s</text>`, x(i), padT+plotH+16, lbl)
+		fmt.Fprintf(&idealPts, "%g,%g ", x(i), y(ideal(i)))
+	}
+	fmt.Fprintf(&b, `<polyline fill="none" stroke="%s" stroke-width="1.5" stroke-dasharray="4 4" points="%s"/>`,
+		colIdeal, strings.TrimSpace(idealPts.String()))
+
+	// booked part: filled area plus a solid line
+	if done > 0 {
+		var area, line strings.Builder
+		fmt.Fprintf(&area, "%g,%g ", x(0), padT+plotH)
+		for i := 0; i < done; i++ {
+			fmt.Fprintf(&area, "%g,%g ", x(i), y(cumulative[i]))
+			fmt.Fprintf(&line, "%g,%g ", x(i), y(cumulative[i]))
 		}
+		fmt.Fprintf(&area, "%g,%g", x(done-1), padT+plotH)
+		fmt.Fprintf(&b, `<polygon fill="%s" fill-opacity="0.14" points="%s"/>`, colDone, area.String())
+		fmt.Fprintf(&b, `<polyline fill="none" stroke="%s" stroke-width="2.5" points="%s"/>`,
+			colDone, strings.TrimSpace(line.String()))
+	}
+	// forecast part continues from the last booked point
+	if done < n {
+		var line strings.Builder
+		start := done - 1
+		if start < 0 {
+			start = 0
+		}
+		for i := start; i < n; i++ {
+			fmt.Fprintf(&line, "%g,%g ", x(i), y(cumulative[i]))
+		}
+		fmt.Fprintf(&b, `<polyline fill="none" stroke="%s" stroke-width="2.5" stroke-dasharray="5 3" points="%s"/>`,
+			colForecast, strings.TrimSpace(line.String()))
+	}
+	for i, v := range cumulative {
+		col := colForecast
+		if i < done {
+			col = colDone
+		}
+		fmt.Fprintf(&b, `<circle cx="%g" cy="%g" r="2.6" fill="%s"><title>%s: %s h</title></circle>`,
+			x(i), y(v), col, template.HTMLEscapeString(shortLabel(labelAt(labels, i))), chartHours(round1(v), private))
+	}
+
+	// x labels with a tick each, thinned only when they would collide
+	stepX := 1
+	if n > 1 {
+		if per := plotW / float64(n-1); per < 34 {
+			stepX = int(34/per) + 1
+		}
+	}
+	for i := 0; i < n; i++ {
+		if i%stepX != 0 && i != n-1 {
+			continue
+		}
+		fill := "#64748b"
+		weight := "400"
+		if i == done-1 {
+			fill, weight = colDone, "600" // last completed sub-period
+		}
+		fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#cbd5e1"/>`, x(i), padT+plotH, x(i), padT+plotH+4)
+		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" font-weight="%s" fill="%s" text-anchor="middle">%s</text>`,
+			x(i), padT+plotH+18, weight, fill, template.HTMLEscapeString(shortLabel(labelAt(labels, i))))
 	}
 
 	b.WriteString(`</svg>`)
 	return template.HTML(b.String()) // #nosec G203 -- numeric values + controlled month labels only
 }
 
+// labelAt returns the i-th label or an empty string when it is missing.
+func labelAt(labels []string, i int) string {
+	if i < len(labels) {
+		return labels[i]
+	}
+	return ""
+}
+
+// goalFlowTitle builds the escaped, multi-line tooltip of a flow node: planned
+// vs. already booked hours and, for the periods, the evenly split goal.
+func goalFlowTitle(n forecast.GoalFlowNode, private bool) string {
+	head := template.HTMLEscapeString(n.Title)
+	if n.StateLabel != "" {
+		head += " · " + template.HTMLEscapeString(n.StateLabel)
+	}
+	body := fmt.Sprintf("%s h geplant · %s h gebucht", chartHours(n.Hours, private), chartHours(n.Booked, private))
+	if n.Target > 0 {
+		body += fmt.Sprintf("&#10;Soll %s h · %s %% erreicht", chartHours(n.Target, private), chartHours(n.PctOfTarget, private))
+	}
+	return head + "&#10;" + body
+}
+
 // goalFlowSVG renders the fiscal year's hours as a five-stage Sankey: projects
 // feed the months, the months their quarter, the quarters their half-year and
 // both halves the whole year. Every stage carries the same total, so all columns
 // are equally tall and only the split differs. Ribbons keep the colour of their
-// source, project colours are sanitised and every label is HTML-escaped, so the
-// markup emitted as template.HTML carries no untrusted content. In private mode
-// all figures are masked; the shape of the flow stays visible, exactly like in
-// the dashboard Sankey.
+// source and the period nodes are coloured by calendar progress (done/current/
+// upcoming); on every stripe the already booked share is drawn opaque over the
+// translucent planned hours. Project colours are sanitised and every label is
+// HTML-escaped, so the markup emitted as template.HTML carries no untrusted
+// content. In private mode all figures are masked; the shape of the flow stays
+// visible, exactly like in the dashboard Sankey.
 func goalFlowSVG(flow forecast.GoalFlow, private bool) template.HTML {
 	const (
 		w      = 1200.0
@@ -337,10 +449,21 @@ func goalFlowSVG(flow forecast.GoalFlow, private bool) template.HTML {
 			if p == nil {
 				continue
 			}
+			title := goalFlowTitle(n, private)
+			// The base stripe carries the planned hours; the opaque overlay on top
+			// of it is the share that is already booked.
+			col := sanitizeColor(n.Color)
 			fmt.Fprintf(&b,
-				`<rect class="node" x="%g" y="%g" width="%g" height="%g" rx="2" fill="%s"><title>%s&#10;%s h</title></rect>`,
-				p.x, p.top, nodeW, p.ht, sanitizeColor(n.Color),
-				template.HTMLEscapeString(n.Title), chartHours(n.Hours, private))
+				`<rect class="node" x="%g" y="%g" width="%g" height="%g" rx="2" fill="%s" fill-opacity="0.55"><title>%s</title></rect>`,
+				p.x, p.top, nodeW, p.ht, col, title)
+			if bh := scale * n.Booked; bh > 0 {
+				if bh > p.ht {
+					bh = p.ht
+				}
+				fmt.Fprintf(&b,
+					`<rect class="node" x="%g" y="%g" width="%g" height="%g" rx="2" fill="%s"><title>%s</title></rect>`,
+					p.x, p.top+p.ht-bh, nodeW, bh, col, title)
+			}
 			if p.ht < minLbl {
 				continue
 			}
@@ -354,7 +477,9 @@ func goalFlowSVG(flow forecast.GoalFlow, private bool) template.HTML {
 				fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" font-weight="600" fill="#334155">%s</text>`,
 					p.x+nodeW+8, cy, label)
 			case p.ht >= 12:
-				fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="9" font-weight="600" fill="#ffffff" text-anchor="middle">%s</text>`,
+				// A white halo keeps the label readable on both the translucent and
+				// the opaque part of the stripe.
+				fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="9" font-weight="600" fill="#1e293b" stroke="#ffffff" stroke-width="2.5" paint-order="stroke" text-anchor="middle">%s</text>`,
 					p.x+nodeW/2, cy-0.5, template.HTMLEscapeString(n.Label))
 			}
 		}

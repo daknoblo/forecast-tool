@@ -1219,28 +1219,55 @@ func BuildGoalSummary(d models.Data, cal *holidays.Calendar) GoalSummary {
 // GoalFlowStages names the columns of the goal flow diagram, left to right.
 var GoalFlowStages = []string{"Projekte", "Monate", "Quartale", "Halbjahre", "Jahr"}
 
-// Node colours for the roll-up stages; projects keep their own colour. The four
-// quarter tints are desaturated hues of similar lightness: they stay clearly
-// apart without competing with the project colours, and white labels stay
-// readable on all of them.
-var goalFlowQuarterColors = []string{"#6b8f9e", "#7d8f6b", "#8f7d6b", "#7d6b8f"}
-
-// The two half-years differ in lightness so their share of the year stays
-// distinguishable in the last column.
-var goalFlowHalfColors = []string{"#64748b", "#334155"}
-
+// Period nodes are coloured by how far the calendar has moved through them, so
+// the diagram reads as a progress bar from left to right. Projects keep their
+// own colour.
 const (
-	goalFlowMonthColor = "#94a3b8"
-	goalFlowYearColor  = "#1e293b"
+	goalFlowDoneColor     = "#0891b2" // period lies completely in the past
+	goalFlowCurrentColor  = "#2563eb" // period contains today
+	goalFlowUpcomingColor = "#94a3b8" // period is still ahead
 )
+
+// FYMonthsDone reports how many months of the fiscal year are completely in the
+// past: 0 before the fiscal year has started, 12 once it is over.
+func FYMonthsDone(year, startMonth int) int {
+	startMonth = normMonth(startMonth)
+	fyStart, fyEnd := FiscalYear(year, startMonth)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	switch {
+	case today.Before(fyStart):
+		return 0
+	case today.After(fyEnd):
+		return 12
+	default:
+		return (int(today.Month()) - startMonth + 12) % 12
+	}
+}
+
+// goalFlowState maps a period spanning the fiscal-year months [from, to) onto
+// its progress colour and a label for the tooltip.
+func goalFlowState(from, to, monthsDone int) (color, label string) {
+	switch {
+	case monthsDone >= to:
+		return goalFlowDoneColor, "abgeschlossen"
+	case monthsDone >= from:
+		return goalFlowCurrentColor, "läuft"
+	default:
+		return goalFlowUpcomingColor, "steht noch aus"
+	}
+}
 
 // GoalFlowNode is one box in a stage of the goal flow diagram.
 type GoalFlowNode struct {
-	ID    string
-	Label string // short label drawn on/next to the node
-	Title string // long label for the tooltip
-	Color string
-	Hours float64
+	ID          string
+	Label       string  // short label drawn on/next to the node
+	Title       string  // long label for the tooltip
+	Color       string  // base colour; the booked share is drawn opaque on top
+	Hours       float64 // planned hours (booked + forecast) flowing through
+	Booked      float64 // share of Hours already booked (days before today)
+	Target      float64 // evenly split goal for the period (0 for projects)
+	PctOfTarget float64 // Hours / Target * 100
+	StateLabel  string  // calendar progress of the period, empty for projects
 }
 
 // GoalFlowLink joins a node of one stage to a node of the next.
@@ -1261,6 +1288,8 @@ type GoalFlow struct {
 	Stages  [][]GoalFlowNode
 	Links   []GoalFlowLink
 	Total   float64
+	Booked  float64
+	Target  float64
 	HasData bool
 }
 
@@ -1271,6 +1300,9 @@ func BuildGoalFlow(d models.Data) GoalFlow {
 	startMonth := normMonth(d.Settings.FiscalYearStartMonth)
 	fyStart, fyEnd := FiscalYear(year, startMonth)
 	fyStartISO, fyEndISO := fyStart.Format("2006-01-02"), fyEnd.Format("2006-01-02")
+	todayISO := todayISO()
+	monthsDone := FYMonthsDone(year, startMonth)
+	target := d.CurrentFY().TargetHours
 
 	vac := vacationSet(d.Projects)
 	projByID := make(map[string]models.Project, len(d.Projects))
@@ -1278,8 +1310,9 @@ func BuildGoalFlow(d models.Data) GoalFlow {
 		projByID[p.ID] = p
 	}
 
-	byProject := map[string]*[12]float64{}
-	var months [12]float64
+	type split struct{ hours, booked [12]float64 }
+	byProject := map[string]*split{}
+	var months, monthsBooked [12]float64
 	for _, e := range d.Entries {
 		if e.Hours <= 0 || vac[e.ProjectID] || e.Date < fyStartISO || e.Date > fyEndISO {
 			continue
@@ -1294,29 +1327,34 @@ func BuildGoalFlow(d models.Data) GoalFlow {
 		m := (int(t.Month()) - startMonth + 12) % 12
 		row, ok := byProject[e.ProjectID]
 		if !ok {
-			row = &[12]float64{}
+			row = &split{}
 			byProject[e.ProjectID] = row
 		}
-		row[m] += e.Hours
+		row.hours[m] += e.Hours
 		months[m] += e.Hours
+		if e.Date < todayISO {
+			row.booked[m] += e.Hours
+			monthsBooked[m] += e.Hours
+		}
 	}
 
-	flow := GoalFlow{Stages: make([][]GoalFlowNode, 5)}
+	flow := GoalFlow{Stages: make([][]GoalFlowNode, 5), Target: round1(target)}
 
 	// Projects are ordered by their centre of gravity in the year, which keeps
 	// the ribbons into the month column largely free of crossings.
 	type projRow struct {
-		p        models.Project
-		hours    [12]float64
-		total    float64
-		centroid float64
+		p             models.Project
+		hours, booked [12]float64
+		total, done   float64
+		centroid      float64
 	}
 	rows := make([]projRow, 0, len(byProject))
-	for pid, hrs := range byProject {
-		r := projRow{p: projByID[pid], hours: *hrs}
+	for pid, s := range byProject {
+		r := projRow{p: projByID[pid], hours: s.hours, booked: s.booked}
 		var weighted float64
 		for m, v := range r.hours {
 			r.total += v
+			r.done += r.booked[m]
 			weighted += float64(m) * v
 		}
 		if r.total <= 0 {
@@ -1332,32 +1370,50 @@ func BuildGoalFlow(d models.Data) GoalFlow {
 		return rows[i].p.Name < rows[j].p.Name
 	})
 
+	pct := func(hours, tgt float64) float64 {
+		if tgt <= 0 {
+			return 0
+		}
+		return round1(hours / tgt * 100)
+	}
+
 	for _, r := range rows {
 		flow.Stages[0] = append(flow.Stages[0], GoalFlowNode{
 			ID: "p:" + r.p.ID, Label: r.p.Name, Title: r.p.Name,
-			Color: r.p.Color, Hours: round1(r.total),
+			Color: r.p.Color, Hours: round1(r.total), Booked: round1(r.done),
 		})
 		flow.Total += r.total
+		flow.Booked += r.done
 	}
 
 	monthLabel := func(m int) (short, long string) {
 		cm := (startMonth - 1 + m) % 12
 		return monthShort[cm], monthNames[cm]
 	}
+	monthColors := [12]string{}
+	quarterColors, halfColors := [4]string{}, [2]string{}
 	var quarters, halves [4]float64
+	var quartersBooked, halvesBooked [4]float64
 	for m, v := range months {
+		quarters[m/3] += v
+		halves[m/6] += v
+		quartersBooked[m/3] += monthsBooked[m]
+		halvesBooked[m/6] += monthsBooked[m]
+		color, state := goalFlowState(m, m+1, monthsDone)
+		monthColors[m] = color
 		if v <= 0 {
 			continue
 		}
 		short, long := monthLabel(m)
 		flow.Stages[1] = append(flow.Stages[1], GoalFlowNode{
 			ID: fmt.Sprintf("m:%d", m), Label: short, Title: long,
-			Color: goalFlowMonthColor, Hours: round1(v),
+			Color: color, Hours: round1(v), Booked: round1(monthsBooked[m]),
+			Target: round1(target / 12), PctOfTarget: pct(v, target/12), StateLabel: state,
 		})
-		quarters[m/3] += v
-		halves[m/6] += v
 	}
 	for q := 0; q < 4; q++ {
+		color, state := goalFlowState(q*3, q*3+3, monthsDone)
+		quarterColors[q] = color
 		if quarters[q] <= 0 {
 			continue
 		}
@@ -1366,10 +1422,13 @@ func BuildGoalFlow(d models.Data) GoalFlow {
 		flow.Stages[2] = append(flow.Stages[2], GoalFlowNode{
 			ID: fmt.Sprintf("q:%d", q), Label: fmt.Sprintf("Q%d", q+1),
 			Title: fmt.Sprintf("Q%d (%s–%s)", q+1, fm, lm),
-			Color: goalFlowQuarterColors[q], Hours: round1(quarters[q]),
+			Color: color, Hours: round1(quarters[q]), Booked: round1(quartersBooked[q]),
+			Target: round1(target / 4), PctOfTarget: pct(quarters[q], target/4), StateLabel: state,
 		})
 	}
 	for half := 0; half < 2; half++ {
+		color, state := goalFlowState(half*6, half*6+6, monthsDone)
+		halfColors[half] = color
 		if halves[half] <= 0 {
 			continue
 		}
@@ -1378,13 +1437,16 @@ func BuildGoalFlow(d models.Data) GoalFlow {
 		flow.Stages[3] = append(flow.Stages[3], GoalFlowNode{
 			ID: fmt.Sprintf("h:%d", half), Label: fmt.Sprintf("H%d", half+1),
 			Title: fmt.Sprintf("%d. Halbjahr (%s–%s)", half+1, fm, lm),
-			Color: goalFlowHalfColors[half], Hours: round1(halves[half]),
+			Color: color, Hours: round1(halves[half]), Booked: round1(halvesBooked[half]),
+			Target: round1(target / 2), PctOfTarget: pct(halves[half], target/2), StateLabel: state,
 		})
 	}
 	if flow.Total > 0 {
+		yearColor, yearState := goalFlowState(0, 12, monthsDone)
 		flow.Stages[4] = []GoalFlowNode{{
 			ID: "y", Label: fmt.Sprintf("FY %d", year), Title: fmt.Sprintf("Fiskaljahr %d", year),
-			Color: goalFlowYearColor, Hours: round1(flow.Total),
+			Color: yearColor, Hours: round1(flow.Total), Booked: round1(flow.Booked),
+			Target: round1(target), PctOfTarget: pct(flow.Total, target), StateLabel: yearState,
 		}}
 	}
 
@@ -1408,7 +1470,7 @@ func BuildGoalFlow(d models.Data) GoalFlow {
 		flow.Links = append(flow.Links, GoalFlowLink{
 			Stage: 1, From: fmt.Sprintf("m:%d", m), To: fmt.Sprintf("q:%d", m/3),
 			FromLabel: short, ToLabel: fmt.Sprintf("Q%d", m/3+1),
-			Color: goalFlowQuarterColors[m/3], Hours: round1(v),
+			Color: monthColors[m], Hours: round1(v),
 		})
 	}
 	for q := 0; q < 4; q++ {
@@ -1418,7 +1480,7 @@ func BuildGoalFlow(d models.Data) GoalFlow {
 		flow.Links = append(flow.Links, GoalFlowLink{
 			Stage: 2, From: fmt.Sprintf("q:%d", q), To: fmt.Sprintf("h:%d", q/2),
 			FromLabel: fmt.Sprintf("Q%d", q+1), ToLabel: fmt.Sprintf("H%d", q/2+1),
-			Color: goalFlowQuarterColors[q], Hours: round1(quarters[q]),
+			Color: quarterColors[q], Hours: round1(quarters[q]),
 		})
 	}
 	for half := 0; half < 2; half++ {
@@ -1428,11 +1490,12 @@ func BuildGoalFlow(d models.Data) GoalFlow {
 		flow.Links = append(flow.Links, GoalFlowLink{
 			Stage: 3, From: fmt.Sprintf("h:%d", half), To: "y",
 			FromLabel: fmt.Sprintf("H%d", half+1), ToLabel: fmt.Sprintf("FY %d", year),
-			Color: goalFlowHalfColors[half], Hours: round1(halves[half]),
+			Color: halfColors[half], Hours: round1(halves[half]),
 		})
 	}
 
 	flow.Total = round1(flow.Total)
+	flow.Booked = round1(flow.Booked)
 	flow.HasData = flow.Total > 0
 	return flow
 }

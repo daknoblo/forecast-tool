@@ -613,12 +613,23 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 			labels[i] = m.Label
 			proj[i] = m.Projected
 		}
-		fyChart = progressSVG(labels, cumulative(proj), gs.TargetHours, private)
-		h1Chart = progressSVG(labels[:6], cumulative(proj[:6]), round1(gs.TargetHours/2), private)
-		h2Chart = progressSVG(labels[6:], cumulative(proj[6:]), round1(gs.TargetHours/2), private)
+		done := forecast.FYMonthsDone(d.Settings.Year, d.Settings.FiscalYearStartMonth)
+		clamp := func(v, max int) int {
+			if v < 0 {
+				return 0
+			}
+			if v > max {
+				return max
+			}
+			return v
+		}
+		fyChart = progressSVG(labels, cumulative(proj), gs.TargetHours, done, private)
+		h1Chart = progressSVG(labels[:6], cumulative(proj[:6]), round1(gs.TargetHours/2), clamp(done, 6), private)
+		h2Chart = progressSVG(labels[6:], cumulative(proj[6:]), round1(gs.TargetHours/2), clamp(done-6, 6), private)
 		for q := 0; q < 4; q++ {
 			from, to := q*3, q*3+3
-			quarterCharts[q] = progressSVG(labels[from:to], cumulative(proj[from:to]), round1(gs.TargetHours/4), private)
+			quarterCharts[q] = progressSVG(labels[from:to], cumulative(proj[from:to]),
+				round1(gs.TargetHours/4), clamp(done-from, 3), private)
 		}
 	}
 

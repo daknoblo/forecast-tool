@@ -405,21 +405,41 @@ collects every requirement stated so far as the binding reference.
   (`GoalSummary.Quarters`) → month overview → weekly utilization. Half-years and
   quarters share the same card markup (`.periods > .period` with `.period-kpis`,
   a utilization bar and a `web.progressSVG` chart); `.periods.quarters` is a 2×2
-  grid. The charts (cumulative projection vs. ideal line + target) exist for FY,
-  both halves and all four quarters (`handleGoal` builds `QuarterCharts` from
-  `gs.Months[q*3:q*3+3]` against `TargetHours/4`); months and weeks keep their
-  bars.
+  grid. The charts exist for FY, both halves and all four quarters (`handleGoal`
+  builds `QuarterCharts` from `gs.Months[q*3:q*3+3]` against `TargetHours/4` and
+  passes the clamped `FYMonthsDone` as the completed-sub-period count); months
+  and weeks keep their bars.
 - **Hours flow (`web.goalFlowSVG` from `forecast.BuildGoalFlow`)** sits right
   below the status card: a five-stage Sankey **projects → months → quarters →
   half-years → fiscal year**. Vacation is excluded and only in-FY dates count, so
   **every stage carries the same total** – one shared scale for all columns is
   therefore mandatory, otherwise the ribbons would not match their nodes.
-  Projects are ordered by their centre of gravity in the year (fewest crossings),
-  and a ribbon keeps its **source** colour: project colours into the months,
-  then the four quarter tints (`goalFlowQuarterColors`, desaturated hues of equal
-  lightness) through to the half-years, then the two half tints into the year.
-  Nodes and ribbons carry an SVG `<title>`; private mode masks every figure but
-  keeps the shape, exactly like the dashboard Sankey.
+  Projects are ordered by their centre of gravity in the year (fewest crossings).
+- **The flow is colour-coded by calendar progress**, not by period index:
+  `forecast.FYMonthsDone` gives the number of completed FY months and
+  `goalFlowState` maps each month/quarter/half onto **done** (`#0891b2`),
+  **current** (`#2563eb`) or **upcoming** (`#94a3b8`). A ribbon keeps its
+  **source** colour, so projects flow in with their own colour and everything
+  from the month column onwards carries the progress colour.
+- **Every stripe shows the booked share**: the node is drawn twice – the planned
+  hours translucent (`fill-opacity 0.55`) and the already booked part opaque on
+  top of it, growing from the bottom. Node tooltips carry
+  `X h geplant · Y h gebucht` plus `Soll Z h · P % erreicht` for the periods. The
+  labels inside the stripes need a **white halo**
+  (`stroke="#ffffff" paint-order="stroke"`), because the translucent base offers
+  no reliable contrast. Private mode masks every figure but keeps the shape,
+  exactly like the dashboard Sankey.
+- **`web.progressSVG(labels, cumulative, target, done, private)`** draws the
+  burn-up of a period. `done` is the number of already completed sub-periods:
+  that part of the curve is solid with a filled area ("Gebucht", `#0891b2`), the
+  rest is dashed ("Forecast", `#2563eb`); the last completed x label is
+  highlighted. The ideal pace is `target * (i+1) / n` – the i-th point is the
+  state **after** sub-period i+1, so a straight line from 0 would be a whole
+  period off. Y ticks come from `web.niceStep` (1/2/2.5/5 × 10^k) instead of
+  halving the maximum. The viewBox is 560 wide and
+  `.progress-chart` caps at `max-width: 560px`, so the chart never scales up in
+  the wide FY card and its 11 px labels stay readable in the narrow quarter
+  cards.
 - **Forecast grid layout:** the project-name column (`.pname`) is wide (~240 px),
   all values are centred (except `.pname`), project rows are separated by a
   horizontal rule (`tbody td` border-bottom 2px) and the week-total column

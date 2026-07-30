@@ -55,8 +55,14 @@
 
 <section class="card">
   <h2>Stundenfluss im Fiskaljahr</h2>
-  <p class="hint">Wohin die Stunden fließen: von den einzelnen Projekten in den jeweiligen Monat, von den Monaten ins Quartal, von den Quartalen ins Halbjahr und von beiden Halbjahren ins Fiskaljahr. Jede Spalte trägt dieselbe Gesamtsumme – nur die Aufteilung ändert sich. Urlaub zählt nicht mit. Fahre über ein Band für die genauen Stunden.</p>
+  <p class="hint">Wohin die Stunden fließen: von den einzelnen Projekten in den jeweiligen Monat, von den Monaten ins Quartal, von den Quartalen ins Halbjahr und von beiden Halbjahren ins Fiskaljahr. Jede Spalte trägt dieselbe Gesamtsumme – nur die Aufteilung ändert sich. Urlaub zählt nicht mit. Fahre über einen Streifen für geplante und gebuchte Stunden samt Soll.</p>
   <div class="flow-wrap">{{.FlowSVG}}</div>
+  <div class="flow-legend">
+    <span><i class="sw done"></i> abgeschlossen</span>
+    <span><i class="sw current"></i> läuft</span>
+    <span><i class="sw upcoming"></i> steht noch aus</span>
+    <span><i class="sw split"></i> kräftiger Teil = gebucht, blasser Teil = Forecast</span>
+  </div>
 </section>
 
 <section class="card">

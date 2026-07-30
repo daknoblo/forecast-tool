@@ -321,7 +321,13 @@ table.week tfoot td.center { text-align: center; }
 .goalflow .ribbon { transition: fill-opacity 0.12s ease; }
 .goalflow .ribbon:hover { fill-opacity: 0.7; }
 .goalflow .node:hover { stroke: #0f172a; stroke-width: 1.5; }
-.progress-chart { width: 100%; height: auto; }
+.flow-legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1.25rem; margin-top: 0.6rem; color: var(--muted); font-size: 0.82rem; }
+.flow-legend i.sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: middle; margin-right: 0.35rem; }
+.flow-legend i.sw.done { background: #0891b2; }
+.flow-legend i.sw.current { background: #2563eb; }
+.flow-legend i.sw.upcoming { background: #94a3b8; }
+.flow-legend i.sw.split { background: linear-gradient(to top, #2563eb 0 55%, rgba(37, 99, 235, 0.4) 55% 100%); }
+.progress-chart { display: block; width: 100%; max-width: 560px; height: auto; margin: 0 auto; }
 
 /* dashboard utilization Sankey */
 .sankey-card { padding: 1rem 1.25rem; }

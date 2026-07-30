@@ -763,6 +763,53 @@ func TestBuildGoalFlowRollsUpEveryStage(t *testing.T) {
 			t.Errorf("links of stage %d sum to %v, want %v", stage, perStage[stage], f.Total)
 		}
 	}
+	// The booked share is a roll-up too, and never exceeds the planned hours.
+	if f.Booked > f.Total {
+		t.Errorf("booked = %v, must not exceed total %v", f.Booked, f.Total)
+	}
+	for si, st := range f.Stages {
+		sum := 0.0
+		for _, n := range st {
+			if n.Booked > n.Hours {
+				t.Errorf("stage %d node %q: booked %v > planned %v", si, n.ID, n.Booked, n.Hours)
+			}
+			sum += n.Booked
+		}
+		if round1(sum) != f.Booked {
+			t.Errorf("stage %d booked sums to %v, want %v", si, sum, f.Booked)
+		}
+	}
+	// Period targets are the evenly split fiscal-year goal (1000 h here).
+	wantTarget := map[int]float64{1: round1(1000.0 / 12), 2: 250, 3: 500, 4: 1000}
+	for stage, want := range wantTarget {
+		for _, n := range f.Stages[stage] {
+			if n.Target != want {
+				t.Errorf("stage %d node %q: target %v, want %v", stage, n.ID, n.Target, want)
+			}
+			if n.StateLabel == "" {
+				t.Errorf("stage %d node %q: missing state label", stage, n.ID)
+			}
+		}
+	}
+	// Projects have no goal of their own.
+	for _, n := range f.Stages[0] {
+		if n.Target != 0 || n.StateLabel != "" {
+			t.Errorf("project node %q must not carry a target/state: %+v", n.ID, n)
+		}
+	}
+}
+
+func TestFYMonthsDone(t *testing.T) {
+	now := time.Now().UTC()
+	if got := FYMonthsDone(now.Year()+5, 1); got != 0 {
+		t.Errorf("future fiscal year = %d months done, want 0", got)
+	}
+	if got := FYMonthsDone(now.Year()-5, 1); got != 12 {
+		t.Errorf("past fiscal year = %d months done, want 12", got)
+	}
+	if got := FYMonthsDone(now.Year(), 1); got != int(now.Month())-1 {
+		t.Errorf("current calendar year = %d months done, want %d", got, int(now.Month())-1)
+	}
 }
 
 func TestBuildGoalFlowWithoutHours(t *testing.T) {
