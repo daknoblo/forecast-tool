@@ -1,10 +1,8 @@
 package storage
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -89,6 +87,9 @@ func normalize(d *models.Data) {
 	// existed (all thresholds zero == unset).
 	if d.Settings.Utilization.MinHours == 0 && d.Settings.Utilization.OptimalHours == 0 && d.Settings.Utilization.OverHours == 0 {
 		d.Settings.Utilization = models.DefaultUtilization()
+	}
+	if d.Settings.Utilization.MinLabel == models.LegacyMinLabel {
+		d.Settings.Utilization.MinLabel = models.DefaultMinLabel
 	}
 	if d.FiscalYears == nil {
 		d.FiscalYears = map[int]models.FiscalYearSettings{}
@@ -226,56 +227,6 @@ func (s *Store) Marshal() ([]byte, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return json.MarshalIndent(s.data, "", "  ")
-}
-
-// ReplaceJSON parses raw JSON, validates it, normalizes defaults and atomically
-// replaces the whole document. The data is only persisted when it is valid, so
-// a bad payload never corrupts the store.
-func (s *Store) ReplaceJSON(raw []byte) error {
-	d, err := parseAndValidate(raw)
-	if err != nil {
-		return err
-	}
-	normalize(&d)
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.data = d
-	return s.persist()
-}
-
-// ValidateJSON parses and validates raw JSON without persisting anything. It is
-// used to check AI-generated output before offering it for saving.
-func (s *Store) ValidateJSON(raw []byte) error {
-	_, err := parseAndValidate(raw)
-	return err
-}
-
-// parseAndValidate decodes raw JSON strictly and runs model validation.
-func parseAndValidate(raw []byte) (models.Data, error) {
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.DisallowUnknownFields()
-	var d models.Data
-	if err := dec.Decode(&d); err != nil {
-		return models.Data{}, fmt.Errorf("ungültiges JSON: %w", err)
-	}
-	if dec.More() {
-		return models.Data{}, fmt.Errorf("ungültiges JSON: zusätzliche Daten nach dem JSON-Objekt")
-	}
-	if err := models.Validate(d); err != nil {
-		return models.Data{}, err
-	}
-	return d, nil
-}
-
-// Reset clears all bookings (entries) and projects while preserving every
-// setting (global Settings and per-fiscal-year FiscalYears).
-func (s *Store) Reset() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.data.Projects = []models.Project{}
-	s.data.Entries = []models.Entry{}
-	normalize(&s.data)
-	return s.persist()
 }
 
 // Update runs fn against the mutable data under the write lock and persists.

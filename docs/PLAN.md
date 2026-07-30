@@ -103,14 +103,17 @@ go.mod
   environment) and an API-token status card. The data-file overview (path/size)
   sits at the very bottom.
 - **Private mode**: a header toggle that masks every project name and figure,
-  disables the JSON editor, the project forms and the forecast inputs. It is a
-  per-browser display preference stored in a cookie, not in `data.json`.
+  disables the project forms, the forecast inputs, the export and the data chat.
+  It is a per-browser display preference stored in a cookie, not in `data.json`.
 - **Layout**: central app name via `web.AppName`/`{{appName}}` (title, header
   brand, footer). Navigation: Dashboard – Projekte – Forecast (`/week`) – Ziele
-  (`/goal`) – JSON – Einstellungen. Footer with a link to the GitHub profile.
-- **JSON editor** (`/data`): edit the whole data file in the browser, export it
-  (`/export`), reset projects and bookings (`/data/reset`) and save with
-  server-side validation; optionally update it with an AI prompt (`/data/ai`).
+  (`/goal`) – Einstellungen. Footer with a link to the GitHub profile.
+- **Chat with your data** (`POST /goal/chat`): ask questions about the active
+  fiscal year. The server builds a compact factual digest of the figures and
+  sends it with the question to the configured AI endpoint; the answer is plain
+  text. Ready-made prompts come from a drop-down and stay editable.
+- **Export** (`GET /export`): download the whole data file as a backup; the link
+  lives in the settings page under "Konfigurationsdatei".
 - **HTTP API** (`/api/v1`): token-protected read and write endpoints for external
   clients; see [API.md](API.md).
 

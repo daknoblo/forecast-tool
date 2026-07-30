@@ -56,7 +56,7 @@ func main() {
 		Addr:    addr,
 		Handler: srv.Handler(),
 		// Bound how long a slow or stalled client may occupy a connection.
-		// WriteTimeout is deliberately left unset: POST /data/ai proxies a call
+		// WriteTimeout is deliberately left unset: POST /goal/chat proxies a call
 		// to a remote AI endpoint that may legitimately run for minutes.
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       60 * time.Second,

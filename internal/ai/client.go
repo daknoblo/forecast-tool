@@ -1,6 +1,6 @@
 // Package ai talks to a remote, Azure OpenAI-compatible chat-completions
-// endpoint (e.g. an Azure AI Foundry model-router) to update the forecast
-// JSON document from a natural-language prompt.
+// endpoint (e.g. an Azure AI Foundry model-router) so the user can ask questions
+// about their own forecast and booking figures.
 package ai
 
 import (
@@ -18,66 +18,6 @@ import (
 	"github.com/daknoblo/forecast-tool/internal/models"
 )
 
-// Blueprint is a minimal but complete and valid example document. It is sent to
-// the model as context so it knows the exact field names, nesting and value
-// types it must produce – the remote endpoint has no other knowledge of the
-// forecast JSON schema.
-const Blueprint = `{
-  "settings": {
-    "year": 2027,
-    "federalState": "SN",
-    "weeklyTargetHours": 40,
-    "fiscalYearStartMonth": 7,
-    "ai": { "endpoint": "", "deployment": "", "apiVersion": "" }
-  },
-  "fiscalYears": {
-    "2027": {
-      "targetHours": 1440,
-      "vacationDaysH1": 15,
-      "vacationDaysH2": 15,
-      "standardTaskLabel": "Standard Tasks",
-      "standardTaskHours": 250
-    }
-  },
-  "projects": [
-    { "id": "proj-a", "assignmentId": "5641245", "name": "Projekt A", "budgetHours": 200, "color": "#2563eb", "active": true, "fiscalYear": 2027 },
-    { "id": "vacation-2027", "name": "Urlaub", "budgetHours": 240, "color": "#64748b", "active": true, "fiscalYear": 2027, "system": "vacation" }
-  ],
-  "entries": [
-    { "date": "2026-07-01", "projectId": "proj-a", "hours": 8 },
-    { "date": "2026-07-02", "projectId": "proj-a", "hours": 8 }
-  ],
-  "forecastPlan": [
-    { "projectId": "proj-a", "fiscalYear": 2027, "hoursPerWeek": 20 }
-  ]
-}`
-
-// systemPrompt instructs the model to return only the full JSON document.
-const systemPrompt = `Du bist ein Assistent, der ein JSON-Dokument für ein Forecast-Tool bearbeitet.
-Du erhältst das aktuelle JSON-Dokument und eine Anweisung des Nutzers.
-Wende die Anweisung an und gib AUSSCHLIESSLICH das vollständige, gültige JSON-Dokument zurück.
-
-Schema:
-- settings: { year, federalState, weeklyTargetHours, fiscalYearStartMonth, ai{...} } – GLOBAL, NUR ändern wenn der Nutzer es ausdrücklich verlangt.
-- fiscalYears: Objekt mit Jahr-Schlüsseln, je { targetHours, vacationDaysH1, vacationDaysH2, standardTaskLabel, standardTaskHours }.
-- projects: Liste von { id, assignmentId, name, budgetHours, color, active, fiscalYear, system? }. id = kurze eindeutige Kennung; assignmentId = externe Assignment-ID als String (z. B. "5641245"), bei regulären Projekten Pflicht; color = Hex (#rrggbb); fiscalYear = das Anker-Jahr (FY 27 => 2027). Ein Projekt mit "system": "vacation" ist das Urlaubsprojekt (id "vacation-<jahr>", Name "Urlaub", ohne assignmentId): NICHT löschen und sein budgetHours NICHT ändern (das ergibt sich aus den Urlaubstagen der FY-Einstellungen); Urlaub darf wie jedes andere Projekt tageweise geplant werden, zählt aber nicht aufs Jahresziel. Reguläre Projekte haben kein system-Feld.
-- entries: Liste von { date (YYYY-MM-DD), projectId, hours }. Pro Tag und Projekt gibt es genau EINEN Stundenwert; ob er als gebucht (Ist) oder Forecast zählt, ergibt sich automatisch aus dem Datum (vergangene Tage = gebucht, ab heute = Forecast) – es gibt KEIN kind-Feld mehr. Jede projectId MUSS zu einer projects.id passen.
-- forecastPlan (OPTIONAL): kompakte Liste von { projectId, fiscalYear, hoursPerWeek } für regelmäßige, über ein ganzes Fiskaljahr gleichmäßig verteilte Stunden.
-
-WICHTIG zur Vermeidung zu langer Antworten:
-- Für „X Stunden pro Woche, gleichmäßig über das Fiskaljahr verteilt" NIEMALS die einzelnen Tageseinträge ausschreiben. Stattdessen GENAU EINEN Eintrag pro Projekt in "forecastPlan" anlegen: { projectId, fiscalYear, hoursPerWeek: X }. Der Server expandiert das automatisch in Mo–Fr-Einträge (X/5 Stunden pro Werktag) für das gesamte Fiskaljahr.
-- "entries" NUR für einzelne, konkret genannte Tage verwenden (z. B. „am 3. Juli 6 Stunden").
-
-So sieht ein vollständiges, gültiges Dokument aus (Blueprint, exakt dieses Format und diese Feldnamen verwenden):
-` + Blueprint + `
-
-Regeln:
-- Behalte alle bestehenden Daten bei, sofern die Anweisung nichts anderes verlangt. Ändere settings und andere Projekte nicht ohne Auftrag.
-- Die Schlüssel in fiscalYears sind Strings (z. B. "2027"); fiscalYear in projects/forecastPlan ist eine Zahl (z. B. 2027).
-- "FY 27" bzw. "Fiskaljahr 27" bedeutet fiscalYear 2027. Das FY beginnt am fiscalYearStartMonth (Standard Juli) des Anker-Jahres.
-- budgetHours ist das Gesamtbudget des Projekts; verwechsle es nicht mit standardTaskHours.
-Gib keinen erklärenden Text, keine Markdown-Codeblöcke und keine Kommentare aus – nur das reine JSON-Objekt.`
-
 // requestTimeout bounds a single AI call. Model routers can be slow, but a
 // request must not hang a UI handler forever.
 const requestTimeout = 120 * time.Second
@@ -92,11 +32,11 @@ var httpClient = &http.Client{
 	},
 }
 
-// Generate sends the prompt and current JSON to the configured endpoint and
-// returns the model's JSON response (with any markdown fences stripped). It logs
-// request/response metadata (never the API key) via the provided logger to ease
-// debugging of the remote endpoint.
-func Generate(ctx context.Context, cfg models.AISettings, prompt, currentJSON string, logger *slog.Logger) (string, error) {
+// Ask sends a system and a user message to the configured chat endpoint and
+// returns the model's plain-text answer. It logs request/response metadata
+// (never the API key) via the provided logger to ease debugging of the remote
+// endpoint.
+func Ask(ctx context.Context, cfg models.AISettings, system, user string, logger *slog.Logger) (string, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -119,11 +59,10 @@ func Generate(ctx context.Context, cfg models.AISettings, prompt, currentJSON st
 
 	reqBody := chatRequest{
 		Temperature:         0,
-		MaxCompletionTokens: 32768,
-		ResponseFormat:      &responseFormat{Type: "json_object"},
+		MaxCompletionTokens: 8192,
 		Messages: []chatMessage{
-			{Role: "system", Content: systemPrompt},
-			{Role: "user", Content: "Anweisung:\n" + prompt + "\n\nAktuelles JSON:\n" + currentJSON},
+			{Role: "system", Content: system},
+			{Role: "user", Content: user},
 		},
 	}
 	payload, err := json.Marshal(reqBody)
@@ -133,7 +72,7 @@ func Generate(ctx context.Context, cfg models.AISettings, prompt, currentJSON st
 
 	logger.Info("ai request",
 		"endpoint", endpoint, "deployment", deployment, "apiVersion", apiVersion,
-		"promptChars", len(prompt), "inputJSONChars", len(currentJSON))
+		"systemChars", len(system), "userChars", len(user))
 
 	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
 	defer cancel()
@@ -181,7 +120,7 @@ func Generate(ctx context.Context, cfg models.AISettings, prompt, currentJSON st
 	if finish == "length" {
 		logger.Warn("ai response truncated (token limit)",
 			"completionTokens", parsed.Usage.CompletionTokens, "deployment", deployment)
-		return "", fmt.Errorf("KI-Antwort wurde abgeschnitten (Token-Limit erreicht). Formuliere den Prompt kompakter oder fordere weniger Einträge an (z. B. Stunden pro Woche statt pro Tag).")
+		return "", fmt.Errorf("KI-Antwort wurde abgeschnitten (Token-Limit erreicht). Stelle eine engere Frage.")
 	}
 	content := strings.TrimSpace(parsed.Choices[0].Message.Content)
 	if content == "" {
@@ -218,14 +157,9 @@ func snippet(b []byte) string {
 }
 
 type chatRequest struct {
-	Messages            []chatMessage   `json:"messages"`
-	Temperature         float64         `json:"temperature"`
-	MaxCompletionTokens int             `json:"max_completion_tokens,omitempty"`
-	ResponseFormat      *responseFormat `json:"response_format,omitempty"`
-}
-
-type responseFormat struct {
-	Type string `json:"type"`
+	Messages            []chatMessage `json:"messages"`
+	Temperature         float64       `json:"temperature"`
+	MaxCompletionTokens int           `json:"max_completion_tokens,omitempty"`
 }
 
 type chatMessage struct {

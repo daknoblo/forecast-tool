@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/daknoblo/forecast-tool/internal/forecast"
+	"github.com/daknoblo/forecast-tool/internal/holidays"
 	"github.com/daknoblo/forecast-tool/internal/models"
 	"github.com/daknoblo/forecast-tool/internal/storage"
 )
@@ -183,5 +184,84 @@ func TestOutOfWindowCellsStayVisibleAndWritable(t *testing.T) {
 	}
 	if got != 4 {
 		t.Errorf("persisted hours = %v, want 4", got)
+	}
+}
+
+func TestJSONEditorIsGone(t *testing.T) {
+	h := newTestHandler(t)
+	for _, path := range []string{"/data", "/data/reset", "/data/ai"} {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("GET %s = %d, want 404", path, rec.Code)
+		}
+	}
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/goal", nil))
+	if strings.Contains(rec.Body.String(), `href="/data"`) {
+		t.Error("navigation still links to the removed JSON editor")
+	}
+}
+
+func TestGoalChatNeedsConfiguredEndpoint(t *testing.T) {
+	h := newTestHandler(t)
+
+	// Without an AI endpoint the section reports it instead of calling out.
+	req := httptest.NewRequest(http.MethodPost, "/goal/chat",
+		strings.NewReader(`{"prompt":"Fasse meine Projekte zusammen"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("unconfigured chat = %d, want 503 (body: %s)", rec.Code, rec.Body.String())
+	}
+
+	// An empty prompt never reaches the endpoint.
+	req = httptest.NewRequest(http.MethodPost, "/goal/chat", strings.NewReader(`{"prompt":"  "}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("empty prompt = %d, want 400", rec.Code)
+	}
+
+	// Private mode keeps the figures from leaving the machine.
+	req = httptest.NewRequest(http.MethodPost, "/goal/chat", strings.NewReader(`{"prompt":"Zusammenfassung"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: privateCookie, Value: "1"})
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("private chat = %d, want 403", rec.Code)
+	}
+}
+
+func TestChatContextCarriesTheFigures(t *testing.T) {
+	store, err := storage.New(filepath.Join(t.TempDir(), "data.json"))
+	if err != nil {
+		t.Fatalf("storage.New: %v", err)
+	}
+	d := store.Snapshot()
+	fyStart, _ := forecast.FiscalYear(d.Settings.Year, d.Settings.FiscalYearStartMonth)
+	day := fyStart.Format("2006-01-02")
+	if err := store.Mutate(func(d *models.Data) error {
+		d.FiscalYears[d.Settings.Year] = models.FiscalYearSettings{TargetHours: 1440}
+		d.Projects = append(d.Projects, models.Project{
+			ID: "p1", AssignmentID: "1", Name: "Alpha", BudgetHours: 100, Color: "#2563eb",
+			Active: true, FiscalYear: d.Settings.Year,
+		})
+		d.Entries = append(d.Entries, models.Entry{Date: day, ProjectID: "p1", Hours: 6})
+		return nil
+	}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	snap := store.Snapshot()
+	cal := holidays.Get(snap.Settings.Year, snap.Settings.FederalState)
+	got := buildChatContext(snap, forecast.BuildYearSummary(snap, cal), forecast.BuildGoalSummary(snap, cal))
+	for _, want := range []string{"Fiskaljahr", "Jahresziel: 1440 h", "Alpha", "6 h"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("chat context is missing %q:\n%s", want, got)
+		}
 	}
 }

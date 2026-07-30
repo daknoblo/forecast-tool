@@ -57,8 +57,10 @@ collects every requirement stated so far as the binding reference.
   (UtilizationSettings).
 - `UtilizationSettings` (global, in `Settings.Utilization`): the utilization
   traffic light. Three thresholds (`minHours` 26, `optimalHours` 40, `overHours`
-  60) and four freely editable labels (`minLabel` "Burnrate Minimum",
+  60) and four freely editable labels (`minLabel` "Soll Burnrate unterschritten",
   `optimalLabel` "Optimal", `highLabel` "Zu hoch", `overLabel` "Überbucht").
+  `models.LegacyMinLabel` holds the previous default; `storage.normalize`
+  replaces it so existing documents pick up the new wording.
   `Settings.ClassifyUtilization(h)` maps weekly hours to a
   `UtilStatus{Key,Label,Hours}`: `h<=min`→`min` (blue, arrow down) ·
   `min<h<=optimal`→`optimal` (green, OK) · `optimal<h<over`→`high` (orange,
@@ -244,9 +246,9 @@ collects every requirement stated so far as the binding reference.
   `Cache-Control: immutable`. Never link a static path without `asset`.
 - **Navigation (header)** in this order and wording:
   Dashboard (`/`) – Projekte (`/projects`) – Forecast (`/week`) – Ziele
-  (`/goal`) – JSON (`/data`) – Einstellungen (`/settings`). The active-class keys
-  remain technically `dashboard`/`projects`/`week`/`goal`/`data`/`settings`
-  (display and order only).
+  (`/goal`) – Einstellungen (`/settings`). The active-class keys remain
+  technically `dashboard`/`projects`/`week`/`goal`/`settings` (display and order
+  only).
 - **Footer:** `{{appName}} · Fiskaljahr {{Year}}` on the left, on the right a
   link to the **project repository** `https://github.com/daknoblo/forecast-tool`
   with an inline SVG icon (no external asset, because of `embed`). The footer
@@ -389,10 +391,10 @@ collects every requirement stated so far as the binding reference.
   (free/overbooked) at a fixed height; `burndownSVG`/`progressSVG` mask their
   axis and target labels. `body.private .bar span { display: none }`
   additionally neutralizes all HTML bars.
-- Locked while the mode is on: the **JSON editor + export** (`/data` shows only a
-  hint), the **project forms** (create/edit/delete) and the **forecast grid**
-  (cells `readonly`, no "clear" buttons; the live-total and auto-save JavaScript
-  bails out early on `table[data-private]`).
+- Locked while the mode is on: the **export link**, the **data chat** (both show
+  only a hint), the **project forms** (create/edit/delete) and the **forecast
+  grid** (cells `readonly`, no "clear" buttons; the live-total and auto-save
+  JavaScript bails out early on `table[data-private]`).
 - The JSON API (`/api/v1`) is deliberately **not** affected (machine interface).
 
 ## More UI requirements
@@ -566,57 +568,42 @@ collects every requirement stated so far as the binding reference.
 
 - The current JSON must be exportable/downloadable from within the application.
 - Download route `GET /export` (Content-Disposition attachment, file name with
-  the date). The export button lives in the JSON editor (`/data`), not in the
-  settings.
+  the date). The button lives in the settings page under "Konfigurationsdatei"
+  and is hidden in private mode.
 
-## JSON editor (`/data`)
+## Chat with your data (`POST /goal/chat`)
 
-- Its own "JSON" page in the navigation: a large, wide text area (full card
-  width) to edit the **whole** data file in the browser – e.g. to paste
-  AI-generated JSON.
-- **Validation before saving** (`store.ReplaceJSON` → `models.Validate`): strict
-  parsing (`DisallowUnknownFields`, no trailing data), referential checks (every
-  `entries.projectId` must exist). Invalid input is rejected with a German error
-  message, **the input is preserved** and the store is never overwritten. A
-  successful save shows the canonical (normalized) form.
-- `POST /data/reset` clears all projects and bookings but keeps every setting;
-  the browser asks for confirmation first.
-- Persistence stays atomic (temp file + fsync + rename).
-
-## AI update of the JSON
-
+- **There is no JSON editor.** The `/data` page, its routes, `data.html`,
+  `store.ReplaceJSON`/`ValidateJSON`/`Reset` and the `forecastPlan` expansion are
+  gone; the AI is now a **read-only analyst**, it never writes data.
 - The AI endpoint is configured in the **settings** (own form, `section=ai`):
   endpoint URL, deployment/model-router name, API version. The **API key** comes
   from the `FORECAST_AI_API_KEY` environment variable (Docker secret /
   `environment`), not from the UI. On save any legacy key is removed from the
   data file. Effective settings via `effectiveAI()` (env overlays the store).
-- The JSON editor has a **prompt field**; `POST /data/ai` sends the prompt **and
-  the current (possibly edited) editor content** to the endpoint and writes the
-  result back into the text area. Without a configured endpoint a hint is shown
-  instead.
-- The AI client lives in `internal/ai` (stdlib only): Azure OpenAI-compatible URL
+- The last section of the goal page offers a **drop-down of ready-made prompts**
+  (`web.chatPresets`, first entry "Fasse meine Projekte für dieses Jahr
+  zusammen") plus a free text field. Selecting a preset only **fills** the input,
+  so it stays editable; the server always receives plain text.
+- `POST /goal/chat` takes `{"prompt": "..."}` (JSON, `DisallowUnknownFields`,
+  `MaxBytesReader`, capped at `maxChatPrompt` characters) and answers
+  `{"answer": "..."}` or `{"error": "..."}`. It is **disabled in private mode**
+  (403) and returns 503 when no endpoint is configured.
+- **The browser never ships the data.** `web.buildChatContext` renders a compact
+  factual digest server-side from `BuildYearSummary`/`BuildGoalSummary`/
+  `BuildGoalFlow`: totals against the goal, capacity, per-project budgets with
+  booked/forecast/remaining, hours per month and quarter, and hours per project
+  and month. That is a few kB instead of the whole document.
+- The answer is untrusted model output and is written with **`textContent`**,
+  never `innerHTML`.
+- The AI client lives in `internal/ai` (stdlib only): `ai.Ask(ctx, cfg, system,
+  user, logger)` posts to the Azure OpenAI-compatible URL
   `{endpoint}/openai/deployments/{deployment}/chat/completions?api-version=...`,
-  auth via the `api-key` header, `response_format: json_object`,
-  `temperature: 0`, a timeout, and markdown-fence stripping. German error
-  messages.
-- The system prompt carries a **blueprint** (`ai.Blueprint`) – a complete, valid
-  example document – so the remote model knows the field names, nesting and value
-  types of the forecast JSON. Keep the blueprint in sync with schema changes.
-- **Compact forecast directives (`forecastPlan`):** instead of writing out
-  hundreds of daily entries (which blows the token limit and produces truncated
-  responses), the model emits exactly **one** entry per project in `forecastPlan`
-  for regular forecasts spread evenly over a whole FY: `{ projectId, fiscalYear,
-  hoursPerWeek }`. `ai.ExpandPlan` expands that **server-side** and
-  deterministically into Mon–Fri entries (`hoursPerWeek/5` per working day) for
-  the whole FY, deduplicates against existing entries and removes `forecastPlan`
-  (cap `maxExpandedEntries`). The expansion runs in `handleDataAI` **before**
-  validation; `entries` is only for individually named days. `forecastPlan` is
-  not part of `data.json` (transport format only).
-- **The AI answer is never saved automatically**: it is only inserted and checked
-  immediately via `store.ValidateJSON`. Saving happens on an explicit
-  "Speichern" (which runs the full validation again).
+  auth via the `api-key` header, `temperature: 0`, a timeout, markdown-fence
+  stripping and **refused redirects** (the key must not follow a redirect).
+  German error messages.
 - Truncated AI answers (`finish_reason: length`) are detected and reported with a
-  German message; the client sets `max_completion_tokens` (32768).
+  German message; the client sets `max_completion_tokens` (8192).
 
 ## HTTP API (`/api/v1`)
 

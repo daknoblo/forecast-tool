@@ -216,6 +216,81 @@
   </table>
 </section>
 
+<section class="card" id="chat">
+  <h2>Chat with your data</h2>
+  {{if .Private}}
+  <p class="hint">Im <strong>privaten Modus</strong> ist die Auswertung deaktiviert – die Zusammenfassung würde Projektnamen und Stunden im Klartext an den KI-Endpoint senden.</p>
+  {{else if not .AIConfigured}}
+  <p class="hint">Es ist noch kein KI-Endpoint konfiguriert. Hinterlege Endpoint, Deployment und API-Version in den <a href="/settings">Einstellungen</a> und setze den API-Key über die Umgebungsvariable <code>{{.AIKeyEnv}}</code>.</p>
+  {{else}}
+  <p class="hint">Stelle Fragen zu deinen gebuchten und geplanten Stunden. An den KI-Endpoint geht eine kompakte Zusammenfassung des aktuellen Fiskaljahres (Projekte, Budgets, Stunden je Monat und Quartal) – nicht die Rohdatei.</p>
+  <div class="chat" data-chat>
+    <label class="chat-preset">Vorlage
+      <select data-chat-preset>
+        <option value="">– eigene Frage –</option>
+        {{range $i, $p := .ChatPresets}}<option value="{{$i}}">{{$p.Label}}</option>{{end}}
+      </select>
+    </label>
+    <textarea data-chat-input class="prompt" rows="3" placeholder="z. B. Welches Projekt hat mich dieses Jahr am meisten Zeit gekostet?"></textarea>
+    <div class="chat-actions">
+      <button type="button" class="btn primary" data-chat-send>Auswerten</button>
+      <span class="chat-status" data-chat-status></span>
+    </div>
+    <div class="chat-answer" data-chat-answer hidden></div>
+  </div>
+  <script id="chatPrompts" type="application/json">{{.ChatPromptsJSON}}</script>
+  <script>
+    (function () {
+      var root = document.querySelector('[data-chat]');
+      if (!root) return;
+      var prompts = JSON.parse(document.getElementById('chatPrompts').textContent);
+      var preset = root.querySelector('[data-chat-preset]');
+      var input = root.querySelector('[data-chat-input]');
+      var send = root.querySelector('[data-chat-send]');
+      var status = root.querySelector('[data-chat-status]');
+      var answer = root.querySelector('[data-chat-answer]');
+
+      preset.addEventListener('change', function () {
+        var p = prompts[preset.value];
+        if (p) { input.value = p; input.focus(); }
+      });
+
+      send.addEventListener('click', function () {
+        var prompt = input.value.trim();
+        if (!prompt) { status.textContent = 'Bitte gib eine Frage ein.'; status.className = 'chat-status error'; return; }
+        send.disabled = true;
+        status.textContent = 'Wird ausgewertet…';
+        status.className = 'chat-status busy';
+        answer.hidden = true;
+        fetch('/goal/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'fetch' },
+          body: JSON.stringify({ prompt: prompt })
+        }).then(function (res) {
+          return res.json().then(function (data) { return { ok: res.ok, data: data }; });
+        }).then(function (r) {
+          send.disabled = false;
+          if (!r.ok) {
+            status.textContent = r.data.error || 'Auswertung fehlgeschlagen.';
+            status.className = 'chat-status error';
+            return;
+          }
+          status.textContent = '';
+          status.className = 'chat-status';
+          // textContent, never innerHTML: the answer is untrusted model output.
+          answer.textContent = r.data.answer;
+          answer.hidden = false;
+        }).catch(function () {
+          send.disabled = false;
+          status.textContent = 'Auswertung fehlgeschlagen.';
+          status.className = 'chat-status error';
+        });
+      });
+    })();
+  </script>
+  {{end}}
+</section>
+
 {{end}}
 
 {{template "footer" .}}

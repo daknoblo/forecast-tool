@@ -70,7 +70,7 @@ type AISettings struct {
 //	OptimalHours < hours < OverHours -> "high"    (orange, arrow up)
 //	hours >= OverHours             -> "over"    (red, X)
 type UtilizationSettings struct {
-	MinHours     float64 `json:"minHours"`     // lower bound (Burnrate Minimum)
+	MinHours     float64 `json:"minHours"`     // lower bound (below the target burn rate)
 	OptimalHours float64 `json:"optimalHours"` // optimal weekly hours
 	OverHours    float64 `json:"overHours"`    // overbooked threshold
 	MinLabel     string  `json:"minLabel"`
@@ -79,13 +79,20 @@ type UtilizationSettings struct {
 	OverLabel    string  `json:"overLabel"`
 }
 
+// LegacyMinLabel is the previous default for UtilizationSettings.MinLabel;
+// storage.normalize replaces it so existing documents pick up the new wording.
+const LegacyMinLabel = "Burnrate Minimum"
+
+// DefaultMinLabel names the status for a week below the target burn rate.
+const DefaultMinLabel = "Soll Burnrate unterschritten"
+
 // DefaultUtilization returns the standard traffic-light thresholds and labels.
 func DefaultUtilization() UtilizationSettings {
 	return UtilizationSettings{
 		MinHours:     26,
 		OptimalHours: 40,
 		OverHours:    60,
-		MinLabel:     "Burnrate Minimum",
+		MinLabel:     DefaultMinLabel,
 		OptimalLabel: "Optimal",
 		HighLabel:    "Zu hoch",
 		OverLabel:    "Überbucht",
@@ -110,7 +117,7 @@ func (s Settings) ClassifyUtilization(hours float64) UtilStatus {
 	}
 	switch {
 	case hours <= u.MinHours:
-		return UtilStatus{Key: "min", Label: labelOr(u.MinLabel, "Burnrate Minimum"), Hours: hours}
+		return UtilStatus{Key: "min", Label: labelOr(u.MinLabel, DefaultMinLabel), Hours: hours}
 	case hours <= u.OptimalHours:
 		return UtilStatus{Key: "optimal", Label: labelOr(u.OptimalLabel, "Optimal"), Hours: hours}
 	case hours < u.OverHours:

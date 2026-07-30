@@ -116,16 +116,20 @@ The application is designed to run on a private network behind a reverse proxy
 - The container runs **non-root (UID 65532)**, read-only, with all capabilities
   dropped and `no-new-privileges`.
 
-## JSON editor & AI update
-The **JSON** menu entry (`/data`) lets you edit the complete data file directly
-in the browser. On save the content is validated strictly (valid JSON, known
-fields, existing project references, …); invalid input is rejected without
-touching the stored data. The same page offers a JSON export/download and a
-button that deletes all projects and bookings while keeping every setting.
+## Chat with your data
+At the bottom of the **Ziele** page you can ask questions about your own
+figures. Pick one of the ready-made prompts from the drop-down (e.g. "Fasse
+meine Projekte für dieses Jahr zusammen") or type your own — the preset only
+fills the input, so it stays editable.
 
-Optionally the document can be updated with an **AI prompt** (e.g. "create a
-project called ABC in fiscal year 2027"). Configure an Azure OpenAI-compatible
-endpoint under **Settings → AI endpoint**:
+The browser sends nothing but the question. The server builds a compact,
+factual digest of the active fiscal year (totals against the goal, capacity,
+per-project budgets with booked/forecast/remaining hours, hours per month,
+quarter and per project and month) and sends that together with the question.
+The raw data file never leaves the machine, and the section is disabled while
+**private mode** is on.
+
+Configure an Azure OpenAI-compatible endpoint under **Settings → AI endpoint**:
 
 | Field        | Example                                   |
 |--------------|-------------------------------------------|
