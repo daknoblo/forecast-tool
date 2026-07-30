@@ -1538,12 +1538,12 @@ func NormalizeSankeyRange(key string) string {
 	return SankeyDefaultRange
 }
 
-// SankeyBucket is one time column (a week or a month) of the utilization flow.
-// Total is the summed planned project hours in the bucket; Hours holds the
-// per-project split that drives the stacked bands. The capacity figures make
-// the remaining free time of the bucket explicit.
+// SankeyBucket is one time column (a week, a 4-week block or a month) of the
+// utilization flow. Total is the summed planned project hours in the bucket;
+// Hours holds the per-project split that drives the stacked bands. The capacity
+// figures make the remaining free time of the bucket explicit.
 type SankeyBucket struct {
-	Label         string             // primary axis label (e.g. "KW30" or "Jul")
+	Label         string             // primary axis label (e.g. "KW30", "KW27–30" or "Jul")
 	SubLabel      string             // secondary label (start date or year)
 	Total         float64            // summed planned hours over all projects
 	Hours         map[string]float64 // projectID -> planned hours in this bucket
@@ -1551,6 +1551,8 @@ type SankeyBucket struct {
 	HolidayHours  float64            // public holidays among those weekdays * 8h
 	CapacityHours float64            // WeekdayHours - HolidayHours
 	FreeHours     float64            // CapacityHours - Total (negative = overbooked)
+	PerWeek       float64            // Total spread over the bucket's weekday weeks (burn rate)
+	SpansWeeks    bool               // bucket covers clearly more than one week
 }
 
 // SankeyData is the dashboard utilization time-flow. Buckets are evenly spaced
@@ -1605,11 +1607,18 @@ func sankeySpan(year, startMonth, curWeek int, key string) (startWeek, weeks int
 		}
 		return half + 1, maxW - half, "month"
 	case "fy":
-		return 1, maxW, "month"
+		// 4-week blocks instead of calendar months: every column then covers the
+		// same amount of working time, which makes the weekly burn rate
+		// comparable across the whole fiscal year.
+		return 1, maxW, "block"
 	default:
 		return curWeek, 4, "week"
 	}
 }
+
+// sankeyBlockWeeks is the number of fiscal-year weeks per column in the
+// "block" unit.
+const sankeyBlockWeeks = 4
 
 // shiftSankeySpan moves a span of `weeks` weeks starting at baseWeek by `offset`
 // whole spans and clamps the result into the fiscal year. It returns the
@@ -1720,7 +1729,8 @@ func BuildSankey(d models.Data, cal *holidays.Calendar, rangeKey string, offset 
 		}
 	}
 
-	if unit == "week" {
+	switch unit {
+	case "week":
 		for wi := 0; wi < weeks; wi++ {
 			monday := FYWeekMonday(year, startMonth, startWeek+wi)
 			_, iso := monday.ISOWeek()
@@ -1735,7 +1745,34 @@ func BuildSankey(d models.Data, cal *holidays.Calendar, rangeKey string, offset 
 			bucket.Total = round1(bucket.Total)
 			data.Buckets = append(data.Buckets, bucket)
 		}
-	} else {
+	case "block":
+		type isoSpan struct{ first, last int }
+		spans := make([]isoSpan, 0, weeks/sankeyBlockWeeks+1)
+		for wi := 0; wi < weeks; wi++ {
+			monday := FYWeekMonday(year, startMonth, startWeek+wi)
+			_, iso := monday.ISOWeek()
+			bi := wi / sankeyBlockWeeks
+			if bi == len(data.Buckets) {
+				data.Buckets = append(data.Buckets, SankeyBucket{
+					SubLabel: monday.Format("02.01."),
+					Hours:    map[string]float64{},
+				})
+				spans = append(spans, isoSpan{iso, iso})
+			}
+			spans[bi].last = iso
+			for i := 0; i < 5; i++ {
+				add(&data.Buckets[bi], monday.AddDate(0, 0, i).Format("2006-01-02"))
+			}
+		}
+		for i := range data.Buckets {
+			if spans[i].first == spans[i].last {
+				data.Buckets[i].Label = fmt.Sprintf("KW%02d", spans[i].first)
+			} else {
+				data.Buckets[i].Label = fmt.Sprintf("KW%02d–%02d", spans[i].first, spans[i].last)
+			}
+			data.Buckets[i].Total = round1(data.Buckets[i].Total)
+		}
+	default:
 		idxOf := map[string]int{}
 		for wi := 0; wi < weeks; wi++ {
 			monday := FYWeekMonday(year, startMonth, startWeek+wi)
@@ -1799,6 +1836,12 @@ func BuildSankey(d models.Data, cal *holidays.Calendar, rangeKey string, offset 
 		bk := &data.Buckets[i]
 		bk.CapacityHours = round1(bk.WeekdayHours - bk.HolidayHours)
 		bk.FreeHours = round1(bk.CapacityHours - bk.Total)
+		// Weeks are derived from the in-FY weekdays, so a partial bucket at a
+		// fiscal-year border still yields a comparable burn rate.
+		if bkWeeks := bk.WeekdayHours / HolidayDayHours / 5; bkWeeks > 0 {
+			bk.PerWeek = round1(bk.Total / bkWeeks)
+			bk.SpansWeeks = bkWeeks > 1.5
+		}
 
 		data.Total += bk.Total
 		data.CapacityTotal += bk.CapacityHours

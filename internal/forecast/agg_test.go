@@ -832,7 +832,7 @@ func TestSankeySpanUnits(t *testing.T) {
 		{"4w", "week", 4},
 		{"2m", "week", 8},
 		{"3m", "month", 13},
-		{"fy", "month", maxW},
+		{"fy", "block", maxW},
 	}
 	for _, c := range cases {
 		_, weeks, unit := sankeySpan(2026, 1, 10, c.key)
@@ -850,8 +850,8 @@ func TestBuildSankeyIncludesVacationAsBand(t *testing.T) {
 	d := vacationData() // FY 2026 (calendar year), all entries in January
 	sk := BuildSankey(d, holidays.New(2026, "BY"), "fy", 0)
 
-	if sk.Unit != "month" {
-		t.Fatalf("unit = %q, want month", sk.Unit)
+	if sk.Unit != "block" {
+		t.Fatalf("unit = %q, want block", sk.Unit)
 	}
 	// Vacation is an ordinary band: 8h on p1 plus 16h of vacation.
 	if sk.Total != 24 {
@@ -870,29 +870,40 @@ func TestBuildSankeyIncludesVacationAsBand(t *testing.T) {
 	if sk.MaxBucket != 24 {
 		t.Errorf("max bucket = %v, want 24", sk.MaxBucket)
 	}
-	// The January column carries the hours; every FY month is a bucket.
-	var jan *SankeyBucket
+	// The fiscal year is split into 4-week blocks; one of them carries the hours.
+	wantBuckets := (FYWeeks(2026, 1) + 3) / 4
+	if len(sk.Buckets) != wantBuckets {
+		t.Errorf("fy buckets = %d, want %d four-week blocks", len(sk.Buckets), wantBuckets)
+	}
+	var hit *SankeyBucket
 	for i := range sk.Buckets {
-		if sk.Buckets[i].Label == "Jan" {
-			jan = &sk.Buckets[i]
+		if sk.Buckets[i].Total > 0 {
+			if hit != nil {
+				t.Fatal("hours must land in a single block")
+			}
+			hit = &sk.Buckets[i]
 		}
 	}
-	if jan == nil || jan.Total != 24 {
-		t.Fatalf("january bucket = %+v, want total 24", jan)
+	if hit == nil || hit.Total != 24 {
+		t.Fatalf("block with hours = %+v, want total 24", hit)
 	}
-	if jan.Hours["vacation-2026"] != 16 {
-		t.Errorf("january vacation band = %v, want 16", jan.Hours["vacation-2026"])
+	if hit.Hours["vacation-2026"] != 16 {
+		t.Errorf("vacation band = %v, want 16", hit.Hours["vacation-2026"])
+	}
+	// A four-week block reports the burn rate it implies.
+	if !hit.SpansWeeks {
+		t.Error("a four-week block must be marked as spanning several weeks")
+	}
+	if want := round1(hit.Total / (hit.WeekdayHours / HolidayDayHours / 5)); hit.PerWeek != want {
+		t.Errorf("per week = %v, want %v", hit.PerWeek, want)
 	}
 	// Free time = weekdays*8 - holidays - planned hours (vacation included).
-	wantFree := jan.WeekdayHours - jan.HolidayHours - jan.Total
-	if jan.FreeHours != round1(wantFree) {
-		t.Errorf("january free = %v, want %v", jan.FreeHours, round1(wantFree))
+	wantFree := hit.WeekdayHours - hit.HolidayHours - hit.Total
+	if hit.FreeHours != round1(wantFree) {
+		t.Errorf("free = %v, want %v", hit.FreeHours, round1(wantFree))
 	}
-	if jan.WeekdayHours == 0 {
+	if hit.WeekdayHours == 0 {
 		t.Error("weekday hours must be counted for the capacity")
-	}
-	if len(sk.Buckets) != 12 {
-		t.Errorf("fy buckets = %d, want 12 months", len(sk.Buckets))
 	}
 	// A whole-FY span cannot be shifted any further.
 	if sk.CanPrev || sk.CanNext {

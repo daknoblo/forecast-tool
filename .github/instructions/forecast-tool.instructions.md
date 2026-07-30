@@ -330,10 +330,20 @@ collects every requirement stated so far as the binding reference.
   span around the current week; it is `.disabled` while `Offset == 0`, and
   `Offset != 0` additionally shows the `.sankey-shift` notice. Changing the
   horizon resets the offset (chips carry no `soff`).
-- Buckets are weeks (up to 2 months) or months (from 3 months, half-year, fiscal
-  year); only days **inside the FY** count. Projects are coloured stacked bands
-  (height ∝ planned hours, ribbons between adjacent buckets, stack order by total
-  hours); the **vacation project is not a band**. Vertical separators delimit the
+- Buckets are **weeks** (up to 2 months), **4-week blocks** (fiscal year, unit
+  `"block"`, `sankeyBlockWeeks`) or **calendar months** (3 months, half-year);
+  only days **inside the FY** count. The fiscal year deliberately uses equal
+  4-week blocks instead of months, so every column covers the same amount of
+  working time and the burn rate stays comparable across the year. Their labels
+  span the ISO weeks (`KW27–30`).
+- **Burn rate per column:** `SankeyBucket.PerWeek` = `Total` divided by the
+  bucket's weekday weeks (`WeekdayHours / 8 / 5`), so a partial bucket at a FY
+  border still yields a comparable rate. `SpansWeeks` is true above 1.5 weeks;
+  only then does the column print the muted second line `Ø X h/Wo` under its
+  total and add it to the node tooltip. Single-week columns would just repeat
+  their own total.
+- Projects are coloured stacked bands (height ∝ planned hours, ribbons between
+  adjacent buckets, stack order by total hours). Vertical separators delimit the
   weeks/months, and every column is labelled with the **summed planned project
   hours**. The **legend lives inside the diagram** (top left, max. 2 rows, then
   "+N weitere"), no longer as HTML below it.

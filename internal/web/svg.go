@@ -648,7 +648,7 @@ func pausedProjects(data forecast.SankeyData, from, to map[string]sankeyBand, va
 func sankeySVG(data forecast.SankeyData, private bool) template.HTML {
 	const (
 		h        = 376.0 // ~20 % shorter than the original 470
-		headroom = 22.0  // room above the tallest column for its value label
+		headroom = 30.0  // room above the tallest column for its value labels
 		axisH    = 34.0  // week/month labels below the baseline
 		legRowH  = 15.0
 	)
@@ -808,11 +808,15 @@ func sankeySVG(data forecast.SankeyData, private bool) template.HTML {
 				continue
 			}
 			col := sanitizeColor(p.Color)
+			rate := ""
+			if bk.SpansWeeks {
+				rate = "&#10;Ø " + chartHours(bk.PerWeek, private) + " h/Woche insgesamt"
+			}
 			fmt.Fprintf(&b,
-				`<rect class="node" x="%g" y="%g" width="%g" height="%g" fill="%s" rx="1"><title>%s&#10;%s: %s h von %s h gesamt</title></rect>`,
+				`<rect class="node" x="%g" y="%g" width="%g" height="%g" fill="%s" rx="1"><title>%s&#10;%s: %s h von %s h gesamt%s</title></rect>`,
 				x, bd.top, g.nodeW, bd.bot-bd.top, col,
 				template.HTMLEscapeString(p.Name),
-				template.HTMLEscapeString(bk.Label), chartHours(bk.Hours[p.ID], private), chartHours(bk.Total, private))
+				template.HTMLEscapeString(bk.Label), chartHours(bk.Hours[p.ID], private), chartHours(bk.Total, private), rate)
 		}
 		// summed planned hours above the stack (muted when empty)
 		top := baseY - scale(bk.Total)
@@ -820,6 +824,15 @@ func sankeySVG(data forecast.SankeyData, private bool) template.HTML {
 		if bk.Total == 0 {
 			fill = "#cbd5e1"
 			top = baseY
+		}
+		if bk.SpansWeeks {
+			// A column spanning several weeks says little on its own, so the burn
+			// rate it implies is spelled out right below the total.
+			fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" font-weight="600" fill="%s" text-anchor="middle">%s</text>`,
+				cx, top-17, fill, chartHours(bk.Total, private))
+			fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="9" fill="#64748b" text-anchor="middle">Ø %s h/Wo</text>`,
+				cx, top-6, chartHours(bk.PerWeek, private))
+			continue
 		}
 		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" font-weight="600" fill="%s" text-anchor="middle">%s</text>`,
 			cx, top-6, fill, chartHours(bk.Total, private))
