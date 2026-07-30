@@ -223,8 +223,9 @@ type syncResult struct {
 
 // handleSyncEntries upserts a batch of entries. Each item is keyed by
 // (date, projectId); hours=0 deletes an existing entry. Items referencing an
-// unknown project or a date outside the project's booking window are skipped and
-// reported, so a partially-valid batch still applies its valid parts.
+// unknown project are skipped and reported, so a partially-valid batch still
+// applies its valid parts. Dates outside the project's booking window are
+// accepted - the window is a planning hint, not a write barrier.
 func (s *Server) handleSyncEntries(w http.ResponseWriter, r *http.Request) {
 	var req syncRequest
 	if err := decodeJSON(r, &req); err != nil {
@@ -259,13 +260,8 @@ func (s *Server) handleSyncEntries(w http.ResponseWriter, r *http.Request) {
 				result.Skipped = append(result.Skipped, syncSkip{i, "hours darf nicht negativ sein"})
 				continue
 			}
-			p, ok := projByID[se.ProjectID]
-			if !ok {
+			if _, ok := projByID[se.ProjectID]; !ok {
 				result.Skipped = append(result.Skipped, syncSkip{i, "unbekanntes Projekt"})
-				continue
-			}
-			if !p.Bookable(date) {
-				result.Skipped = append(result.Skipped, syncSkip{i, "Datum außerhalb des Buchungszeitraums"})
 				continue
 			}
 			k := entryKey{date, se.ProjectID}

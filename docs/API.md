@@ -219,9 +219,11 @@ Upserts a batch of entries. The key of each item is **(date, projectId)**.
 - If the key already exists the hours are **overwritten**, otherwise a new entry
   is **created**.
 - `hours: 0` **deletes** an existing entry (to clear a day).
-- Items referring to an **unknown project**, or whose date lies **outside the
-  project's booking window**, are skipped and reported — the rest of the batch is
-  still applied.
+- Items referring to an **unknown project** are skipped and reported — the rest
+  of the batch is still applied.
+- A date **outside the project's booking window** is accepted: such entries can be
+  created, edited and deleted like any other. The window only drives the
+  `outOfWindow` warning and the visual hint in the forecast grid.
 
 **Request**
 ```json

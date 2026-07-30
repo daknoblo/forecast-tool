@@ -67,15 +67,12 @@
       {{range $b := $blocks}}
         {{range $i, $d := $b.Days}}
         <td class="day{{if $d.IsHoliday}} holiday{{end}}{{if not $d.InYear}} outyear{{end}}{{if not (bookable $p $d.Date)}} closed{{end}}{{if $d.Past}} past{{end}}{{if eq $i 0}} weekstart{{end}}{{if $d.MonthEnd}} monthend{{end}}">
-          {{if bookable $p $d.Date}}
+          {{$open := bookable $p $d.Date}}
           <input type="text" inputmode="decimal" name="{{cellName $p.ID $d.Date}}"
                  value="{{with cellHours $d $p.ID}}{{hours .}}{{end}}"
-                 class="hcell{{if $d.Past}} booked{{end}}" autocomplete="off" placeholder="0"
-                 title="{{if $d.Past}}Gebuchte Stunden (vergangener Tag){{else}}Forecast (geplante Stunden){{end}}"
+                 class="hcell{{if $d.Past}} booked{{end}}{{if not $open}} outside{{end}}" autocomplete="off" placeholder="0"
+                 title="{{if not $open}}Außerhalb des Projektzeitraums – Buchen bleibt möglich{{else if $d.Past}}Gebuchte Stunden (vergangener Tag){{else}}Forecast (geplante Stunden){{end}}"
                  data-project="{{$p.ID}}" data-week="{{$b.Week}}" data-date="{{$d.Date}}"{{if $.Private}} readonly{{end}}>
-          {{else}}
-          <span class="closedmark" title="Außerhalb des Projektzeitraums">–</span>
-          {{end}}
         </td>
         {{end}}
         <td class="num strong sumcol weeksum">

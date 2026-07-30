@@ -26,10 +26,11 @@ optionally updated through an AI prompt.
   The earlier years' hours are deducted automatically as a **carry-over**, so
   the remaining budget and the burn rate never hand out budget twice, and the
   projects page shows the full per-fiscal-year split of the assignment
-- **Per-project booking window** (optional start/end date): hours can only be
-  booked inside the window — day cells outside it are locked in the forecast
-  grid. From it the tool derives the **burn rate** (h/week and h/working day),
-  the pace still required, and a warning when hours were booked outside the window
+- **Per-project booking window** (optional start/end date): a planning hint, not
+  a lock — days outside it stay editable in the forecast grid and via the API and
+  are only marked. From it the tool derives the **burn rate** (h/week and
+  h/working day), the pace still required, and a warning when hours were booked
+  outside the window
 - Multi-week forecast grid: projects × days (Mon–Fri) across several weeks with
   **one hours value per day** (past days count as booked, today and later as
   forecast), automatic totals, and buttons to clear single days or whole weeks

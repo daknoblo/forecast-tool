@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/daknoblo/forecast-tool/internal/forecast"
+	"github.com/daknoblo/forecast-tool/internal/models"
 	"github.com/daknoblo/forecast-tool/internal/storage"
 )
 
@@ -127,5 +129,59 @@ func TestPrivateModeMasksFigures(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), maskedValue) {
 		t.Error("private dashboard does not contain any masked value")
+	}
+}
+
+func TestOutOfWindowCellsStayVisibleAndWritable(t *testing.T) {
+	store, err := storage.New(filepath.Join(t.TempDir(), "data.json"))
+	if err != nil {
+		t.Fatalf("storage.New: %v", err)
+	}
+	srv, err := NewServer(store, nil)
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	h := srv.Handler()
+
+	d := store.Snapshot()
+	_, fyEnd := forecast.FiscalYear(d.Settings.Year, d.Settings.FiscalYearStartMonth)
+	last := fyEnd.Format("2006-01-02")
+	// A window covering only the last FY day leaves week 1 outside of it.
+	if err := store.Mutate(func(d *models.Data) error {
+		d.Projects = append(d.Projects, models.Project{
+			ID: "p1", AssignmentID: "1", Name: "Alpha", BudgetHours: 10, Color: "#2563eb",
+			Active: true, FiscalYear: d.Settings.Year, StartDate: last, EndDate: last,
+		})
+		return nil
+	}); err != nil {
+		t.Fatalf("seed project: %v", err)
+	}
+	day := forecast.FYWeekMonday(d.Settings.Year, d.Settings.FiscalYearStartMonth, 1).Format("2006-01-02")
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/week/1", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("week status = %d, want 200", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), `name="h_p1_`+day+`"`) {
+		t.Error("out-of-window day has no input in the forecast grid")
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/week/cells",
+		strings.NewReader(`{"cells":[{"date":"`+day+`","projectId":"p1","hours":4}]}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"skipped":0`) {
+		t.Fatalf("out-of-window cell rejected: %d %s", rec.Code, rec.Body.String())
+	}
+	got := 0.0
+	for _, e := range store.Snapshot().Entries {
+		if e.Date == day && e.ProjectID == "p1" {
+			got = e.Hours
+		}
+	}
+	if got != 4 {
+		t.Errorf("persisted hours = %v, want 4", got)
 	}
 }

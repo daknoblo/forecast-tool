@@ -255,9 +255,9 @@ small.ist, td.num.ist, .kpi-value.ist { color: #0e7490; }
 }
 .clearbtn:hover { color: var(--danger); border-color: var(--danger); }
 
-/* closed (out-of-window) forecast cells */
+/* out-of-window forecast cells stay editable, the hatching is only a hint */
 .grid td.day.closed { background: repeating-linear-gradient(135deg, #f3f4f6, #f3f4f6 6px, #eceef1 6px, #eceef1 12px); }
-.closedmark { display: inline-block; color: var(--muted); opacity: 0.6; }
+.hcell.outside { border-style: dashed; border-color: #cbd5e1; background: transparent; }
 
 /* hours of an assignment split across fiscal years (date-based attribution) */
 .fy-split { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin: 0.75rem 0 0; padding: 0.6rem 0.8rem; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; }

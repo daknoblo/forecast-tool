@@ -322,11 +322,6 @@ func (s *Server) handleWeekSave(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		data.Entries = append([]models.Entry(nil), kept...)
-		// Project lookup for booking-window enforcement.
-		projByID := make(map[string]models.Project, len(data.Projects))
-		for _, p := range data.Projects {
-			projByID[p.ID] = p
-		}
 		// stable order
 		keys := make([]key, 0, len(newHours))
 		for k := range newHours {
@@ -339,9 +334,6 @@ func (s *Server) handleWeekSave(w http.ResponseWriter, r *http.Request) {
 			return keys[i].project < keys[j].project
 		})
 		for _, k := range keys {
-			if p, ok := projByID[k.project]; ok && !p.Bookable(k.date) {
-				continue // outside the project's booking window
-			}
 			if newHours[k] > 0 {
 				data.Entries = append(data.Entries, models.Entry{
 					Date: k.date, ProjectID: k.project, Hours: newHours[k],
@@ -367,8 +359,10 @@ type cellIn struct {
 // handleWeekCells upserts a small batch of forecast cells from the week grid's
 // auto-save (so the page never reloads while the user types). Each cell is keyed
 // by (date, projectId); hours <= 0 clears the entry. Cells for unknown projects
-// or outside a project's booking window are skipped and counted, never failing
-// the batch. Writes go through store.Mutate (normalize + validate + persist).
+// are skipped and counted, never failing the batch. A date outside the project's
+// booking window is accepted - the window only drives the visual hint and the
+// "outside the window" warning. Writes go through store.Mutate (normalize +
+// validate + persist).
 func (s *Server) handleWeekCells(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	var in struct {
@@ -421,10 +415,9 @@ func (s *Server) handleWeekCells(w http.ResponseWriter, r *http.Request) {
 			return ks[i].pid < ks[j].pid
 		})
 		for _, k := range ks {
-			p, ok := projByID[k.pid]
-			if !ok || !p.Bookable(k.date) {
+			if _, ok := projByID[k.pid]; !ok {
 				skipped++
-				continue // unknown project or outside its booking window
+				continue
 			}
 			if want[k] > 0 {
 				d.Entries = append(d.Entries, models.Entry{Date: k.date, ProjectID: k.pid, Hours: want[k]})

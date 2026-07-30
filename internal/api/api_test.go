@@ -150,13 +150,14 @@ func TestSyncEntries(t *testing.T) {
 
 	day1 := fmt.Sprintf("%04d-07-01", year)
 	day2 := fmt.Sprintf("%04d-07-02", year)
+	outside := fmt.Sprintf("%04d-09-01", year)
 	body := map[string]any{"entries": []map[string]any{
 		{"date": day1, "projectId": "p1", "hours": 6},
 		{"date": day2, "projectId": "p1", "hours": 4},
 		// unknown project -> skipped
 		{"date": day1, "projectId": "ghost", "hours": 3},
-		// out of window -> skipped
-		{"date": fmt.Sprintf("%04d-09-01", year), "projectId": "pw", "hours": 2},
+		// outside the booking window -> still written
+		{"date": outside, "projectId": "pw", "hours": 2},
 	}}
 	rr := do(t, h, http.MethodPost, "/api/v1/entries/sync", writeTok, body)
 	if rr.Code != http.StatusOK {
@@ -166,8 +167,34 @@ func TestSyncEntries(t *testing.T) {
 	if err := json.Unmarshal(rr.Body.Bytes(), &res); err != nil {
 		t.Fatalf("decode sync result: %v", err)
 	}
-	if res.Upserted != 2 || res.Deleted != 0 || len(res.Skipped) != 2 {
+	if res.Upserted != 3 || res.Deleted != 0 || len(res.Skipped) != 1 {
 		t.Fatalf("unexpected result: %+v", res)
+	}
+
+	// The out-of-window entry is editable and deletable like any other.
+	rr = do(t, h, http.MethodGet, "/api/v1/entries?projectId=pw", readTok, nil)
+	var outListed struct {
+		Entries []models.Entry `json:"entries"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &outListed); err != nil {
+		t.Fatalf("decode out-of-window entries: %v", err)
+	}
+	if len(outListed.Entries) != 1 || outListed.Entries[0].Hours != 2 {
+		t.Fatalf("out-of-window entry not persisted: %+v", outListed.Entries)
+	}
+	edit := map[string]any{"entries": []map[string]any{{"date": outside, "projectId": "pw", "hours": 5}}}
+	if err := json.Unmarshal(do(t, h, http.MethodPost, "/api/v1/entries/sync", writeTok, edit).Body.Bytes(), &res); err != nil {
+		t.Fatalf("decode edit result: %v", err)
+	}
+	if res.Upserted != 1 || len(res.Skipped) != 0 {
+		t.Fatalf("editing an out-of-window entry must work: %+v", res)
+	}
+	dropOutside := map[string]any{"entries": []map[string]any{{"date": outside, "projectId": "pw", "hours": 0}}}
+	if err := json.Unmarshal(do(t, h, http.MethodPost, "/api/v1/entries/sync", writeTok, dropOutside).Body.Bytes(), &res); err != nil {
+		t.Fatalf("decode out-of-window delete: %v", err)
+	}
+	if res.Deleted != 1 || len(res.Skipped) != 0 {
+		t.Fatalf("deleting an out-of-window entry must work: %+v", res)
 	}
 
 	// Verify persisted entries via the list endpoint.

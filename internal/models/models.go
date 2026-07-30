@@ -164,9 +164,10 @@ type FiscalYearSettings struct {
 // Projects belong to exactly one fiscal year (FiscalYear holds the FY anchor
 // year); a project running across two fiscal years is created anew per FY.
 //
-// StartDate and EndDate (inclusive, ISO YYYY-MM-DD) bound the booking window:
-// hours may only be planned/booked between them. An empty value defaults to the
-// fiscal-year start/end respectively, so an unbounded project spans the whole FY.
+// StartDate and EndDate (inclusive, ISO YYYY-MM-DD) bound the planned booking
+// window. An empty value defaults to the fiscal-year start/end respectively, so
+// an unbounded project spans the whole FY. The window never blocks a write:
+// hours outside it stay editable and are only flagged as out-of-window.
 type Project struct {
 	ID           string  `json:"id"`
 	AssignmentID string  `json:"assignmentId,omitempty"` // external assignment identifier, e.g. 5641245
@@ -180,9 +181,10 @@ type Project struct {
 	System       string  `json:"system,omitempty"`    // "" or "vacation" (auto-managed, non-deletable)
 }
 
-// Bookable reports whether the given ISO date lies within the project's booking
-// window. Empty window bounds are treated as open (FY start/end). ISO date
-// strings compare lexicographically, so no parsing is required.
+// Bookable reports whether the given ISO date lies within the project's planned
+// booking window. It drives warnings and UI hints only - booking outside the
+// window is allowed. Empty window bounds are treated as open (FY start/end). ISO
+// date strings compare lexicographically, so no parsing is required.
 func (p Project) Bookable(isoDate string) bool {
 	if p.StartDate != "" && isoDate < p.StartDate {
 		return false

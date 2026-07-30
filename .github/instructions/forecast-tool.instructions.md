@@ -42,9 +42,10 @@ collects every requirement stated so far as the binding reference.
   identifies real projects uniquely and is **required** on creation (web form +
   `POST /api/v1/projects`, max. 100 characters); the vacation project has no
   `assignmentId`. `startDate`/`endDate` (ISO `YYYY-MM-DD`, inclusive, both
-  optional/`omitempty`) bound the **booking window**; empty = the whole fiscal
-  year. `Project.Bookable(iso)` checks membership with a lexicographic string
-  comparison. `Validate` checks the date format and `startDate <= endDate`.
+  optional/`omitempty`) bound the **planned booking window**; empty = the whole
+  fiscal year. `Project.Bookable(iso)` checks membership with a lexicographic
+  string comparison and is used for **warnings and UI hints only** – it never
+  blocks a write. `Validate` checks the date format and `startDate <= endDate`.
 - `Entry`: date (YYYY-MM-DD), projectId, hours. There is exactly **one** hours
   value per day and project; whether it counts as booked (actual) or forecast
   follows from the date (past days = booked, today and later = forecast). The
@@ -219,11 +220,16 @@ collects every requirement stated so far as the binding reference.
 - **`BuildYearSummary` takes `cal *holidays.Calendar`** (for holiday-accurate
   working days). Callers: `handleDashboard`/`handleProjects`/`handleGoal` (all
   have `s.calendar(d)`); tests pass `holidays.New(2026, "BY")`.
-- **Booking is blocked outside the window**: in the forecast grid (`week.html`)
-  day cells outside the window are rendered as `td.day.closed` (with `–`, no
-  inputs) via the template function `bookable $p $d.Date`. `handleWeekSave` and
-  `handleWeekCells` additionally enforce it server-side (`p.Bookable(date)`
-  guard), so hand-crafted posts outside the window are discarded too.
+- **The booking window never blocks a write.** Hours dated outside it must stay
+  **visible and editable everywhere** – the window is a planning hint, not a
+  barrier. In the forecast grid (`week.html`) such day cells keep their input and
+  are only marked (`td.day.closed` hatching + `input.hcell.outside` dashed
+  border + a title saying booking is still possible), driven by the template
+  function `bookable $p $d.Date`. `handleWeekSave`, `handleWeekCells` and
+  `POST /api/v1/entries/sync` accept them without a `p.Bookable` guard, so such
+  entries can be created, edited and deleted like any other. The only trace left
+  is `ProjectSummary.OutOfWindow` (a warning) and the burn-down, which plots the
+  window itself.
 - The projects page shows window, working days, burn rate (h/week · h/day),
   remaining pace and, when applicable, the "outside the window" warning; the
   dashboard has the columns "Zeitraum" and "Burnrate".
@@ -444,8 +450,8 @@ collects every requirement stated so far as the binding reference.
   banner. There is **no save button** – changes are stored **automatically**:
   typing (debounced) or leaving/Enter on a cell sends it via `fetch` (JSON,
   `keepalive`) to **`POST /week/cells`**
-  (`{cells:[{date,projectId,hours}]}`; `hours<=0` deletes; project existence +
-  `p.Bookable` guard, discarded cells are counted; persistence via
+  (`{cells:[{date,projectId,hours}]}`; `hours<=0` deletes; only unknown projects
+  are skipped and counted; persistence via
   `store.Mutate`). The page is **never reloaded** while entering data; a status
   pill (`[data-save-status]`: "Automatisch gespeichert" / "Speichert…" /
   "Gespeichert ✓" / "Fehler beim Speichern") gives feedback. Grid rows and inputs
@@ -607,9 +613,9 @@ collects every requirement stated so far as the binding reference.
   `DELETE /projects/{id}`, `PUT /settings`,
   `PUT /settings/fiscal-years/{year}`.
 - **`POST /entries/sync`** is the core: upsert per `(date, projectId)`,
-  `hours=0` deletes; guarded by project existence + `p.Bookable(date)`; discarded
-  entries are reported in `skipped` (the rest is applied). Response
-  `{upserted, deleted, skipped}`.
+  `hours=0` deletes; guarded by project existence only (a date outside the
+  booking window is accepted); discarded entries are reported in `skipped` (the
+  rest is applied). Response `{upserted, deleted, skipped}`.
 - Vacation project: `PUT` is allowed (only `budgetHours` is ignored), `DELETE` →
   `409`. The FY-settings `PUT` synchronizes the vacation budget via
   `EnsureVacationProject`.
