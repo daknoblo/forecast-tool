@@ -417,10 +417,13 @@ type ProjectSummary struct {
 	AvailableBudget float64   // BudgetHours - CarryOver (what is left for this FY)
 
 	Remaining      float64 // AvailableBudget - Consumed
-	UtilizationPct float64 // (CarryOver + Consumed) / budget * 100
-	CarryOverPct   float64 // CarryOver / budget * 100
-	ForecastPct    float64 // forecast / budget * 100
-	ActualPct      float64 // booked / budget * 100
+	UtilizationPct float64 // (CarryOver + Consumed) / budget * 100, across all fiscal years
+	CarryOverPct   float64 // CarryOver / budget * 100, the share spent in earlier years
+	// The two shares below measure this fiscal year and therefore run against
+	// AvailableBudget: 100 % planned means the whole remaining budget is spoken
+	// for, whether it is already booked or still forecast.
+	PlannedPct float64 // Consumed (booked + forecast) / AvailableBudget * 100
+	ActualPct  float64 // booked / AvailableBudget * 100
 
 	// Booking window (clamped to the fiscal year). Empty project dates default
 	// to the FY bounds.
@@ -684,13 +687,27 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 		}
 		avail := p.BudgetHours - over
 		rem := avail - c
-		util, coPct, fPct, aPct := 0.0, 0.0, 0.0, 0.0
+		// An exhausted budget reads as 100 %, not as a division by zero.
+		pctOf := func(v, base float64) float64 {
+			switch {
+			case base > 0:
+				return round1(v / base * 100)
+			case v > 0:
+				return 100
+			default:
+				return 0
+			}
+		}
+		util := 0.0
 		if p.BudgetHours > 0 {
 			util = round1((over + c) / p.BudgetHours * 100)
-			coPct = round1(over / p.BudgetHours * 100)
-			fPct = round1(forecastByGroup[g] / p.BudgetHours * 100)
-			aPct = round1(actualByGroup[g] / p.BudgetHours * 100)
 		}
+		coPct := 0.0
+		if p.BudgetHours > 0 {
+			coPct = round1(over / p.BudgetHours * 100)
+		}
+		plannedPct := pctOf(c, avail)
+		aPct := pctOf(actualByGroup[g], avail)
 
 		wStart, wEnd := projectWindow(p, fyStart, fyEnd)
 		workdays := countWorkdays(wStart, wEnd, cal)
@@ -723,7 +740,7 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 			Remaining:          round1(rem),
 			UtilizationPct:     util,
 			CarryOverPct:       coPct,
-			ForecastPct:        fPct,
+			PlannedPct:         plannedPct,
 			ActualPct:          aPct,
 			StartDate:          wStart.Format("2006-01-02"),
 			EndDate:            wEnd.Format("2006-01-02"),

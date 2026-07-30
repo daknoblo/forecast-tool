@@ -194,7 +194,16 @@ collects every requirement stated so far as the binding reference.
   `CarryOver` (earlier FYs), `FutureFY` (later FYs), `FYSplit []FYHours` +
   `SpansFY` (the full per-year split), `AvailableBudget` (= `BudgetHours -
   CarryOver`, floored at 0), `Remaining` (= `AvailableBudget - Consumed`),
-  `UtilizationPct` (= `(CarryOver + Consumed) / BudgetHours`) and `CarryOverPct`.
+  `UtilizationPct` (= `(CarryOver + Consumed) / BudgetHours`, the whole
+  assignment across all fiscal years) and `CarryOverPct` (= `CarryOver /
+  BudgetHours`).
+- **The two shares of the current fiscal year run against `AvailableBudget`, not
+  against `BudgetHours`:** `PlannedPct` = `Consumed / AvailableBudget` (booked +
+  forecast, so **100 % means the available hours are completely planned**) and
+  `ActualPct` = `Actual / AvailableBudget`. Measuring them against the full
+  assignment budget would make a continued assignment look idle although its
+  remaining budget is long gone. With `AvailableBudget == 0` an exhausted budget
+  reads as 100 % instead of dividing by zero.
   `YearSummary` carries `TotalCarryOver`, `TotalAvailable`, `HasCarryOver` and
   `HasFYSplit`.
 - **Because of that, `BuildYearSummary(d, cal)` must be called with the projects
@@ -312,10 +321,12 @@ collects every requirement stated so far as the binding reference.
   remaining · window (date + "(noch …)" from `ProjectSummary.RemainingLabel`,
   e.g. "2 Wochen und 3 Tage" / "3 Monate") · burn rate (`.burncol`: `BurnPerWeek`
   plus, when working days are left, the muted line "offen `RequiredPerWeek`" —
-  **both in h/Woche** so they are comparable) · utilization (`.utilcol`, two bars:
-  forecast/budget from `ForecastPct` (transparent) and booked/budget from
-  `ActualPct` (opaque), preceded by a third Übertrag bar when `CarryOver > 0`).
-  No "Verbraucht" column.
+  **both in h/Woche** so they are comparable) · utilization (`.utilcol`): the
+  **Übertrag** bar (only when `CarryOver > 0`, `CarryOverPct` against the whole
+  assignment budget), the **Verplant** bar (`PlannedPct`, transparent) and the
+  **Gebucht** bar (`ActualPct`, opaque), the latter two against the fiscal year's
+  `AvailableBudget`. Every bar row carries a `title` naming its basis, because
+  the three do not share one. No "Verbraucht" column.
 - **Weekly utilization table (dashboard, `table.grid.compact.weekly`), columns in
   this order:** Woche (link `W1 · KW27` plus the grey `.weekrange` Mon–Fri range
   from `WeekTotal.RangeLabel`, e.g. "Mo. 29.06.2026 – Fr. 03.07.2026", on **one**

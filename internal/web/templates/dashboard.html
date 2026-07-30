@@ -71,6 +71,9 @@
   die in <em>früheren</em> Fiskaljahren bereits auf dieselbe Assignment ID gebucht wurden – sie werden vom Budget abgezogen,
   bevor Rest und Burnrate berechnet werden.</p>
 {{end}}
+<p class="hint">Die Balken <strong>Verplant</strong> und <strong>Gebucht</strong> beziehen sich auf das in diesem Fiskaljahr
+  <em>verfügbare</em> Budget (Budget abzüglich Übertrag). „Verplant 100 %“ heißt also: die verfügbaren Stunden sind
+  vollständig verplant, egal ob schon gebucht oder noch Forecast.</p>
 <table class="grid budgets">
   <thead>
     <tr><th>Projekt</th><th class="num">Budget</th>{{if .Summary.HasCarryOver}}<th class="num">Übertrag</th>{{end}}<th class="num">Forecast</th><th class="num">Gebucht</th><th class="num">Rest</th><th>Zeitraum</th><th class="num burncol">Burnrate</th><th class="utilcol">Auslastung</th></tr>
@@ -88,18 +91,18 @@
       <td class="num burncol"><small title="Verfügbares Budget ({{hours .AvailableBudget}} h) gleichmäßig über {{.WindowWorkdays}} Arbeitstage">{{hours .BurnPerWeek}} h/Woche</small>{{if gt .RemainingWorkdays 0}}<small class="muted" title="Noch nicht verplantes Budget über {{.RemainingWorkdays}} verbleibende Arbeitstage">offen {{hours .RequiredPerWeek}} h/Woche</small>{{end}}</td>
       <td class="utilcol">
         {{if gt .CarryOver 0.0}}
-        <div class="barrow">
+        <div class="barrow" title="Anteil des gesamten Assignment-Budgets ({{hours .Project.BudgetHours}} h), der in früheren Fiskaljahren verbraucht wurde">
           <span class="barkey">Übertrag</span>
           <div class="bar"><span style="width:{{barWidth .CarryOverPct}}%;background:{{.Project.Color}};opacity:0.2"></span></div>
           <small>{{hours .CarryOverPct}} %</small>
         </div>
         {{end}}
-        <div class="barrow">
-          <span class="barkey">Forecast</span>
-          <div class="bar"><span style="width:{{barWidth .ForecastPct}}%;background:{{.Project.Color}};opacity:0.45"></span></div>
-          <small>{{hours .ForecastPct}} %</small>
+        <div class="barrow" title="Gebucht + Forecast ({{hours .Consumed}} h) vom in diesem Fiskaljahr verfügbaren Budget ({{hours .AvailableBudget}} h) – 100 % heißt, die verfügbaren Stunden sind komplett verplant">
+          <span class="barkey">Verplant</span>
+          <div class="bar"><span style="width:{{barWidth .PlannedPct}}%;background:{{.Project.Color}};opacity:0.45"></span></div>
+          <small>{{hours .PlannedPct}} %</small>
         </div>
-        <div class="barrow">
+        <div class="barrow" title="Bereits gebucht ({{hours .Actual}} h) vom in diesem Fiskaljahr verfügbaren Budget ({{hours .AvailableBudget}} h)">
           <span class="barkey">Gebucht</span>
           <div class="bar"><span style="width:{{barWidth .ActualPct}}%;background:{{.Project.Color}}"></span></div>
           <small>{{hours .ActualPct}} %</small>

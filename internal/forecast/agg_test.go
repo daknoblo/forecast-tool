@@ -154,6 +154,15 @@ func TestAssignmentCarryOverAcrossFiscalYears(t *testing.T) {
 	if cont.UtilizationPct != 50 {
 		t.Errorf("continued UtilizationPct = %v, want 50", cont.UtilizationPct)
 	}
+	// The bars of the budgets table measure this fiscal year, so they run
+	// against the available budget (60 h), not the full assignment budget.
+	if cont.PlannedPct != round1(10.0/60*100) {
+		t.Errorf("continued PlannedPct = %v, want %v (10 of 60 h available)",
+			cont.PlannedPct, round1(10.0/60*100))
+	}
+	if cont.CarryOverPct != 40 {
+		t.Errorf("continued CarryOverPct = %v, want 40 (40 of the 100 h budget)", cont.CarryOverPct)
+	}
 	// The burn rate must be derived from the budget still available, not from
 	// the full assignment budget.
 	if cont.BurnPerWeek >= solo.BurnPerWeek {
@@ -165,6 +174,37 @@ func TestAssignmentCarryOverAcrossFiscalYears(t *testing.T) {
 	if solo.CarryOver != 0 || solo.AvailableBudget != 100 || solo.Remaining != 90 {
 		t.Errorf("solo carry/available/remaining = %v/%v/%v, want 0/100/90",
 			solo.CarryOver, solo.AvailableBudget, solo.Remaining)
+	}
+}
+
+// An assignment whose earlier years already ate the whole budget has nothing
+// available left, which must read as fully used instead of dividing by zero.
+// The fiscal year is a past one, so every hour counts as booked.
+func TestBudgetSharesWithExhaustedBudget(t *testing.T) {
+	d := models.Data{
+		Settings: models.Settings{Year: 2020, FederalState: "BY", WeeklyTargetHours: 40, FiscalYearStartMonth: 1},
+		Projects: []models.Project{
+			{ID: "old", AssignmentID: "X-1", Name: "Alpha", BudgetHours: 50, Active: true, FiscalYear: 2019},
+			{ID: "new", AssignmentID: "X-1", Name: "Alpha", BudgetHours: 50, Active: true, FiscalYear: 2020},
+		},
+		Entries: []models.Entry{
+			{Date: "2019-03-04", ProjectID: "old", Hours: 60},
+			{Date: "2020-03-04", ProjectID: "new", Hours: 5},
+		},
+	}
+	ys := BuildYearSummary(d, holidays.New(2020, "BY"))
+	if len(ys.Projects) != 1 {
+		t.Fatalf("summary covers %d projects, want 1", len(ys.Projects))
+	}
+	p := ys.Projects[0]
+	if p.AvailableBudget != 0 {
+		t.Errorf("AvailableBudget = %v, want 0 (carry-over is capped at the budget)", p.AvailableBudget)
+	}
+	if p.Remaining != -5 {
+		t.Errorf("Remaining = %v, want -5", p.Remaining)
+	}
+	if p.PlannedPct != 100 || p.ActualPct != 100 {
+		t.Errorf("planned/actual = %v/%v %%, want 100/100 with nothing available", p.PlannedPct, p.ActualPct)
 	}
 }
 
