@@ -400,11 +400,26 @@ collects every requirement stated so far as the binding reference.
 - On the goal page the **quarter and month overviews are always visible** (not
   collapsible).
 - **Goal page order (chronological):** whole FY (KPIs, status including the
-  progress chart, FY capacity, remaining pace, target pace) → **half-years H1 &
-  H2** (`GoalSummary.Halves`, one card each with figures, a utilization bar and a
-  small progress/burn chart) → quarters → month overview → weekly utilization.
-  The charts (`web.progressSVG`, cumulative projection vs. ideal line + target)
-  exist for FY, H1 and H2; months and weeks keep their bars.
+  progress chart) → **hours flow** → FY capacity, remaining pace, target pace →
+  **half-years H1 & H2** (`GoalSummary.Halves`) → **quarters**
+  (`GoalSummary.Quarters`) → month overview → weekly utilization. Half-years and
+  quarters share the same card markup (`.periods > .period` with `.period-kpis`,
+  a utilization bar and a `web.progressSVG` chart); `.periods.quarters` is a 2×2
+  grid. The charts (cumulative projection vs. ideal line + target) exist for FY,
+  both halves and all four quarters (`handleGoal` builds `QuarterCharts` from
+  `gs.Months[q*3:q*3+3]` against `TargetHours/4`); months and weeks keep their
+  bars.
+- **Hours flow (`web.goalFlowSVG` from `forecast.BuildGoalFlow`)** sits right
+  below the status card: a five-stage Sankey **projects → months → quarters →
+  half-years → fiscal year**. Vacation is excluded and only in-FY dates count, so
+  **every stage carries the same total** – one shared scale for all columns is
+  therefore mandatory, otherwise the ribbons would not match their nodes.
+  Projects are ordered by their centre of gravity in the year (fewest crossings),
+  and a ribbon keeps its **source** colour: project colours into the months,
+  then the four quarter tints (`goalFlowQuarterColors`, desaturated hues of equal
+  lightness) through to the half-years, then the two half tints into the year.
+  Nodes and ribbons carry an SVG `<title>`; private mode masks every figure but
+  keeps the shape, exactly like the dashboard Sankey.
 - **Forecast grid layout:** the project-name column (`.pname`) is wide (~240 px),
   all values are centred (except `.pname`), project rows are separated by a
   horizontal rule (`tbody td` border-bottom 2px) and the week-total column

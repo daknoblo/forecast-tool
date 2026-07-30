@@ -712,6 +712,67 @@ func TestGoalHalves(t *testing.T) {
 	}
 }
 
+func TestBuildGoalFlowRollsUpEveryStage(t *testing.T) {
+	d := vacationData() // FY 2026 = calendar year, 8h on p1 in January, 16h vacation
+	d.Projects = append(d.Projects, models.Project{ID: "p2", Name: "Beta", BudgetHours: 50, Active: true, FiscalYear: 2026})
+	d.Entries = append(d.Entries,
+		models.Entry{Date: "2026-01-20", ProjectID: "p2", Hours: 4},
+		models.Entry{Date: "2026-05-11", ProjectID: "p2", Hours: 6},
+		models.Entry{Date: "2026-09-14", ProjectID: "p1", Hours: 2},
+		models.Entry{Date: "2025-12-15", ProjectID: "p1", Hours: 9}, // outside the FY
+	)
+	f := BuildGoalFlow(d)
+
+	if !f.HasData {
+		t.Fatal("flow must carry data")
+	}
+	// 8 + 4 + 6 + 2; vacation and the pre-FY day are excluded.
+	if f.Total != 20 {
+		t.Errorf("total = %v, want 20", f.Total)
+	}
+	if len(f.Stages) != 5 {
+		t.Fatalf("stages = %d, want 5", len(f.Stages))
+	}
+	// Every stage is a pure roll-up, so all of them carry the same sum.
+	for si, st := range f.Stages {
+		sum := 0.0
+		for _, n := range st {
+			sum += n.Hours
+		}
+		if round1(sum) != f.Total {
+			t.Errorf("stage %d sums to %v, want %v", si, sum, f.Total)
+		}
+	}
+	if len(f.Stages[0]) != 2 {
+		t.Errorf("projects = %d, want 2 (vacation excluded)", len(f.Stages[0]))
+	}
+	// Only months carrying hours become nodes: Jan, Mai, Sep.
+	if len(f.Stages[1]) != 3 {
+		t.Errorf("months = %d, want 3", len(f.Stages[1]))
+	}
+	if len(f.Stages[4]) != 1 || f.Stages[4][0].Hours != 20 {
+		t.Fatalf("year node = %+v, want a single node with 20 h", f.Stages[4])
+	}
+	// Links of every stage add up to the total as well.
+	perStage := map[int]float64{}
+	for _, l := range f.Links {
+		perStage[l.Stage] += l.Hours
+	}
+	for stage := 0; stage < 4; stage++ {
+		if round1(perStage[stage]) != f.Total {
+			t.Errorf("links of stage %d sum to %v, want %v", stage, perStage[stage], f.Total)
+		}
+	}
+}
+
+func TestBuildGoalFlowWithoutHours(t *testing.T) {
+	d := vacationData()
+	d.Entries = nil
+	if f := BuildGoalFlow(d); f.HasData || f.Total != 0 || len(f.Links) != 0 {
+		t.Errorf("empty flow expected, got %+v", f)
+	}
+}
+
 func TestSankeySpanUnits(t *testing.T) {
 	maxW := FYWeeks(2026, 1)
 	cases := []struct {

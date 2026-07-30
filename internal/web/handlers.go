@@ -603,8 +603,9 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 	ys := forecast.BuildYearSummary(d, cal)
 
 	// Cumulative projected hours per month drive the progress charts for the
-	// whole FY and each half-year.
+	// whole FY, each half-year and each quarter.
 	var fyChart, h1Chart, h2Chart template.HTML
+	quarterCharts := make([]template.HTML, 4)
 	if len(gs.Months) == 12 {
 		labels := make([]string, 12)
 		proj := make([]float64, 12)
@@ -615,17 +616,23 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 		fyChart = progressSVG(labels, cumulative(proj), gs.TargetHours, private)
 		h1Chart = progressSVG(labels[:6], cumulative(proj[:6]), round1(gs.TargetHours/2), private)
 		h2Chart = progressSVG(labels[6:], cumulative(proj[6:]), round1(gs.TargetHours/2), private)
+		for q := 0; q < 4; q++ {
+			from, to := q*3, q*3+3
+			quarterCharts[q] = progressSVG(labels[from:to], cumulative(proj[from:to]), round1(gs.TargetHours/4), private)
+		}
 	}
 
 	s.render(w, r, "goal.html", map[string]any{
-		"Active":     "goal",
-		"Settings":   d.Settings,
-		"FYYears":    fyYears(d),
-		"Goal":       gs,
-		"WeekTotals": ys.WeekTotals,
-		"FYChart":    fyChart,
-		"H1Chart":    h1Chart,
-		"H2Chart":    h2Chart,
+		"Active":        "goal",
+		"Settings":      d.Settings,
+		"FYYears":       fyYears(d),
+		"Goal":          gs,
+		"WeekTotals":    ys.WeekTotals,
+		"FYChart":       fyChart,
+		"H1Chart":       h1Chart,
+		"H2Chart":       h2Chart,
+		"QuarterCharts": quarterCharts,
+		"FlowSVG":       goalFlowSVG(forecast.BuildGoalFlow(d), private),
 	})
 }
 

@@ -3,6 +3,7 @@ package web
 import (
 	"fmt"
 	"html/template"
+	"sort"
 	"strings"
 
 	"github.com/daknoblo/forecast-tool/internal/forecast"
@@ -204,6 +205,163 @@ func progressSVG(labels []string, cumulative []float64, target float64, private 
 
 	b.WriteString(`</svg>`)
 	return template.HTML(b.String()) // #nosec G203 -- numeric values + controlled month labels only
+}
+
+// goalFlowSVG renders the fiscal year's hours as a five-stage Sankey: projects
+// feed the months, the months their quarter, the quarters their half-year and
+// both halves the whole year. Every stage carries the same total, so all columns
+// are equally tall and only the split differs. Ribbons keep the colour of their
+// source, project colours are sanitised and every label is HTML-escaped, so the
+// markup emitted as template.HTML carries no untrusted content. In private mode
+// all figures are masked; the shape of the flow stays visible, exactly like in
+// the dashboard Sankey.
+func goalFlowSVG(flow forecast.GoalFlow, private bool) template.HTML {
+	const (
+		w      = 1200.0
+		h      = 520.0
+		padT   = 34.0
+		padB   = 14.0
+		padL   = 186.0 // room for the project names on the left
+		padR   = 118.0 // room for the fiscal-year label on the right
+		nodeW  = 26.0
+		gap    = 5.0
+		minLbl = 9.0 // below this node height a label would collide with its neighbour
+	)
+	plotW := w - padL - padR
+	plotH := h - padT - padB
+
+	if !flow.HasData {
+		return template.HTML(fmt.Sprintf( // #nosec G203 -- constant SVG shell, numeric values only
+			`<svg viewBox="0 0 %g %g" class="goalflow" role="img" aria-label="Stundenfluss"><text x="%g" y="%g" font-size="13" fill="#94a3b8" text-anchor="middle">Noch keine Stunden im Fiskaljahr erfasst.</text></svg>`,
+			w, h, w/2, h/2))
+	}
+
+	// One shared scale across all columns - otherwise the ribbons would not
+	// match the node heights they connect.
+	maxNodes := 0
+	for _, st := range flow.Stages {
+		if len(st) > maxNodes {
+			maxNodes = len(st)
+		}
+	}
+	barsH := plotH - float64(maxNodes-1)*gap
+	if barsH < 40 {
+		barsH = 40
+	}
+	scale := barsH / flow.Total
+
+	type placed struct {
+		node       forecast.GoalFlowNode
+		stage, idx int
+		x, top, ht float64
+		outY, inY  float64
+	}
+	byID := make(map[string]*placed, maxNodes*len(flow.Stages))
+	for si, st := range flow.Stages {
+		x := padL + (plotW-nodeW)*float64(si)/float64(len(flow.Stages)-1)
+		colH := barsH + float64(len(st)-1)*gap
+		y := padT + (plotH-colH)/2
+		for ni, n := range st {
+			ht := scale * n.Hours
+			p := &placed{node: n, stage: si, idx: ni, x: x, top: y, ht: ht}
+			p.outY, p.inY = y, y
+			byID[n.ID] = p
+			y += ht + gap
+		}
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, `<svg viewBox="0 0 %g %g" class="goalflow" role="img" aria-label="Stundenfluss vom Projekt bis zum Fiskaljahr">`, w, h)
+
+	for si, name := range forecast.GoalFlowStages {
+		if si >= len(flow.Stages) {
+			break
+		}
+		x := padL + (plotW-nodeW)*float64(si)/float64(len(flow.Stages)-1) + nodeW/2
+		fmt.Fprintf(&b, `<text x="%g" y="18" font-size="11" font-weight="600" fill="#94a3b8" text-anchor="middle">%s</text>`,
+			x, template.HTMLEscapeString(name))
+	}
+
+	// Ribbons first (behind the nodes). Source-side offsets follow the target
+	// order and target-side offsets the source order, so the bands do not cross
+	// more than the data itself requires.
+	idxOut := make([]int, 0, len(flow.Links))
+	for i, l := range flow.Links {
+		if byID[l.From] != nil && byID[l.To] != nil {
+			idxOut = append(idxOut, i)
+		}
+	}
+	idxIn := append([]int(nil), idxOut...)
+	sort.SliceStable(idxOut, func(a, c int) bool {
+		return byID[flow.Links[idxOut[a]].To].idx < byID[flow.Links[idxOut[c]].To].idx
+	})
+	sort.SliceStable(idxOut, func(a, c int) bool {
+		return byID[flow.Links[idxOut[a]].From].idx < byID[flow.Links[idxOut[c]].From].idx
+	})
+	sort.SliceStable(idxIn, func(a, c int) bool {
+		return byID[flow.Links[idxIn[a]].From].idx < byID[flow.Links[idxIn[c]].From].idx
+	})
+	sort.SliceStable(idxIn, func(a, c int) bool {
+		return byID[flow.Links[idxIn[a]].To].idx < byID[flow.Links[idxIn[c]].To].idx
+	})
+
+	type slice struct{ top, bot float64 }
+	target := make([]slice, len(flow.Links))
+	for _, i := range idxIn {
+		to := byID[flow.Links[i].To]
+		ht := scale * flow.Links[i].Hours
+		target[i] = slice{to.inY, to.inY + ht}
+		to.inY += ht
+	}
+	for _, i := range idxOut {
+		l := flow.Links[i]
+		from, to := byID[l.From], byID[l.To]
+		ht := scale * l.Hours
+		a0, a1 := from.outY, from.outY+ht
+		from.outY += ht
+		t := target[i]
+		x0, x1 := from.x+nodeW, to.x
+		xc := (x0 + x1) / 2
+		fmt.Fprintf(&b,
+			`<path class="ribbon" d="M%g %g C%g %g %g %g %g %g L%g %g C%g %g %g %g %g %g Z" fill="%s" fill-opacity="0.34"><title>%s → %s&#10;%s h</title></path>`,
+			x0, a0, xc, a0, xc, t.top, x1, t.top,
+			x1, t.bot, xc, t.bot, xc, a1, x0, a1, sanitizeColor(l.Color),
+			template.HTMLEscapeString(l.FromLabel), template.HTMLEscapeString(l.ToLabel),
+			chartHours(l.Hours, private))
+	}
+
+	last := len(flow.Stages) - 1
+	for _, st := range flow.Stages {
+		for _, n := range st {
+			p := byID[n.ID]
+			if p == nil {
+				continue
+			}
+			fmt.Fprintf(&b,
+				`<rect class="node" x="%g" y="%g" width="%g" height="%g" rx="2" fill="%s"><title>%s&#10;%s h</title></rect>`,
+				p.x, p.top, nodeW, p.ht, sanitizeColor(n.Color),
+				template.HTMLEscapeString(n.Title), chartHours(n.Hours, private))
+			if p.ht < minLbl {
+				continue
+			}
+			cy := p.top + p.ht/2 + 3.5
+			label := template.HTMLEscapeString(fmt.Sprintf("%s · %s h", n.Label, chartHours(n.Hours, private)))
+			switch {
+			case p.stage == 0:
+				fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" fill="#334155" text-anchor="end">%s</text>`,
+					p.x-8, cy, label)
+			case p.stage == last:
+				fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" font-weight="600" fill="#334155">%s</text>`,
+					p.x+nodeW+8, cy, label)
+			case p.ht >= 12:
+				fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="9" font-weight="600" fill="#ffffff" text-anchor="middle">%s</text>`,
+					p.x+nodeW/2, cy-0.5, template.HTMLEscapeString(n.Label))
+			}
+		}
+	}
+
+	b.WriteString(`</svg>`)
+	return template.HTML(b.String()) // #nosec G203 -- sanitised colours + escaped labels; other values numeric
 }
 
 // sankeyGeom holds the shared horizontal geometry of the dashboard charts so

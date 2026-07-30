@@ -309,12 +309,18 @@ table.week tfoot td.center { text-align: center; }
 .burnchip .dot { width: 10px; height: 10px; }
 
 /* goal half-year cards + progress charts */
-.halves { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; }
-.half { border: 1px solid var(--line); border-radius: 10px; padding: 0.75rem 1rem; background: #fbfcfe; }
-.half h3 { margin: 0 0 0.5rem; font-size: 1rem; }
-.half-kpis { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; color: var(--muted); font-size: 0.85rem; margin-bottom: 0.5rem; }
-.half-kpis strong { color: var(--text); }
+.periods { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; }
+.periods.quarters { grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); }
+.period { border: 1px solid var(--line); border-radius: 10px; padding: 0.75rem 1rem; background: #fbfcfe; }
+.period h3 { margin: 0 0 0.5rem; font-size: 1rem; }
+.period-kpis { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; color: var(--muted); font-size: 0.85rem; margin-bottom: 0.5rem; }
+.period-kpis strong { color: var(--text); }
 .mini-chart { margin-top: 0.6rem; }
+.flow-wrap { overflow-x: auto; }
+.flow-wrap svg { width: 100%; min-width: 720px; height: auto; }
+.goalflow .ribbon { transition: fill-opacity 0.12s ease; }
+.goalflow .ribbon:hover { fill-opacity: 0.7; }
+.goalflow .node:hover { stroke: #0f172a; stroke-width: 1.5; }
 .progress-chart { width: 100%; height: auto; }
 
 /* dashboard utilization Sankey */

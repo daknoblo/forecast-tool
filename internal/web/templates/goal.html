@@ -54,6 +54,12 @@
 </section>
 
 <section class="card">
+  <h2>Stundenfluss im Fiskaljahr</h2>
+  <p class="hint">Wohin die Stunden fließen: von den einzelnen Projekten in den jeweiligen Monat, von den Monaten ins Quartal, von den Quartalen ins Halbjahr und von beiden Halbjahren ins Fiskaljahr. Jede Spalte trägt dieselbe Gesamtsumme – nur die Aufteilung ändert sich. Urlaub zählt nicht mit. Fahre über ein Band für die genauen Stunden.</p>
+  <div class="flow-wrap">{{.FlowSVG}}</div>
+</section>
+
+<section class="card">
   <h2>FY-Kapazität</h2>
   <table class="grid compact">
     <tbody>
@@ -104,12 +110,12 @@
 <section class="card">
   <h2>Halbjahre</h2>
   <p class="hint">H1 = erste 6 Monate des Fiskaljahres, H2 = letzte 6. Ziel je Halbjahr = Jahresziel / 2. Das Diagramm zeigt die kumulierte Hochrechnung gegenüber der idealen Gleichverteilung (gestrichelt) und dem Ziel (grün).</p>
-  <div class="halves">
+  <div class="periods halves">
     {{$h1 := index .Goal.Halves 0}}
     {{$h2 := index .Goal.Halves 1}}
-    <div class="half">
+    <div class="period">
       <h3>{{$h1.Label}}</h3>
-      <div class="half-kpis">
+      <div class="period-kpis">
         <span>Soll <strong>{{hours $h1.Target}} h</strong></span>
         <span>Forecast <strong>{{hours $h1.Forecast}} h</strong></span>
         <span>Ist <strong class="ist">{{hours $h1.Actual}} h</strong></span>
@@ -119,9 +125,9 @@
       <div class="bar"><span style="width:{{barWidth $h1.PctOfTarget}}%"></span></div>
       {{if .H1Chart}}<div class="mini-chart">{{.H1Chart}}</div>{{end}}
     </div>
-    <div class="half">
+    <div class="period">
       <h3>{{$h2.Label}}</h3>
-      <div class="half-kpis">
+      <div class="period-kpis">
         <span>Soll <strong>{{hours $h2.Target}} h</strong></span>
         <span>Forecast <strong>{{hours $h2.Forecast}} h</strong></span>
         <span>Ist <strong class="ist">{{hours $h2.Actual}} h</strong></span>
@@ -136,27 +142,24 @@
 
 <section class="card">
   <h2>Quartale</h2>
-  <table class="grid">
-    <thead>
-      <tr><th>Quartal</th><th class="num">Soll</th><th class="num">Forecast</th><th class="num">Ist</th><th class="num">Feiertage</th><th class="num">Hochrechnung</th><th>Zielerreichung</th></tr>
-    </thead>
-    <tbody>
-    {{range .Goal.Quarters}}
-      <tr>
-        <td>{{.Label}}</td>
-        <td class="num">{{hours .Target}} h</td>
-        <td class="num">{{hours .Forecast}} h</td>
-        <td class="num ist">{{hours .Actual}} h</td>
-        <td class="num">{{hours .Holiday}} h</td>
-        <td class="num strong">{{hours .Projected}} h</td>
-        <td>
-          <div class="bar"><span style="width:{{barWidth .PctOfTarget}}%"></span></div>
-          <small class="{{if lt .PctOfTarget 100.0}}negative{{end}}">{{hours .PctOfTarget}} %</small>
-        </td>
-      </tr>
+  <p class="hint">Ziel je Quartal = Jahresziel / 4. Das Diagramm zeigt die kumulierte Hochrechnung der drei Monate gegenüber der idealen Gleichverteilung (gestrichelt) und dem Quartalsziel (grün).</p>
+  <div class="periods quarters">
+    {{range $i, $q := .Goal.Quarters}}
+    <div class="period">
+      <h3>{{$q.Label}}</h3>
+      <div class="period-kpis">
+        <span>Soll <strong>{{hours $q.Target}} h</strong></span>
+        <span>Forecast <strong>{{hours $q.Forecast}} h</strong></span>
+        <span>Ist <strong class="ist">{{hours $q.Actual}} h</strong></span>
+        <span>Feiertage <strong>{{hours $q.Holiday}} h</strong></span>
+        <span>Hochrechnung <strong>{{hours $q.Projected}} h</strong></span>
+        <span class="{{if lt $q.PctOfTarget 100.0}}negative{{end}}">Zielerreichung <strong>{{hours $q.PctOfTarget}} %</strong></span>
+      </div>
+      <div class="bar"><span style="width:{{barWidth $q.PctOfTarget}}%"></span></div>
+      {{with index $.QuarterCharts $i}}<div class="mini-chart">{{.}}</div>{{end}}
+    </div>
     {{end}}
-    </tbody>
-  </table>
+  </div>
 </section>
 
 <section class="card">

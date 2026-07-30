@@ -1214,6 +1214,229 @@ func BuildGoalSummary(d models.Data, cal *holidays.Calendar) GoalSummary {
 	return gs
 }
 
+// --- Goal flow (project -> month -> quarter -> half-year -> fiscal year) ---
+
+// GoalFlowStages names the columns of the goal flow diagram, left to right.
+var GoalFlowStages = []string{"Projekte", "Monate", "Quartale", "Halbjahre", "Jahr"}
+
+// Node colours for the roll-up stages; projects keep their own colour. The four
+// quarter tints are desaturated hues of similar lightness: they stay clearly
+// apart without competing with the project colours, and white labels stay
+// readable on all of them.
+var goalFlowQuarterColors = []string{"#6b8f9e", "#7d8f6b", "#8f7d6b", "#7d6b8f"}
+
+// The two half-years differ in lightness so their share of the year stays
+// distinguishable in the last column.
+var goalFlowHalfColors = []string{"#64748b", "#334155"}
+
+const (
+	goalFlowMonthColor = "#94a3b8"
+	goalFlowYearColor  = "#1e293b"
+)
+
+// GoalFlowNode is one box in a stage of the goal flow diagram.
+type GoalFlowNode struct {
+	ID    string
+	Label string // short label drawn on/next to the node
+	Title string // long label for the tooltip
+	Color string
+	Hours float64
+}
+
+// GoalFlowLink joins a node of one stage to a node of the next.
+type GoalFlowLink struct {
+	Stage     int // index of the source stage
+	From, To  string
+	FromLabel string
+	ToLabel   string
+	Color     string
+	Hours     float64
+}
+
+// GoalFlow is the fiscal year's hours flowing from the individual projects
+// through months and quarters into the half-years and finally the whole year.
+// Vacation is excluded, exactly as in BuildGoalSummary, and only days inside the
+// fiscal year are counted - so every stage sums up to the same total.
+type GoalFlow struct {
+	Stages  [][]GoalFlowNode
+	Links   []GoalFlowLink
+	Total   float64
+	HasData bool
+}
+
+// BuildGoalFlow aggregates the fiscal year's project hours into the five stages
+// of the goal flow diagram.
+func BuildGoalFlow(d models.Data) GoalFlow {
+	year := d.Settings.Year
+	startMonth := normMonth(d.Settings.FiscalYearStartMonth)
+	fyStart, fyEnd := FiscalYear(year, startMonth)
+	fyStartISO, fyEndISO := fyStart.Format("2006-01-02"), fyEnd.Format("2006-01-02")
+
+	vac := vacationSet(d.Projects)
+	projByID := make(map[string]models.Project, len(d.Projects))
+	for _, p := range d.Projects {
+		projByID[p.ID] = p
+	}
+
+	byProject := map[string]*[12]float64{}
+	var months [12]float64
+	for _, e := range d.Entries {
+		if e.Hours <= 0 || vac[e.ProjectID] || e.Date < fyStartISO || e.Date > fyEndISO {
+			continue
+		}
+		if _, ok := projByID[e.ProjectID]; !ok {
+			continue
+		}
+		t, err := time.Parse("2006-01-02", e.Date)
+		if err != nil {
+			continue
+		}
+		m := (int(t.Month()) - startMonth + 12) % 12
+		row, ok := byProject[e.ProjectID]
+		if !ok {
+			row = &[12]float64{}
+			byProject[e.ProjectID] = row
+		}
+		row[m] += e.Hours
+		months[m] += e.Hours
+	}
+
+	flow := GoalFlow{Stages: make([][]GoalFlowNode, 5)}
+
+	// Projects are ordered by their centre of gravity in the year, which keeps
+	// the ribbons into the month column largely free of crossings.
+	type projRow struct {
+		p        models.Project
+		hours    [12]float64
+		total    float64
+		centroid float64
+	}
+	rows := make([]projRow, 0, len(byProject))
+	for pid, hrs := range byProject {
+		r := projRow{p: projByID[pid], hours: *hrs}
+		var weighted float64
+		for m, v := range r.hours {
+			r.total += v
+			weighted += float64(m) * v
+		}
+		if r.total <= 0 {
+			continue
+		}
+		r.centroid = weighted / r.total
+		rows = append(rows, r)
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].centroid != rows[j].centroid {
+			return rows[i].centroid < rows[j].centroid
+		}
+		return rows[i].p.Name < rows[j].p.Name
+	})
+
+	for _, r := range rows {
+		flow.Stages[0] = append(flow.Stages[0], GoalFlowNode{
+			ID: "p:" + r.p.ID, Label: r.p.Name, Title: r.p.Name,
+			Color: r.p.Color, Hours: round1(r.total),
+		})
+		flow.Total += r.total
+	}
+
+	monthLabel := func(m int) (short, long string) {
+		cm := (startMonth - 1 + m) % 12
+		return monthShort[cm], monthNames[cm]
+	}
+	var quarters, halves [4]float64
+	for m, v := range months {
+		if v <= 0 {
+			continue
+		}
+		short, long := monthLabel(m)
+		flow.Stages[1] = append(flow.Stages[1], GoalFlowNode{
+			ID: fmt.Sprintf("m:%d", m), Label: short, Title: long,
+			Color: goalFlowMonthColor, Hours: round1(v),
+		})
+		quarters[m/3] += v
+		halves[m/6] += v
+	}
+	for q := 0; q < 4; q++ {
+		if quarters[q] <= 0 {
+			continue
+		}
+		fm, _ := monthLabel(q * 3)
+		lm, _ := monthLabel(q*3 + 2)
+		flow.Stages[2] = append(flow.Stages[2], GoalFlowNode{
+			ID: fmt.Sprintf("q:%d", q), Label: fmt.Sprintf("Q%d", q+1),
+			Title: fmt.Sprintf("Q%d (%s–%s)", q+1, fm, lm),
+			Color: goalFlowQuarterColors[q], Hours: round1(quarters[q]),
+		})
+	}
+	for half := 0; half < 2; half++ {
+		if halves[half] <= 0 {
+			continue
+		}
+		fm, _ := monthLabel(half * 6)
+		lm, _ := monthLabel(half*6 + 5)
+		flow.Stages[3] = append(flow.Stages[3], GoalFlowNode{
+			ID: fmt.Sprintf("h:%d", half), Label: fmt.Sprintf("H%d", half+1),
+			Title: fmt.Sprintf("%d. Halbjahr (%s–%s)", half+1, fm, lm),
+			Color: goalFlowHalfColors[half], Hours: round1(halves[half]),
+		})
+	}
+	if flow.Total > 0 {
+		flow.Stages[4] = []GoalFlowNode{{
+			ID: "y", Label: fmt.Sprintf("FY %d", year), Title: fmt.Sprintf("Fiskaljahr %d", year),
+			Color: goalFlowYearColor, Hours: round1(flow.Total),
+		}}
+	}
+
+	for _, r := range rows {
+		for m, v := range r.hours {
+			if v <= 0 {
+				continue
+			}
+			short, _ := monthLabel(m)
+			flow.Links = append(flow.Links, GoalFlowLink{
+				Stage: 0, From: "p:" + r.p.ID, To: fmt.Sprintf("m:%d", m),
+				FromLabel: r.p.Name, ToLabel: short, Color: r.p.Color, Hours: round1(v),
+			})
+		}
+	}
+	for m, v := range months {
+		if v <= 0 {
+			continue
+		}
+		short, _ := monthLabel(m)
+		flow.Links = append(flow.Links, GoalFlowLink{
+			Stage: 1, From: fmt.Sprintf("m:%d", m), To: fmt.Sprintf("q:%d", m/3),
+			FromLabel: short, ToLabel: fmt.Sprintf("Q%d", m/3+1),
+			Color: goalFlowQuarterColors[m/3], Hours: round1(v),
+		})
+	}
+	for q := 0; q < 4; q++ {
+		if quarters[q] <= 0 {
+			continue
+		}
+		flow.Links = append(flow.Links, GoalFlowLink{
+			Stage: 2, From: fmt.Sprintf("q:%d", q), To: fmt.Sprintf("h:%d", q/2),
+			FromLabel: fmt.Sprintf("Q%d", q+1), ToLabel: fmt.Sprintf("H%d", q/2+1),
+			Color: goalFlowQuarterColors[q], Hours: round1(quarters[q]),
+		})
+	}
+	for half := 0; half < 2; half++ {
+		if halves[half] <= 0 {
+			continue
+		}
+		flow.Links = append(flow.Links, GoalFlowLink{
+			Stage: 3, From: fmt.Sprintf("h:%d", half), To: "y",
+			FromLabel: fmt.Sprintf("H%d", half+1), ToLabel: fmt.Sprintf("FY %d", year),
+			Color: goalFlowHalfColors[half], Hours: round1(halves[half]),
+		})
+	}
+
+	flow.Total = round1(flow.Total)
+	flow.HasData = flow.Total > 0
+	return flow
+}
+
 // --- Dashboard utilization Sankey (time flow) ---
 
 // SankeyRange defines one selectable horizon for the dashboard Sankey diagram.

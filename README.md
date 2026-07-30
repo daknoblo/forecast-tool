@@ -45,7 +45,9 @@ optionally updated through an AI prompt.
 - Automatic public holidays (all 16 German federal states)
 - Configurable weekly target hours, vacation (per half-year) and standard tasks
 - Goal/capacity calculation: available hours, utilization in %, target per
-  week/month/quarter
+  week/month/quarter, plus an **hours-flow Sankey** (projects → months →
+  quarters → half-years → fiscal year) and a progress chart per half-year and
+  quarter
 - Remaining budget per project plus a burn-down chart (server-rendered SVG)
 - Dashboard with a **utilization Sankey diagram** and a **free capacity** chart,
   both rendered server-side as inline SVG (no JavaScript dependencies)
