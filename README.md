@@ -311,3 +311,8 @@ go test ./...
 
 ## Project structure & plan
 See [docs/PLAN.md](docs/PLAN.md) for the architecture and design decisions.
+
+
+## License
+
+Released under the [MIT License](LICENSE).
