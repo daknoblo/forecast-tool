@@ -191,10 +191,12 @@ func progressSVG(labels []string, cumulative []float64, target float64, done int
 	ideal := func(i int) float64 { return target * float64(i+1) / float64(n) }
 
 	const (
-		colDone     = "#0891b2"
-		colForecast = "#2563eb"
-		colIdeal    = "#a5b4c4"
-		colTarget   = "#16a34a"
+		colDone     = "#0e7490"
+		colForecast = "#1d4ed8"
+		colIdeal    = "#475569"
+		colTarget   = "#15803d"
+		colGrid     = "#e2e8f0"
+		colAxis     = "#94a3b8"
 	)
 
 	var b strings.Builder
@@ -206,18 +208,18 @@ func progressSVG(labels []string, cumulative []float64, target float64, done int
 	lx := padL
 	for _, l := range legend {
 		fmt.Fprintf(&b, `<rect x="%g" y="5" width="9" height="9" rx="2" fill="%s"/>`, lx, l.color)
-		fmt.Fprintf(&b, `<text x="%g" y="14" font-size="11" fill="#64748b">%s</text>`, lx+13, l.text)
+		fmt.Fprintf(&b, `<text x="%g" y="14" font-size="11" fill="#475569">%s</text>`, lx+13, l.text)
 		lx += 26 + estTextWidth(l.text, 11)
 	}
 
 	for v := 0.0; v <= yMax+step/2; v += step {
 		yy := y(v)
-		fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#eef2f7"/>`, padL, yy, padL+plotW, yy)
-		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" fill="#94a3b8" text-anchor="end">%s</text>`,
+		fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s"/>`, padL, yy, padL+plotW, yy, colGrid)
+		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" fill="#475569" text-anchor="end">%s</text>`,
 			padL-7, yy+4, chartHours(round1(v), private))
 	}
-	fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#cbd5e1"/>`, padL, padT, padL, padT+plotH)
-	fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#cbd5e1"/>`, padL, padT+plotH, padL+plotW, padT+plotH)
+	fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s"/>`, padL, padT, padL, padT+plotH, colAxis)
+	fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s"/>`, padL, padT+plotH, padL+plotW, padT+plotH, colAxis)
 
 	if target > 0 && target <= yMax {
 		ty := y(target)
@@ -227,12 +229,12 @@ func progressSVG(labels []string, cumulative []float64, target float64, done int
 			padL+5, ty-5, colTarget, chartHours(round1(target), private))
 	}
 
-	// ideal even pace
+	// ideal even pace: dotted so it never reads as a second forecast curve
 	var idealPts strings.Builder
 	for i := 0; i < n; i++ {
 		fmt.Fprintf(&idealPts, "%g,%g ", x(i), y(ideal(i)))
 	}
-	fmt.Fprintf(&b, `<polyline fill="none" stroke="%s" stroke-width="1.5" stroke-dasharray="4 4" points="%s"/>`,
+	fmt.Fprintf(&b, `<polyline fill="none" stroke="%s" stroke-width="2" stroke-dasharray="2 4" stroke-linecap="round" points="%s"/>`,
 		colIdeal, strings.TrimSpace(idealPts.String()))
 
 	// booked part: filled area plus a solid line
@@ -281,12 +283,12 @@ func progressSVG(labels []string, cumulative []float64, target float64, done int
 		if i%stepX != 0 && i != n-1 {
 			continue
 		}
-		fill := "#64748b"
+		fill := "#475569"
 		weight := "400"
 		if i == done-1 {
 			fill, weight = colDone, "600" // last completed sub-period
 		}
-		fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#cbd5e1"/>`, x(i), padT+plotH, x(i), padT+plotH+4)
+		fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s"/>`, x(i), padT+plotH, x(i), padT+plotH+4, colAxis)
 		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" font-weight="%s" fill="%s" text-anchor="middle">%s</text>`,
 			x(i), padT+plotH+18, weight, fill, template.HTMLEscapeString(shortLabel(labelAt(labels, i))))
 	}
@@ -390,7 +392,7 @@ func goalFlowSVG(flow forecast.GoalFlow, private bool) template.HTML {
 			break
 		}
 		x := padL + (plotW-nodeW)*float64(si)/float64(len(flow.Stages)-1) + nodeW/2
-		fmt.Fprintf(&b, `<text x="%g" y="18" font-size="11" font-weight="600" fill="#94a3b8" text-anchor="middle">%s</text>`,
+		fmt.Fprintf(&b, `<text x="%g" y="18" font-size="11" font-weight="600" fill="#475569" text-anchor="middle">%s</text>`,
 			x, template.HTMLEscapeString(name))
 	}
 
@@ -435,7 +437,7 @@ func goalFlowSVG(flow forecast.GoalFlow, private bool) template.HTML {
 		x0, x1 := from.x+nodeW, to.x
 		xc := (x0 + x1) / 2
 		fmt.Fprintf(&b,
-			`<path class="ribbon" d="M%g %g C%g %g %g %g %g %g L%g %g C%g %g %g %g %g %g Z" fill="%s" fill-opacity="0.34"><title>%s → %s&#10;%s h</title></path>`,
+			`<path class="ribbon" d="M%g %g C%g %g %g %g %g %g L%g %g C%g %g %g %g %g %g Z" fill="%s" fill-opacity="0.42"><title>%s → %s&#10;%s h</title></path>`,
 			x0, a0, xc, a0, xc, t.top, x1, t.top,
 			x1, t.bot, xc, t.bot, xc, a1, x0, a1, sanitizeColor(l.Color),
 			template.HTMLEscapeString(l.FromLabel), template.HTMLEscapeString(l.ToLabel),

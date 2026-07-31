@@ -275,7 +275,8 @@ collects every requirement stated so far as the binding reference.
   `4w`, unknown → default via `NormalizeSankeyRange`).
 - **KPI tiles (`.cards.kpi-row`, six columns, always evenly spread across the
   width):** Week-to-date · Budget gesamt · Forecast gesamt · Offen bis Ziel ·
-  Projekte · Aktuelle FY-Woche.
+  Assignments · Aktuelle FY-Woche. The count tile is called **Assignments**, not
+  "Projekte": several assignments can belong to the same customer project.
   **Every tile shows only its value and label**; the details live in a
   multi-line `title` tooltip on the card (`&#10;` for the line breaks). All
   figures go through `hours`/`pct`, so private mode masks the tooltips too.
@@ -440,8 +441,8 @@ collects every requirement stated so far as the binding reference.
   Projects are ordered by their centre of gravity in the year (fewest crossings).
 - **The flow is colour-coded by calendar progress**, not by period index:
   `forecast.FYMonthsDone` gives the number of completed FY months and
-  `goalFlowState` maps each month/quarter/half onto **done** (`#0891b2`),
-  **current** (`#2563eb`) or **upcoming** (`#94a3b8`). A ribbon keeps its
+  `goalFlowState` maps each month/quarter/half onto **done** (`#0e7490`),
+  **current** (`#1d4ed8`) or **upcoming** (`#64748b`). A ribbon keeps its
   **source** colour, so projects flow in with their own colour and everything
   from the month column onwards carries the progress colour.
 - **Every stripe shows the booked share**: the node is drawn twice – the planned
@@ -454,8 +455,8 @@ collects every requirement stated so far as the binding reference.
   exactly like the dashboard Sankey.
 - **`web.progressSVG(labels, cumulative, target, done, private)`** draws the
   burn-up of a period. `done` is the number of already completed sub-periods:
-  that part of the curve is solid with a filled area ("Gebucht", `#0891b2`), the
-  rest is dashed ("Forecast", `#2563eb`); the last completed x label is
+  that part of the curve is solid with a filled area ("Gebucht", `#0e7490`), the
+  rest is dashed ("Forecast", `#1d4ed8`); the last completed x label is
   highlighted. The ideal pace is `target * (i+1) / n` – the i-th point is the
   state **after** sub-period i+1, so a straight line from 0 would be a whole
   period off. Y ticks come from `web.niceStep` (1/2/2.5/5 × 10^k) instead of
@@ -463,6 +464,13 @@ collects every requirement stated so far as the binding reference.
   `.progress-chart` caps at `max-width: 560px`, so the chart never scales up in
   the wide FY card and its 11 px labels stay readable in the narrow quarter
   cards.
+- **Chart colours on the goal page must carry real contrast.** The cards sit on
+  a light background, so pale greys disappear even when dashed: the ideal pace
+  is a **dotted `#475569`** line (dotted, so it never reads as a second forecast
+  curve), the target is `#15803d`, gridlines `#e2e8f0`, axes `#94a3b8` and every
+  axis label `#475569`. The same applies to the goal flow, whose ribbons run at
+  `fill-opacity 0.42`. Keep the swatches in `.flow-legend`/`.goalbar-legend` in
+  sync with these values.
 - **Forecast grid layout:** the project-name column (`.pname`) is wide (~240 px),
   all values are centred (except `.pname`), project rows are separated by a
   horizontal rule (`tbody td` border-bottom 2px) and the week-total column

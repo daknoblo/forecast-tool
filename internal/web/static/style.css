@@ -221,12 +221,12 @@ small.ist, td.num.ist, .kpi-value.ist { color: #0e7490; }
 
 /* goal / fiscal-year target page */
 .goalbar-track { position: relative; height: 22px; background: var(--line); border-radius: 6px; overflow: hidden; }
-.goalbar-actual { position: absolute; left: 0; top: 0; height: 100%; background: #0891b2; z-index: 2; }
-.goalbar-proj { position: absolute; left: 0; top: 0; height: 100%; background: rgba(37, 99, 235, 0.45); z-index: 1; }
+.goalbar-actual { position: absolute; left: 0; top: 0; height: 100%; background: #0e7490; z-index: 2; }
+.goalbar-proj { position: absolute; left: 0; top: 0; height: 100%; background: rgba(29, 78, 216, 0.6); z-index: 1; }
 .goalbar-legend { display: flex; flex-wrap: wrap; gap: 1.25rem; margin-top: 0.6rem; color: var(--muted); font-size: 0.85rem; }
 .goalbar-legend i.sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: middle; margin-right: 0.35rem; }
-.goalbar-legend i.sw.actual { background: #0891b2; }
-.goalbar-legend i.sw.proj { background: rgba(37, 99, 235, 0.45); }
+.goalbar-legend i.sw.actual { background: #0e7490; }
+.goalbar-legend i.sw.proj { background: rgba(29, 78, 216, 0.6); }
 
 /* utilization traffic-light ("Ampel") */
 .util { display: inline-flex; align-items: center; gap: 0.4rem; white-space: nowrap; }
@@ -321,10 +321,10 @@ table.week tfoot td.center { text-align: center; }
 .goalflow .node:hover { stroke: #0f172a; stroke-width: 1.5; }
 .flow-legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1.25rem; margin-top: 0.6rem; color: var(--muted); font-size: 0.82rem; }
 .flow-legend i.sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: middle; margin-right: 0.35rem; }
-.flow-legend i.sw.done { background: #0891b2; }
-.flow-legend i.sw.current { background: #2563eb; }
-.flow-legend i.sw.upcoming { background: #94a3b8; }
-.flow-legend i.sw.split { background: linear-gradient(to top, #2563eb 0 55%, rgba(37, 99, 235, 0.4) 55% 100%); }
+.flow-legend i.sw.done { background: #0e7490; }
+.flow-legend i.sw.current { background: #1d4ed8; }
+.flow-legend i.sw.upcoming { background: #64748b; }
+.flow-legend i.sw.split { background: linear-gradient(to top, #1d4ed8 0 55%, rgba(29, 78, 216, 0.45) 55% 100%); }
 .progress-chart { display: block; width: 100%; max-width: 560px; height: auto; margin: 0 auto; }
 
 /* dashboard utilization Sankey */

@@ -1240,9 +1240,9 @@ var GoalFlowStages = []string{"Projekte", "Monate", "Quartale", "Halbjahre", "Ja
 // the diagram reads as a progress bar from left to right. Projects keep their
 // own colour.
 const (
-	goalFlowDoneColor     = "#0891b2" // period lies completely in the past
-	goalFlowCurrentColor  = "#2563eb" // period contains today
-	goalFlowUpcomingColor = "#94a3b8" // period is still ahead
+	goalFlowDoneColor     = "#0e7490" // period lies completely in the past
+	goalFlowCurrentColor  = "#1d4ed8" // period contains today
+	goalFlowUpcomingColor = "#64748b" // period is still ahead
 )
 
 // FYMonthsDone reports how many months of the fiscal year are completely in the
