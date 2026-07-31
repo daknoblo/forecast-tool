@@ -136,25 +136,30 @@ func niceStep(max float64, want int) float64 {
 // (booked) up to `todayPos` and orange (projection incl. forecast) from there on
 // - both halves meet in the same point, because everything before today is
 // booked. `todayPos` is measured in sub-periods (0 = period start, len = end).
-// Booked, projection and target are labelled as pills above the plot so no
-// figure competes with the curve. Inputs are numeric plus controlled month
-// labels, so the inline SVG carries no untrusted markup. In private mode every
-// figure is masked.
-func progressSVG(labels []string, booked, projected []float64, target, todayPos float64, private bool) template.HTML {
+// Booked, forecast, projection and target are labelled as a centred row of
+// pills above the plot so no figure competes with the curve. `wide` doubles the
+// viewBox for the full-width fiscal-year chart, keeping the font sizes intact.
+// Inputs are numeric plus controlled month labels, so the inline SVG carries no
+// untrusted markup. In private mode every figure is masked.
+func progressSVG(labels []string, booked, projected []float64, target, todayPos float64, wide, private bool) template.HTML {
 	const (
-		w    = 560.0
-		h    = 232.0
 		padL = 48.0
 		padR = 14.0
 		padT = 30.0
 		padB = 40.0
 	)
+	w, h := 560.0, 232.0
+	class := "progress-chart"
+	if wide {
+		w, h = 1100.0, 300.0
+		class = "progress-chart wide"
+	}
 	n := len(projected)
 	plotW := w - padL - padR
 	plotH := h - padT - padB
 	if n < 1 {
 		return template.HTML(fmt.Sprintf( // #nosec G203 -- constant SVG shell, numeric values only
-			`<svg viewBox="0 0 %g %g" class="progress-chart" role="img" aria-label="Fortschritt"></svg>`, w, h))
+			`<svg viewBox="0 0 %g %g" class="%s" role="img" aria-label="Fortschritt"></svg>`, w, h, class))
 	}
 	if todayPos < 0 {
 		todayPos = 0
@@ -216,6 +221,7 @@ func progressSVG(labels []string, booked, projected []float64, target, todayPos 
 
 	const (
 		colDone      = "#16a34a"
+		colForecast  = "#2563eb"
 		colProjected = "#ea580c"
 		colTarget    = "#dc2626"
 		colGrid      = "#e2e8f0"
@@ -223,28 +229,37 @@ func progressSVG(labels []string, booked, projected []float64, target, todayPos 
 	)
 
 	var b strings.Builder
-	fmt.Fprintf(&b, `<svg viewBox="0 0 %g %g" class="progress-chart" role="img" aria-label="Fortschritt">`, w, h)
+	fmt.Fprintf(&b, `<svg viewBox="0 0 %g %g" class="%s" role="img" aria-label="Fortschritt">`, w, h, class)
 
-	// Booked, projection and target as pills above the plot, all in the colour of
-	// the thing they describe.
-	pill := func(x float64, color, text string) float64 {
-		tw := estTextWidth(text, 11) + 18
-		fmt.Fprintf(&b, `<rect x="%g" y="2" width="%g" height="17" rx="8" fill="%s"/>`, x, tw, color)
-		fmt.Fprintf(&b, `<text x="%g" y="14" font-size="11" font-weight="600" fill="#ffffff" text-anchor="middle">%s</text>`,
-			x+tw/2, text)
-		return tw
+	// Booked, forecast, projection and target as a centred row of pills above the
+	// plot, each in the colour of the thing it describes.
+	forecastLeft := valueAt(projected, n) - valueAt(booked, n)
+	if forecastLeft < 0 {
+		forecastLeft = 0
 	}
-	lx := padL
-	lx += pill(lx, colDone, "Gebucht "+chartHours(round1(valueAt(booked, n)), private)+" h") + 8
-	lx += pill(lx, colProjected, "Hochrechnung "+chartHours(round1(valueAt(projected, n)), private)+" h") + 8
+	pills := []struct{ color, text string }{
+		{colDone, "Gebucht " + chartHours(round1(valueAt(booked, n)), private) + " h"},
+		{colForecast, "Forecast " + chartHours(round1(forecastLeft), private) + " h"},
+		{colProjected, "Hochrechnung " + chartHours(round1(valueAt(projected, n)), private) + " h"},
+	}
 	if target > 0 {
-		label := "Ziel " + chartHours(round1(target), private) + " h"
-		tw := estTextWidth(label, 11) + 18
-		tx := w - padR - tw
-		if tx < lx {
-			tx = lx
-		}
-		pill(tx, colTarget, label)
+		pills = append(pills, struct{ color, text string }{colTarget, "Ziel " + chartHours(round1(target), private) + " h"})
+	}
+	widths := make([]float64, len(pills))
+	total := float64(len(pills)-1) * 8
+	for i, p := range pills {
+		widths[i] = estTextWidth(p.text, 11) + 18
+		total += widths[i]
+	}
+	px := (w - total) / 2
+	if px < 2 {
+		px = 2
+	}
+	for i, p := range pills {
+		fmt.Fprintf(&b, `<rect x="%g" y="2" width="%g" height="17" rx="8" fill="%s"/>`, px, widths[i], p.color)
+		fmt.Fprintf(&b, `<text x="%g" y="14" font-size="11" font-weight="600" fill="#ffffff" text-anchor="middle">%s</text>`,
+			px+widths[i]/2, p.text)
+		px += widths[i] + 8
 	}
 
 	for v := 0.0; v <= yMax+step/2; v += step {

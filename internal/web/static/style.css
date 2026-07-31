@@ -310,7 +310,9 @@ table.week tfoot td.center { text-align: center; }
 .periods { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; }
 .periods.quarters { grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); }
 .period { border: 1px solid var(--line); border-radius: 10px; padding: 0.75rem 1rem; background: #fbfcfe; }
-.period h3 { margin: 0 0 0.5rem; font-size: 1rem; }
+.period h3 { margin: 0 0 0.5rem; font-size: 1rem; display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+.period-goal { font-weight: 400; font-size: 0.85rem; color: var(--muted); }
+.period-goal strong { color: var(--text); }
 .period-kpis { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; color: var(--muted); font-size: 0.85rem; margin-bottom: 0.5rem; }
 .period-kpis strong { color: var(--text); }
 .mini-chart { margin-top: 0.6rem; }
@@ -326,6 +328,7 @@ table.week tfoot td.center { text-align: center; }
 .flow-legend i.sw.upcoming { background: #64748b; }
 .flow-legend i.sw.split { background: linear-gradient(to top, #1d4ed8 0 55%, rgba(29, 78, 216, 0.45) 55% 100%); }
 .progress-chart { display: block; width: 100%; max-width: 560px; height: auto; margin: 0 auto; }
+.progress-chart.wide { max-width: none; }
 
 /* dashboard utilization Sankey */
 .sankey-card { padding: 1rem 1.25rem; }

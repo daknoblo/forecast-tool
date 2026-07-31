@@ -455,7 +455,7 @@ collects every requirement stated so far as the binding reference.
   (`stroke="#ffffff" paint-order="stroke"`), because the translucent base offers
   no reliable contrast. Private mode masks every figure but keeps the shape,
   exactly like the dashboard Sankey.
-- **`web.progressSVG(labels, booked, projected, target, todayPos, private)`**
+- **`web.progressSVG(labels, booked, projected, target, todayPos, wide, private)`**
   draws the burn-up of a period as **one continuous curve that starts at zero**:
   green `#16a34a` (booked, with a filled area) up to `todayPos`, orange `#ea580c`
   dashed (projection incl. forecast) from there to the end. Both halves meet in
@@ -467,15 +467,19 @@ collects every requirement stated so far as the binding reference.
   Position 0 is the period start, position k the state after sub-period k, so
   the month labels sit centred **under their segment**.
   **There is no ideal-pace line.** The target is a solid red `#dc2626` line;
-  booked, projection and target are labelled as **pills above the plot** in
-  their own colour (booked + projection left, target right-aligned), so no
-  figure competes with the curve. Because the pills already carry those
-  numbers, the `.period-kpis` line above the bar only shows Forecast,
-  Feiertage and Zielerreichung. Y ticks come from `web.niceStep`
-  (1/2/2.5/5 × 10^k) instead of halving the maximum. The viewBox is 560 wide and
-  `.progress-chart` caps at `max-width: 560px`, so the chart never scales up in
-  the wide FY card and its 11 px labels stay readable in the narrow quarter
-  cards.
+  the figures live in a **centred row of pills above the plot**, always in this
+  order and always in the colour of what they describe: **Gebucht** (green
+  `#16a34a`), **Forecast** (blue `#2563eb`, = projection − booked, never
+  negative), **Hochrechnung** (orange `#ea580c`) and **Ziel** (red `#dc2626`,
+  only when a target is set). Because the pills already carry those numbers,
+  the `.period-kpis` line above the bar only shows Forecast (and Feiertage for
+  quarters), while **Zielerreichung sits right-aligned in the `<h3>` heading
+  row** (`.period-goal`) in normal text colour – never red. Y ticks come from
+  `web.niceStep` (1/2/2.5/5 × 10^k) instead of halving the maximum. `wide`
+  switches the viewBox from 560×232 to 1100×300 and adds `.progress-chart.wide`
+  (`max-width: none`), so **only the FY chart** fills the full card width while
+  the font sizes stay identical; halves and quarters stay capped at
+  `max-width: 560px` so their 11 px labels remain readable.
 - **Chart colours on the goal page must carry real contrast.** The cards sit on
   a light background, so pale greys disappear even when dashed: gridlines are
   `#e2e8f0`, axes `#94a3b8` and every axis label `#475569`. The same applies to

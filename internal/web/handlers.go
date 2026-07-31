@@ -623,15 +623,15 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 			}
 			return v
 		}
-		fyChart = progressSVG(labels, cumulative(act), cumulative(proj), gs.TargetHours, pos, private)
+		fyChart = progressSVG(labels, cumulative(act), cumulative(proj), gs.TargetHours, pos, true, private)
 		h1Chart = progressSVG(labels[:6], cumulative(act[:6]), cumulative(proj[:6]),
-			round1(gs.TargetHours/2), clamp(pos, 6), private)
+			round1(gs.TargetHours/2), clamp(pos, 6), false, private)
 		h2Chart = progressSVG(labels[6:], cumulative(act[6:]), cumulative(proj[6:]),
-			round1(gs.TargetHours/2), clamp(pos-6, 6), private)
+			round1(gs.TargetHours/2), clamp(pos-6, 6), false, private)
 		for q := 0; q < 4; q++ {
 			from, to := q*3, q*3+3
 			quarterCharts[q] = progressSVG(labels[from:to], cumulative(act[from:to]), cumulative(proj[from:to]),
-				round1(gs.TargetHours/4), clamp(pos-float64(from), 3), private)
+				round1(gs.TargetHours/4), clamp(pos-float64(from), 3), false, private)
 		}
 	}
 

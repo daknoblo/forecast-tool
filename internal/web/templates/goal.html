@@ -120,19 +120,17 @@
     {{$h1 := index .Goal.Halves 0}}
     {{$h2 := index .Goal.Halves 1}}
     <div class="period">
-      <h3>{{$h1.Label}}</h3>
+      <h3>{{$h1.Label}}<span class="period-goal">Zielerreichung <strong>{{hours $h1.PctOfTarget}} %</strong></span></h3>
       <div class="period-kpis">
         <span>Forecast <strong>{{hours $h1.Forecast}} h</strong></span>
-        <span class="{{if lt $h1.PctOfTarget 100.0}}negative{{end}}">Zielerreichung <strong>{{hours $h1.PctOfTarget}} %</strong></span>
       </div>
       <div class="bar"><span style="width:{{barWidth $h1.PctOfTarget}}%"></span></div>
       {{if .H1Chart}}<div class="mini-chart">{{.H1Chart}}</div>{{end}}
     </div>
     <div class="period">
-      <h3>{{$h2.Label}}</h3>
+      <h3>{{$h2.Label}}<span class="period-goal">Zielerreichung <strong>{{hours $h2.PctOfTarget}} %</strong></span></h3>
       <div class="period-kpis">
         <span>Forecast <strong>{{hours $h2.Forecast}} h</strong></span>
-        <span class="{{if lt $h2.PctOfTarget 100.0}}negative{{end}}">Zielerreichung <strong>{{hours $h2.PctOfTarget}} %</strong></span>
       </div>
       <div class="bar"><span style="width:{{barWidth $h2.PctOfTarget}}%"></span></div>
       {{if .H2Chart}}<div class="mini-chart">{{.H2Chart}}</div>{{end}}
@@ -146,11 +144,10 @@
   <div class="periods quarters">
     {{range $i, $q := .Goal.Quarters}}
     <div class="period">
-      <h3>{{$q.Label}}</h3>
+      <h3>{{$q.Label}}<span class="period-goal">Zielerreichung <strong>{{hours $q.PctOfTarget}} %</strong></span></h3>
       <div class="period-kpis">
         <span>Forecast <strong>{{hours $q.Forecast}} h</strong></span>
         <span>Feiertage <strong>{{hours $q.Holiday}} h</strong></span>
-        <span class="{{if lt $q.PctOfTarget 100.0}}negative{{end}}">Zielerreichung <strong>{{hours $q.PctOfTarget}} %</strong></span>
       </div>
       <div class="bar"><span style="width:{{barWidth $q.PctOfTarget}}%"></span></div>
       {{with index $.QuarterCharts $i}}<div class="mini-chart">{{.}}</div>{{end}}
