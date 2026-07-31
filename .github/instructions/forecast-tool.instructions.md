@@ -453,14 +453,17 @@ collects every requirement stated so far as the binding reference.
   (`stroke="#ffffff" paint-order="stroke"`), because the translucent base offers
   no reliable contrast. Private mode masks every figure but keeps the shape,
   exactly like the dashboard Sankey.
-- **`web.progressSVG(labels, cumulative, target, done, private)`** draws the
-  burn-up of a period. `done` is the number of already completed sub-periods:
-  that part of the curve is solid with a filled area ("Gebucht", `#0e7490`), the
-  rest is dashed ("Forecast", `#1d4ed8`); the last completed x label is
-  highlighted. The ideal pace is `target * (i+1) / n` – the i-th point is the
-  state **after** sub-period i+1, so a straight line from 0 would be a whole
-  period off. Y ticks come from `web.niceStep` (1/2/2.5/5 × 10^k) instead of
-  halving the maximum. The viewBox is 560 wide and
+- **`web.progressSVG(labels, booked, projected, target, done, private)`** draws
+  the burn-up of a period as **two series**: the cumulative booked hours (solid
+  `#0e7490` with a filled area) and the cumulative projection incl. forecast
+  (dashed `#1d4ed8`). It must **not** split one curve by "completed
+  sub-periods" – that hides the hours already booked in the running month, and
+  every chart of a young fiscal year then looks identical. `done` only marks the
+  last finished sub-period on the x axis. The booked series is skipped entirely
+  while nothing is booked. The ideal pace is `target * (i+1) / n` – the i-th
+  point is the state **after** sub-period i+1, so a straight line from 0 would be
+  a whole period off. Y ticks come from `web.niceStep` (1/2/2.5/5 × 10^k) instead
+  of halving the maximum. The viewBox is 560 wide and
   `.progress-chart` caps at `max-width: 560px`, so the chart never scales up in
   the wide FY card and its 11 px labels stay readable in the narrow quarter
   cards.

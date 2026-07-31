@@ -131,13 +131,15 @@ func niceStep(max float64, want int) float64 {
 	return 10 * mag
 }
 
-// progressSVG renders a compact cumulative burn-up chart of one period: the
-// hours accumulated over its sub-periods (months) against the evenly paced ideal
-// and the period's target. The first `done` sub-periods are already over, so
-// their part of the curve is drawn solid and filled ("gebucht"), the rest dashed
-// ("Forecast"). Inputs are numeric plus controlled month labels, so the inline
-// SVG carries no untrusted markup. In private mode every figure is masked.
-func progressSVG(labels []string, cumulative []float64, target float64, done int, private bool) template.HTML {
+// progressSVG renders a compact cumulative burn-up chart of one period against
+// the evenly paced ideal and the period's target. It draws two series: the
+// cumulative booked hours (solid, filled) and the cumulative projection
+// (booked + forecast, dashed). Splitting by "completed sub-periods" instead
+// would hide the hours already booked in the running month. `done` only marks
+// the last finished sub-period on the x axis. Inputs are numeric plus controlled
+// month labels, so the inline SVG carries no untrusted markup. In private mode
+// every figure is masked.
+func progressSVG(labels []string, booked, projected []float64, target float64, done int, private bool) template.HTML {
 	const (
 		w    = 560.0
 		h    = 232.0
@@ -146,7 +148,7 @@ func progressSVG(labels []string, cumulative []float64, target float64, done int
 		padT = 30.0
 		padB = 40.0
 	)
-	n := len(cumulative)
+	n := len(projected)
 	plotW := w - padL - padR
 	plotH := h - padT - padB
 	if n < 1 {
@@ -160,10 +162,17 @@ func progressSVG(labels []string, cumulative []float64, target float64, done int
 		done = n
 	}
 	peak := target
-	for _, v := range cumulative {
+	maxBooked := 0.0
+	for i, v := range projected {
 		if v > peak {
 			peak = v
 		}
+		if i < len(booked) && booked[i] > maxBooked {
+			maxBooked = booked[i]
+		}
+	}
+	if maxBooked > peak {
+		peak = maxBooked
 	}
 	if peak <= 0 {
 		peak = 1
@@ -191,19 +200,19 @@ func progressSVG(labels []string, cumulative []float64, target float64, done int
 	ideal := func(i int) float64 { return target * float64(i+1) / float64(n) }
 
 	const (
-		colDone     = "#0e7490"
-		colForecast = "#1d4ed8"
-		colIdeal    = "#475569"
-		colTarget   = "#15803d"
-		colGrid     = "#e2e8f0"
-		colAxis     = "#94a3b8"
+		colDone      = "#0e7490"
+		colProjected = "#1d4ed8"
+		colIdeal     = "#475569"
+		colTarget    = "#15803d"
+		colGrid      = "#e2e8f0"
+		colAxis      = "#94a3b8"
 	)
 
 	var b strings.Builder
 	fmt.Fprintf(&b, `<svg viewBox="0 0 %g %g" class="progress-chart" role="img" aria-label="Fortschritt">`, w, h)
 
 	legend := []struct{ color, text string }{
-		{colDone, "Gebucht"}, {colForecast, "Forecast"}, {colIdeal, "Ideal"}, {colTarget, "Ziel"},
+		{colDone, "Gebucht"}, {colProjected, "Hochrechnung"}, {colIdeal, "Ideal"}, {colTarget, "Ziel"},
 	}
 	lx := padL
 	for _, l := range legend {
@@ -237,39 +246,39 @@ func progressSVG(labels []string, cumulative []float64, target float64, done int
 	fmt.Fprintf(&b, `<polyline fill="none" stroke="%s" stroke-width="2" stroke-dasharray="2 4" stroke-linecap="round" points="%s"/>`,
 		colIdeal, strings.TrimSpace(idealPts.String()))
 
-	// booked part: filled area plus a solid line
-	if done > 0 {
+	// projection first, the booked series is painted on top of it
+	var projPts strings.Builder
+	for i, v := range projected {
+		fmt.Fprintf(&projPts, "%g,%g ", x(i), y(v))
+	}
+	fmt.Fprintf(&b, `<polyline fill="none" stroke="%s" stroke-width="2.5" stroke-dasharray="5 3" points="%s"/>`,
+		colProjected, strings.TrimSpace(projPts.String()))
+
+	if maxBooked > 0 {
 		var area, line strings.Builder
 		fmt.Fprintf(&area, "%g,%g ", x(0), padT+plotH)
-		for i := 0; i < done; i++ {
-			fmt.Fprintf(&area, "%g,%g ", x(i), y(cumulative[i]))
-			fmt.Fprintf(&line, "%g,%g ", x(i), y(cumulative[i]))
+		for i := range projected {
+			v := 0.0
+			if i < len(booked) {
+				v = booked[i]
+			}
+			fmt.Fprintf(&area, "%g,%g ", x(i), y(v))
+			fmt.Fprintf(&line, "%g,%g ", x(i), y(v))
 		}
-		fmt.Fprintf(&area, "%g,%g", x(done-1), padT+plotH)
-		fmt.Fprintf(&b, `<polygon fill="%s" fill-opacity="0.14" points="%s"/>`, colDone, area.String())
+		fmt.Fprintf(&area, "%g,%g", x(n-1), padT+plotH)
+		fmt.Fprintf(&b, `<polygon fill="%s" fill-opacity="0.16" points="%s"/>`, colDone, area.String())
 		fmt.Fprintf(&b, `<polyline fill="none" stroke="%s" stroke-width="2.5" points="%s"/>`,
 			colDone, strings.TrimSpace(line.String()))
 	}
-	// forecast part continues from the last booked point
-	if done < n {
-		var line strings.Builder
-		start := done - 1
-		if start < 0 {
-			start = 0
+
+	for i, v := range projected {
+		bv := 0.0
+		if i < len(booked) {
+			bv = booked[i]
 		}
-		for i := start; i < n; i++ {
-			fmt.Fprintf(&line, "%g,%g ", x(i), y(cumulative[i]))
-		}
-		fmt.Fprintf(&b, `<polyline fill="none" stroke="%s" stroke-width="2.5" stroke-dasharray="5 3" points="%s"/>`,
-			colForecast, strings.TrimSpace(line.String()))
-	}
-	for i, v := range cumulative {
-		col := colForecast
-		if i < done {
-			col = colDone
-		}
-		fmt.Fprintf(&b, `<circle cx="%g" cy="%g" r="2.6" fill="%s"><title>%s: %s h</title></circle>`,
-			x(i), y(v), col, template.HTMLEscapeString(shortLabel(labelAt(labels, i))), chartHours(round1(v), private))
+		fmt.Fprintf(&b, `<circle cx="%g" cy="%g" r="2.6" fill="%s"><title>%s: %s h Hochrechnung, davon %s h gebucht</title></circle>`,
+			x(i), y(v), colProjected, template.HTMLEscapeString(shortLabel(labelAt(labels, i))),
+			chartHours(round1(v), private), chartHours(round1(bv), private))
 	}
 
 	// x labels with a tick each, thinned only when they would collide

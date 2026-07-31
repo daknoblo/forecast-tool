@@ -598,16 +598,18 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 	gs := forecast.BuildGoalSummary(d, cal)
 	ys := forecast.BuildYearSummary(d, cal)
 
-	// Cumulative projected hours per month drive the progress charts for the
-	// whole FY, each half-year and each quarter.
+	// Cumulative booked and projected hours per month drive the progress charts
+	// for the whole FY, each half-year and each quarter.
 	var fyChart, h1Chart, h2Chart template.HTML
 	quarterCharts := make([]template.HTML, 4)
 	if len(gs.Months) == 12 {
 		labels := make([]string, 12)
 		proj := make([]float64, 12)
+		act := make([]float64, 12)
 		for i, m := range gs.Months {
 			labels[i] = m.Label
 			proj[i] = m.Projected
+			act[i] = m.Actual
 		}
 		done := forecast.FYMonthsDone(d.Settings.Year, d.Settings.FiscalYearStartMonth)
 		clamp := func(v, max int) int {
@@ -619,12 +621,14 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 			}
 			return v
 		}
-		fyChart = progressSVG(labels, cumulative(proj), gs.TargetHours, done, private)
-		h1Chart = progressSVG(labels[:6], cumulative(proj[:6]), round1(gs.TargetHours/2), clamp(done, 6), private)
-		h2Chart = progressSVG(labels[6:], cumulative(proj[6:]), round1(gs.TargetHours/2), clamp(done-6, 6), private)
+		fyChart = progressSVG(labels, cumulative(act), cumulative(proj), gs.TargetHours, done, private)
+		h1Chart = progressSVG(labels[:6], cumulative(act[:6]), cumulative(proj[:6]),
+			round1(gs.TargetHours/2), clamp(done, 6), private)
+		h2Chart = progressSVG(labels[6:], cumulative(act[6:]), cumulative(proj[6:]),
+			round1(gs.TargetHours/2), clamp(done-6, 6), private)
 		for q := 0; q < 4; q++ {
 			from, to := q*3, q*3+3
-			quarterCharts[q] = progressSVG(labels[from:to], cumulative(proj[from:to]),
+			quarterCharts[q] = progressSVG(labels[from:to], cumulative(act[from:to]), cumulative(proj[from:to]),
 				round1(gs.TargetHours/4), clamp(done-from, 3), private)
 		}
 	}
