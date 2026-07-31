@@ -858,15 +858,18 @@ func sankeySVG(data forecast.SankeyData, private bool) template.HTML {
 // freeTimeSVG renders the remaining free working time per bucket as a column
 // chart on the same time axis as the Sankey above it: capacity (weekdays minus
 // public holidays) minus the planned hours, vacation included.
-// Columns below the zero line mark an overbooked bucket.
+// Free time is green, columns below the zero line mark an overbooked bucket and
+// are red.
 //
 // In private mode the columns only carry the sign (free vs. overbooked) at a
 // fixed height and all figures are dropped, so no amount of hours leaks.
 func freeTimeSVG(data forecast.SankeyData, private bool) template.HTML {
 	const (
-		h    = 190.0
-		padT = 26.0
-		padB = 46.0
+		h       = 190.0
+		padT    = 26.0
+		padB    = 46.0
+		colFree = "#16a34a"
+		colOver = "#dc2626"
 	)
 	g := newSankeyGeom(len(data.Buckets))
 	plotH := h - padT - padB
@@ -925,9 +928,9 @@ func freeTimeSVG(data forecast.SankeyData, private bool) template.HTML {
 	fmt.Fprintf(&b, `<svg viewBox="0 0 %g %g" class="freetime" role="img" aria-label="Freie Kapazität">`, g.w, h)
 
 	// legend (top left) + zero line
-	b.WriteString(`<rect x="42" y="4" width="9" height="9" rx="2" fill="#38bdf8"/>` +
+	b.WriteString(`<rect x="42" y="4" width="9" height="9" rx="2" fill="` + colFree + `"/>` +
 		`<text x="55" y="13" font-size="11" fill="#475569">Freie Zeit</text>` +
-		`<rect x="134" y="4" width="9" height="9" rx="2" fill="#ef4444"/>` +
+		`<rect x="134" y="4" width="9" height="9" rx="2" fill="` + colOver + `"/>` +
 		`<text x="147" y="13" font-size="11" fill="#475569">Überbucht</text>`)
 	fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#cbd5e1"/>`, g.padL, zeroY, g.padL+g.plotW, zeroY)
 	if !private {
@@ -941,10 +944,10 @@ func freeTimeSVG(data forecast.SankeyData, private bool) template.HTML {
 		if bh < 0 {
 			bh = -bh
 		}
-		y, col, labelY := zeroY-bh, "#38bdf8", zeroY-bh-5
+		y, col, labelY := zeroY-bh, colFree, zeroY-bh-5
 		switch {
 		case v < 0:
-			y, col, labelY = zeroY, "#ef4444", zeroY+bh+12
+			y, col, labelY = zeroY, colOver, zeroY+bh+12
 		case v == 0:
 			bh, y, col, labelY = 2, zeroY-1, "#e2e8f0", zeroY-6
 		}
@@ -956,7 +959,7 @@ func freeTimeSVG(data forecast.SankeyData, private bool) template.HTML {
 		fmt.Fprintf(&b, `<rect x="%g" y="%g" width="%g" height="%g" rx="2" fill="%s"><title>%s · %s h frei (Kapazität %s h, geplant %s h)</title></rect>`,
 			cx-barW/2, y, barW, bh, col,
 			template.HTMLEscapeString(bk.Label), formatHours(v), formatHours(bk.CapacityHours), formatHours(bk.Total))
-		textFill := "#475569"
+		textFill := "#166534"
 		if v < 0 {
 			textFill = "#b91c1c"
 		}

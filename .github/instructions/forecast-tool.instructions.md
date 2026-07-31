@@ -384,7 +384,8 @@ collects every requirement stated so far as the binding reference.
   heading "Freie Kapazität": per bucket `FreeHours = CapacityHours − Total` with
   `CapacityHours = weekdays × 8h − holidays`. Because vacation is part of `Total`
   now, the resulting free time is unchanged. Columns above the zero line = free
-  time (blue), below = overbooked (red).
+  time (**green `#16a34a`**), below = overbooked (**red `#dc2626`**); the value
+  labels carry the same semantics (`#166534` / `#b91c1c`).
 - `BuildSankey(d, cal, rangeKey, offset)` therefore needs the holiday calendar.
 
 ## Private mode (presentation mode)
