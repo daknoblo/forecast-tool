@@ -927,11 +927,14 @@ func freeTimeSVG(data forecast.SankeyData, private bool) template.HTML {
 	var b strings.Builder
 	fmt.Fprintf(&b, `<svg viewBox="0 0 %g %g" class="freetime" role="img" aria-label="Freie Kapazität">`, g.w, h)
 
-	// legend (top left) + zero line
-	b.WriteString(`<rect x="42" y="4" width="9" height="9" rx="2" fill="` + colFree + `"/>` +
-		`<text x="55" y="13" font-size="11" fill="#475569">Freie Zeit</text>` +
-		`<rect x="134" y="4" width="9" height="9" rx="2" fill="` + colOver + `"/>` +
-		`<text x="147" y="13" font-size="11" fill="#475569">Überbucht</text>`)
+	// legend (top left) + zero line; laid out by estimated text width so a longer
+	// label can never run into the next swatch
+	lx := g.padL
+	for _, l := range []struct{ color, text string }{{colFree, "Freie Kapazität"}, {colOver, "Überbucht"}} {
+		fmt.Fprintf(&b, `<rect x="%g" y="4" width="9" height="9" rx="2" fill="%s"/>`, lx, l.color)
+		fmt.Fprintf(&b, `<text x="%g" y="13" font-size="11" fill="#475569">%s</text>`, lx+13, l.text)
+		lx += 26 + estTextWidth(l.text, 11)
+	}
 	fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#cbd5e1"/>`, g.padL, zeroY, g.padL+g.plotW, zeroY)
 	if !private {
 		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="10" fill="#94a3b8" text-anchor="end">0</text>`, g.padL-6, zeroY+3)
