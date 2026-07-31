@@ -1,7 +1,8 @@
 # forecast-tool
 
 [![CI](https://github.com/daknoblo/forecast-tool/actions/workflows/ci.yml/badge.svg)](https://github.com/daknoblo/forecast-tool/actions/workflows/ci.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/daknoblo/forecast-tool)](https://goreportcard.com/report/github.com/daknoblo/forecast-tool)
+[![Release](https://img.shields.io/github/v/release/daknoblo/forecast-tool)](https://github.com/daknoblo/forecast-tool/releases/latest)
+[![Go](https://img.shields.io/github/go-mod/go-version/daknoblo/forecast-tool)](go.mod)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![GHCR](https://img.shields.io/badge/ghcr.io-forecast--tool-blue?logo=docker)](https://github.com/daknoblo/forecast-tool/pkgs/container/forecast-tool)
 
