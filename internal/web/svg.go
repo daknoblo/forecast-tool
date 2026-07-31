@@ -132,14 +132,15 @@ func niceStep(max float64, want int) float64 {
 }
 
 // progressSVG renders a compact cumulative burn-up chart of one period against
-// the period's target. It draws two series: the cumulative booked hours (solid
-// green, filled) and the cumulative projection incl. forecast (dashed orange).
-// Splitting by "completed sub-periods" instead would hide the hours already
-// booked in the running month. The target is a solid red line plus a pill of the
-// same colour above the plot. `done` only marks the last finished sub-period on
-// the x axis. Inputs are numeric plus controlled month labels, so the inline SVG
-// carries no untrusted markup. In private mode every figure is masked.
-func progressSVG(labels []string, booked, projected []float64, target float64, done int, private bool) template.HTML {
+// its target. It draws **one continuous curve** that starts at zero: green
+// (booked) up to `todayPos` and orange (projection incl. forecast) from there on
+// - both halves meet in the same point, because everything before today is
+// booked. `todayPos` is measured in sub-periods (0 = period start, len = end).
+// Booked, projection and target are labelled as pills above the plot so no
+// figure competes with the curve. Inputs are numeric plus controlled month
+// labels, so the inline SVG carries no untrusted markup. In private mode every
+// figure is masked.
+func progressSVG(labels []string, booked, projected []float64, target, todayPos float64, private bool) template.HTML {
 	const (
 		w    = 560.0
 		h    = 232.0
@@ -155,11 +156,11 @@ func progressSVG(labels []string, booked, projected []float64, target float64, d
 		return template.HTML(fmt.Sprintf( // #nosec G203 -- constant SVG shell, numeric values only
 			`<svg viewBox="0 0 %g %g" class="progress-chart" role="img" aria-label="Fortschritt"></svg>`, w, h))
 	}
-	if done < 0 {
-		done = 0
+	if todayPos < 0 {
+		todayPos = 0
 	}
-	if done > n {
-		done = n
+	if todayPos > float64(n) {
+		todayPos = float64(n)
 	}
 	peak := target
 	maxBooked := 0.0
@@ -182,17 +183,35 @@ func progressSVG(labels []string, booked, projected []float64, target float64, d
 	if yMax <= 0 {
 		yMax = step
 	}
-	x := func(i int) float64 {
-		if n == 1 {
-			return padL + plotW/2
-		}
-		return padL + plotW*float64(i)/float64(n-1)
-	}
+	// Position 0 is the start of the period (nothing booked yet), position k the
+	// state after sub-period k - that is what makes the curve start at zero.
+	x := func(i float64) float64 { return padL + plotW*i/float64(n) }
 	y := func(val float64) float64 {
 		if val < 0 {
 			val = 0
 		}
 		return padT + plotH*(1-val/yMax)
+	}
+	valueAt := func(arr []float64, i int) float64 {
+		switch {
+		case i <= 0:
+			return 0
+		case i > len(arr):
+			if len(arr) == 0 {
+				return 0
+			}
+			return arr[len(arr)-1]
+		default:
+			return arr[i-1]
+		}
+	}
+	interpolate := func(arr []float64, pos float64) float64 {
+		lo := int(math.Floor(pos))
+		f := pos - float64(lo)
+		if f == 0 {
+			return valueAt(arr, lo)
+		}
+		return valueAt(arr, lo) + (valueAt(arr, lo+1)-valueAt(arr, lo))*f
 	}
 
 	const (
@@ -206,17 +225,18 @@ func progressSVG(labels []string, booked, projected []float64, target float64, d
 	var b strings.Builder
 	fmt.Fprintf(&b, `<svg viewBox="0 0 %g %g" class="progress-chart" role="img" aria-label="Fortschritt">`, w, h)
 
-	legend := []struct{ color, text string }{
-		{colDone, "Gebucht"}, {colProjected, "Hochrechnung"},
+	// Booked, projection and target as pills above the plot, all in the colour of
+	// the thing they describe.
+	pill := func(x float64, color, text string) float64 {
+		tw := estTextWidth(text, 11) + 18
+		fmt.Fprintf(&b, `<rect x="%g" y="2" width="%g" height="17" rx="8" fill="%s"/>`, x, tw, color)
+		fmt.Fprintf(&b, `<text x="%g" y="14" font-size="11" font-weight="600" fill="#ffffff" text-anchor="middle">%s</text>`,
+			x+tw/2, text)
+		return tw
 	}
 	lx := padL
-	for _, l := range legend {
-		fmt.Fprintf(&b, `<rect x="%g" y="5" width="9" height="9" rx="2" fill="%s"/>`, lx, l.color)
-		fmt.Fprintf(&b, `<text x="%g" y="14" font-size="11" fill="#475569">%s</text>`, lx+13, l.text)
-		lx += 26 + estTextWidth(l.text, 11)
-	}
-	// The target sits above the plot as a pill in the colour of its line, so the
-	// figure never collides with the curves.
+	lx += pill(lx, colDone, "Gebucht "+chartHours(round1(valueAt(booked, n)), private)+" h") + 8
+	lx += pill(lx, colProjected, "Hochrechnung "+chartHours(round1(valueAt(projected, n)), private)+" h") + 8
 	if target > 0 {
 		label := "Ziel " + chartHours(round1(target), private) + " h"
 		tw := estTextWidth(label, 11) + 18
@@ -224,9 +244,7 @@ func progressSVG(labels []string, booked, projected []float64, target float64, d
 		if tx < lx {
 			tx = lx
 		}
-		fmt.Fprintf(&b, `<rect x="%g" y="2" width="%g" height="17" rx="8" fill="%s"/>`, tx, tw, colTarget)
-		fmt.Fprintf(&b, `<text x="%g" y="14" font-size="11" font-weight="600" fill="#ffffff" text-anchor="middle">%s</text>`,
-			tx+tw/2, label)
+		pill(tx, colTarget, label)
 	}
 
 	for v := 0.0; v <= yMax+step/2; v += step {
@@ -244,60 +262,67 @@ func progressSVG(labels []string, booked, projected []float64, target float64, d
 			padL, ty, padL+plotW, ty, colTarget)
 	}
 
-	// projection first, the booked series is painted on top of it
-	var projPts strings.Builder
-	for i, v := range projected {
-		fmt.Fprintf(&projPts, "%g,%g ", x(i), y(v))
-	}
-	fmt.Fprintf(&b, `<polyline fill="none" stroke="%s" stroke-width="2.5" stroke-dasharray="5 3" points="%s"/>`,
-		colProjected, strings.TrimSpace(projPts.String()))
+	// The junction carries the booked total at today; the projection continues
+	// from exactly this point, so both halves form one line.
+	junction := interpolate(booked, todayPos)
+	lastDone := int(math.Floor(todayPos))
 
-	if maxBooked > 0 {
+	if todayPos > 0 {
 		var area, line strings.Builder
 		fmt.Fprintf(&area, "%g,%g ", x(0), padT+plotH)
-		for i := range projected {
-			v := 0.0
-			if i < len(booked) {
-				v = booked[i]
-			}
-			fmt.Fprintf(&area, "%g,%g ", x(i), y(v))
-			fmt.Fprintf(&line, "%g,%g ", x(i), y(v))
+		for i := 0; i <= lastDone; i++ {
+			fmt.Fprintf(&area, "%g,%g ", x(float64(i)), y(valueAt(booked, i)))
+			fmt.Fprintf(&line, "%g,%g ", x(float64(i)), y(valueAt(booked, i)))
 		}
-		fmt.Fprintf(&area, "%g,%g", x(n-1), padT+plotH)
+		if todayPos > float64(lastDone) {
+			fmt.Fprintf(&area, "%g,%g ", x(todayPos), y(junction))
+			fmt.Fprintf(&line, "%g,%g ", x(todayPos), y(junction))
+		}
+		fmt.Fprintf(&area, "%g,%g", x(todayPos), padT+plotH)
 		fmt.Fprintf(&b, `<polygon fill="%s" fill-opacity="0.16" points="%s"/>`, colDone, area.String())
 		fmt.Fprintf(&b, `<polyline fill="none" stroke="%s" stroke-width="2.5" points="%s"/>`,
 			colDone, strings.TrimSpace(line.String()))
 	}
+	if todayPos < float64(n) {
+		var line strings.Builder
+		fmt.Fprintf(&line, "%g,%g ", x(todayPos), y(junction))
+		for i := lastDone + 1; i <= n; i++ {
+			fmt.Fprintf(&line, "%g,%g ", x(float64(i)), y(valueAt(projected, i)))
+		}
+		fmt.Fprintf(&b, `<polyline fill="none" stroke="%s" stroke-width="2.5" stroke-dasharray="5 3" points="%s"/>`,
+			colProjected, strings.TrimSpace(line.String()))
+	}
 
-	for i, v := range projected {
-		bv := 0.0
-		if i < len(booked) {
-			bv = booked[i]
+	for i := 1; i <= n; i++ {
+		v := valueAt(projected, i)
+		col := colProjected
+		if float64(i) <= todayPos {
+			col = colDone
+			v = valueAt(booked, i)
 		}
 		fmt.Fprintf(&b, `<circle cx="%g" cy="%g" r="2.6" fill="%s"><title>%s: %s h Hochrechnung, davon %s h gebucht</title></circle>`,
-			x(i), y(v), colProjected, template.HTMLEscapeString(shortLabel(labelAt(labels, i))),
-			chartHours(round1(v), private), chartHours(round1(bv), private))
+			x(float64(i)), y(v), col, template.HTMLEscapeString(shortLabel(labelAt(labels, i-1))),
+			chartHours(round1(valueAt(projected, i)), private), chartHours(round1(valueAt(booked, i)), private))
 	}
 
-	// x labels with a tick each, thinned only when they would collide
+	// One label per sub-period, centred under the segment it covers
 	stepX := 1
-	if n > 1 {
-		if per := plotW / float64(n-1); per < 34 {
-			stepX = int(34/per) + 1
-		}
+	if per := plotW / float64(n); per < 34 {
+		stepX = int(34/per) + 1
 	}
 	for i := 0; i < n; i++ {
+		fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s"/>`,
+			x(float64(i+1)), padT+plotH, x(float64(i+1)), padT+plotH+4, colAxis)
 		if i%stepX != 0 && i != n-1 {
 			continue
 		}
 		fill := "#475569"
 		weight := "400"
-		if i == done-1 {
-			fill, weight = colDone, "600" // last completed sub-period
+		if i == lastDone && todayPos > float64(i) && todayPos < float64(i+1) {
+			fill, weight = colDone, "600" // the sub-period today falls into
 		}
-		fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s"/>`, x(i), padT+plotH, x(i), padT+plotH+4, colAxis)
 		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" font-weight="%s" fill="%s" text-anchor="middle">%s</text>`,
-			x(i), padT+plotH+18, weight, fill, template.HTMLEscapeString(shortLabel(labelAt(labels, i))))
+			x(float64(i)+0.5), padT+plotH+18, weight, fill, template.HTMLEscapeString(shortLabel(labelAt(labels, i))))
 	}
 
 	b.WriteString(`</svg>`)

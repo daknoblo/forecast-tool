@@ -852,6 +852,23 @@ func TestFYMonthsDone(t *testing.T) {
 	}
 }
 
+func TestFYMonthProgress(t *testing.T) {
+	now := time.Now().UTC()
+	if got := FYMonthProgress(now.Year()+5, 1); got != 0 {
+		t.Errorf("future fiscal year = %v, want 0", got)
+	}
+	if got := FYMonthProgress(now.Year()-5, 1); got != 12 {
+		t.Errorf("past fiscal year = %v, want 12", got)
+	}
+	// Inside the running year the position sits within the current month, so it
+	// stays between the two month boundaries and never lands on the lower one.
+	got := FYMonthProgress(now.Year(), 1)
+	done := float64(FYMonthsDone(now.Year(), 1))
+	if got <= done || got >= done+1 {
+		t.Errorf("progress = %v, want strictly between %v and %v", got, done, done+1)
+	}
+}
+
 func TestBuildGoalFlowWithoutHours(t *testing.T) {
 	d := vacationData()
 	d.Entries = nil

@@ -1261,6 +1261,29 @@ func FYMonthsDone(year, startMonth int) int {
 	}
 }
 
+// FYMonthProgress reports how far the fiscal year has progressed, measured in
+// months with a fraction for the running one: 0 before it starts, 12 once it is
+// over. The charts use it to place "today" between two month boundaries.
+func FYMonthProgress(year, startMonth int) float64 {
+	startMonth = normMonth(startMonth)
+	fyStart, fyEnd := FiscalYear(year, startMonth)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	switch {
+	case !today.After(fyStart):
+		return 0
+	case today.After(fyEnd):
+		return 12
+	}
+	done := (int(today.Month()) - startMonth + 12) % 12
+	monthStart := fyStart.AddDate(0, done, 0)
+	monthEnd := fyStart.AddDate(0, done+1, 0)
+	span := monthEnd.Sub(monthStart).Hours()
+	if span <= 0 {
+		return float64(done)
+	}
+	return float64(done) + today.Sub(monthStart).Hours()/span
+}
+
 // goalFlowState maps a period spanning the fiscal-year months [from, to) onto
 // its progress colour and a label for the tooltip.
 func goalFlowState(from, to, monthsDone int) (color, label string) {

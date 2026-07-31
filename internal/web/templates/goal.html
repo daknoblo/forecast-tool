@@ -115,17 +115,14 @@
 
 <section class="card">
   <h2>Halbjahre</h2>
-  <p class="hint">H1 = erste 6 Monate des Fiskaljahres, H2 = letzte 6. Ziel je Halbjahr = Jahresziel / 2. Das Diagramm zeigt die bereits gebuchten Stunden (grün, gefüllt) und die kumulierte Hochrechnung (orange gestrichelt) gegenüber dem Ziel (rot).</p>
+  <p class="hint">H1 = erste 6 Monate des Fiskaljahres, H2 = letzte 6. Ziel je Halbjahr = Jahresziel / 2. Das Diagramm zeigt eine durchgehende Kurve: grün bis heute (gebucht), ab dort orange gestrichelt (Hochrechnung), dazu das Ziel als rote Linie.</p>
   <div class="periods halves">
     {{$h1 := index .Goal.Halves 0}}
     {{$h2 := index .Goal.Halves 1}}
     <div class="period">
       <h3>{{$h1.Label}}</h3>
       <div class="period-kpis">
-        <span>Soll <strong>{{hours $h1.Target}} h</strong></span>
         <span>Forecast <strong>{{hours $h1.Forecast}} h</strong></span>
-        <span>Ist <strong class="ist">{{hours $h1.Actual}} h</strong></span>
-        <span>Hochrechnung <strong>{{hours $h1.Projected}} h</strong></span>
         <span class="{{if lt $h1.PctOfTarget 100.0}}negative{{end}}">Zielerreichung <strong>{{hours $h1.PctOfTarget}} %</strong></span>
       </div>
       <div class="bar"><span style="width:{{barWidth $h1.PctOfTarget}}%"></span></div>
@@ -134,10 +131,7 @@
     <div class="period">
       <h3>{{$h2.Label}}</h3>
       <div class="period-kpis">
-        <span>Soll <strong>{{hours $h2.Target}} h</strong></span>
         <span>Forecast <strong>{{hours $h2.Forecast}} h</strong></span>
-        <span>Ist <strong class="ist">{{hours $h2.Actual}} h</strong></span>
-        <span>Hochrechnung <strong>{{hours $h2.Projected}} h</strong></span>
         <span class="{{if lt $h2.PctOfTarget 100.0}}negative{{end}}">Zielerreichung <strong>{{hours $h2.PctOfTarget}} %</strong></span>
       </div>
       <div class="bar"><span style="width:{{barWidth $h2.PctOfTarget}}%"></span></div>
@@ -148,17 +142,14 @@
 
 <section class="card">
   <h2>Quartale</h2>
-  <p class="hint">Ziel je Quartal = Jahresziel / 4. Das Diagramm zeigt die bereits gebuchten Stunden (grün, gefüllt) und die kumulierte Hochrechnung der drei Monate (orange gestrichelt) gegenüber dem Quartalsziel (rot).</p>
+  <p class="hint">Ziel je Quartal = Jahresziel / 4. Das Diagramm zeigt eine durchgehende Kurve: grün bis heute (gebucht), ab dort orange gestrichelt (Hochrechnung), dazu das Quartalsziel als rote Linie.</p>
   <div class="periods quarters">
     {{range $i, $q := .Goal.Quarters}}
     <div class="period">
       <h3>{{$q.Label}}</h3>
       <div class="period-kpis">
-        <span>Soll <strong>{{hours $q.Target}} h</strong></span>
         <span>Forecast <strong>{{hours $q.Forecast}} h</strong></span>
-        <span>Ist <strong class="ist">{{hours $q.Actual}} h</strong></span>
         <span>Feiertage <strong>{{hours $q.Holiday}} h</strong></span>
-        <span>Hochrechnung <strong>{{hours $q.Projected}} h</strong></span>
         <span class="{{if lt $q.PctOfTarget 100.0}}negative{{end}}">Zielerreichung <strong>{{hours $q.PctOfTarget}} %</strong></span>
       </div>
       <div class="bar"><span style="width:{{barWidth $q.PctOfTarget}}%"></span></div>

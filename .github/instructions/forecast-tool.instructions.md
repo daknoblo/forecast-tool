@@ -432,8 +432,9 @@ collects every requirement stated so far as the binding reference.
   a utilization bar and a `web.progressSVG` chart); `.periods.quarters` is a 2×2
   grid. The charts exist for FY, both halves and all four quarters (`handleGoal`
   builds `QuarterCharts` from `gs.Months[q*3:q*3+3]` against `TargetHours/4` and
-  passes the clamped `FYMonthsDone` as the completed-sub-period count); months
-  and weeks keep their bars.
+  passes the clamped `FYMonthProgress` as the today position); **all of them must
+  look the same** – they all come from `web.progressSVG`. Months and weeks keep
+  their bars.
 - **Hours flow (`web.goalFlowSVG` from `forecast.BuildGoalFlow`)** sits right
   below the status card: a five-stage Sankey **projects → months → quarters →
   half-years → fiscal year**. Vacation is excluded and only in-FY dates count, so
@@ -454,17 +455,23 @@ collects every requirement stated so far as the binding reference.
   (`stroke="#ffffff" paint-order="stroke"`), because the translucent base offers
   no reliable contrast. Private mode masks every figure but keeps the shape,
   exactly like the dashboard Sankey.
-- **`web.progressSVG(labels, booked, projected, target, done, private)`** draws
-  the burn-up of a period as **two series**: the cumulative booked hours (solid
-  green `#16a34a` with a filled area) and the cumulative projection incl.
-  forecast (dashed orange `#ea580c`). It must **not** split one curve by
-  "completed sub-periods" – that hides the hours already booked in the running
-  month, and every chart of a young fiscal year then looks identical. `done` only
-  marks the last finished sub-period on the x axis. The booked series is skipped
-  entirely while nothing is booked. **There is no ideal-pace line**; the target
-  is a solid red `#dc2626` line plus a pill of the same colour above the plot
-  (right-aligned, moved right of the legend when space is tight), so the figure
-  never collides with the curves. Y ticks come from `web.niceStep`
+- **`web.progressSVG(labels, booked, projected, target, todayPos, private)`**
+  draws the burn-up of a period as **one continuous curve that starts at zero**:
+  green `#16a34a` (booked, with a filled area) up to `todayPos`, orange `#ea580c`
+  dashed (projection incl. forecast) from there to the end. Both halves meet in
+  the same interpolated point, because everything before today is booked. Do
+  **not** draw two independent curves and do **not** split by "completed
+  sub-periods" – that hides the hours already booked in the running month.
+  `todayPos` is a **fractional** sub-period index (0 = period start, `len` =
+  end) from `forecast.FYMonthProgress`, clamped per period by `handleGoal`.
+  Position 0 is the period start, position k the state after sub-period k, so
+  the month labels sit centred **under their segment**.
+  **There is no ideal-pace line.** The target is a solid red `#dc2626` line;
+  booked, projection and target are labelled as **pills above the plot** in
+  their own colour (booked + projection left, target right-aligned), so no
+  figure competes with the curve. Because the pills already carry those
+  numbers, the `.period-kpis` line above the bar only shows Forecast,
+  Feiertage and Zielerreichung. Y ticks come from `web.niceStep`
   (1/2/2.5/5 × 10^k) instead of halving the maximum. The viewBox is 560 wide and
   `.progress-chart` caps at `max-width: 560px`, so the chart never scales up in
   the wide FY card and its 11 px labels stay readable in the narrow quarter
