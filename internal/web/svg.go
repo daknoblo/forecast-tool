@@ -132,13 +132,13 @@ func niceStep(max float64, want int) float64 {
 }
 
 // progressSVG renders a compact cumulative burn-up chart of one period against
-// the evenly paced ideal and the period's target. It draws two series: the
-// cumulative booked hours (solid, filled) and the cumulative projection
-// (booked + forecast, dashed). Splitting by "completed sub-periods" instead
-// would hide the hours already booked in the running month. `done` only marks
-// the last finished sub-period on the x axis. Inputs are numeric plus controlled
-// month labels, so the inline SVG carries no untrusted markup. In private mode
-// every figure is masked.
+// the period's target. It draws two series: the cumulative booked hours (solid
+// green, filled) and the cumulative projection incl. forecast (dashed orange).
+// Splitting by "completed sub-periods" instead would hide the hours already
+// booked in the running month. The target is a solid red line plus a pill of the
+// same colour above the plot. `done` only marks the last finished sub-period on
+// the x axis. Inputs are numeric plus controlled month labels, so the inline SVG
+// carries no untrusted markup. In private mode every figure is masked.
 func progressSVG(labels []string, booked, projected []float64, target float64, done int, private bool) template.HTML {
 	const (
 		w    = 560.0
@@ -194,16 +194,11 @@ func progressSVG(labels []string, booked, projected []float64, target float64, d
 		}
 		return padT + plotH*(1-val/yMax)
 	}
-	// The i-th point is the state AFTER sub-period i+1, so the even pace has to
-	// be measured against i+1 of n sub-periods - otherwise the ideal line would
-	// start a whole period behind the actual curve.
-	ideal := func(i int) float64 { return target * float64(i+1) / float64(n) }
 
 	const (
-		colDone      = "#0e7490"
-		colProjected = "#1d4ed8"
-		colIdeal     = "#475569"
-		colTarget    = "#15803d"
+		colDone      = "#16a34a"
+		colProjected = "#ea580c"
+		colTarget    = "#dc2626"
 		colGrid      = "#e2e8f0"
 		colAxis      = "#94a3b8"
 	)
@@ -212,13 +207,26 @@ func progressSVG(labels []string, booked, projected []float64, target float64, d
 	fmt.Fprintf(&b, `<svg viewBox="0 0 %g %g" class="progress-chart" role="img" aria-label="Fortschritt">`, w, h)
 
 	legend := []struct{ color, text string }{
-		{colDone, "Gebucht"}, {colProjected, "Hochrechnung"}, {colIdeal, "Ideal"}, {colTarget, "Ziel"},
+		{colDone, "Gebucht"}, {colProjected, "Hochrechnung"},
 	}
 	lx := padL
 	for _, l := range legend {
 		fmt.Fprintf(&b, `<rect x="%g" y="5" width="9" height="9" rx="2" fill="%s"/>`, lx, l.color)
 		fmt.Fprintf(&b, `<text x="%g" y="14" font-size="11" fill="#475569">%s</text>`, lx+13, l.text)
 		lx += 26 + estTextWidth(l.text, 11)
+	}
+	// The target sits above the plot as a pill in the colour of its line, so the
+	// figure never collides with the curves.
+	if target > 0 {
+		label := "Ziel " + chartHours(round1(target), private) + " h"
+		tw := estTextWidth(label, 11) + 18
+		tx := w - padR - tw
+		if tx < lx {
+			tx = lx
+		}
+		fmt.Fprintf(&b, `<rect x="%g" y="2" width="%g" height="17" rx="8" fill="%s"/>`, tx, tw, colTarget)
+		fmt.Fprintf(&b, `<text x="%g" y="14" font-size="11" font-weight="600" fill="#ffffff" text-anchor="middle">%s</text>`,
+			tx+tw/2, label)
 	}
 
 	for v := 0.0; v <= yMax+step/2; v += step {
@@ -232,19 +240,9 @@ func progressSVG(labels []string, booked, projected []float64, target float64, d
 
 	if target > 0 && target <= yMax {
 		ty := y(target)
-		fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s" stroke-width="1.5" stroke-dasharray="6 4"/>`,
+		fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s" stroke-width="2"/>`,
 			padL, ty, padL+plotW, ty, colTarget)
-		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" font-weight="600" fill="%s">Ziel %s h</text>`,
-			padL+5, ty-5, colTarget, chartHours(round1(target), private))
 	}
-
-	// ideal even pace: dotted so it never reads as a second forecast curve
-	var idealPts strings.Builder
-	for i := 0; i < n; i++ {
-		fmt.Fprintf(&idealPts, "%g,%g ", x(i), y(ideal(i)))
-	}
-	fmt.Fprintf(&b, `<polyline fill="none" stroke="%s" stroke-width="2" stroke-dasharray="2 4" stroke-linecap="round" points="%s"/>`,
-		colIdeal, strings.TrimSpace(idealPts.String()))
 
 	// projection first, the booked series is painted on top of it
 	var projPts strings.Builder

@@ -456,25 +456,24 @@ collects every requirement stated so far as the binding reference.
   exactly like the dashboard Sankey.
 - **`web.progressSVG(labels, booked, projected, target, done, private)`** draws
   the burn-up of a period as **two series**: the cumulative booked hours (solid
-  `#0e7490` with a filled area) and the cumulative projection incl. forecast
-  (dashed `#1d4ed8`). It must **not** split one curve by "completed
-  sub-periods" – that hides the hours already booked in the running month, and
-  every chart of a young fiscal year then looks identical. `done` only marks the
-  last finished sub-period on the x axis. The booked series is skipped entirely
-  while nothing is booked. The ideal pace is `target * (i+1) / n` – the i-th
-  point is the state **after** sub-period i+1, so a straight line from 0 would be
-  a whole period off. Y ticks come from `web.niceStep` (1/2/2.5/5 × 10^k) instead
-  of halving the maximum. The viewBox is 560 wide and
+  green `#16a34a` with a filled area) and the cumulative projection incl.
+  forecast (dashed orange `#ea580c`). It must **not** split one curve by
+  "completed sub-periods" – that hides the hours already booked in the running
+  month, and every chart of a young fiscal year then looks identical. `done` only
+  marks the last finished sub-period on the x axis. The booked series is skipped
+  entirely while nothing is booked. **There is no ideal-pace line**; the target
+  is a solid red `#dc2626` line plus a pill of the same colour above the plot
+  (right-aligned, moved right of the legend when space is tight), so the figure
+  never collides with the curves. Y ticks come from `web.niceStep`
+  (1/2/2.5/5 × 10^k) instead of halving the maximum. The viewBox is 560 wide and
   `.progress-chart` caps at `max-width: 560px`, so the chart never scales up in
   the wide FY card and its 11 px labels stay readable in the narrow quarter
   cards.
 - **Chart colours on the goal page must carry real contrast.** The cards sit on
-  a light background, so pale greys disappear even when dashed: the ideal pace
-  is a **dotted `#475569`** line (dotted, so it never reads as a second forecast
-  curve), the target is `#15803d`, gridlines `#e2e8f0`, axes `#94a3b8` and every
-  axis label `#475569`. The same applies to the goal flow, whose ribbons run at
-  `fill-opacity 0.42`. Keep the swatches in `.flow-legend`/`.goalbar-legend` in
-  sync with these values.
+  a light background, so pale greys disappear even when dashed: gridlines are
+  `#e2e8f0`, axes `#94a3b8` and every axis label `#475569`. The same applies to
+  the goal flow, whose ribbons run at `fill-opacity 0.42`. Keep the swatches in
+  `.flow-legend`/`.goalbar-legend` in sync with these values.
 - **Forecast grid layout:** the project-name column (`.pname`) is wide (~240 px),
   all values are centred (except `.pname`), project rows are separated by a
   horizontal rule (`tbody td` border-bottom 2px) and the week-total column

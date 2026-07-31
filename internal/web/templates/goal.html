@@ -115,7 +115,7 @@
 
 <section class="card">
   <h2>Halbjahre</h2>
-  <p class="hint">H1 = erste 6 Monate des Fiskaljahres, H2 = letzte 6. Ziel je Halbjahr = Jahresziel / 2. Das Diagramm zeigt die bereits gebuchten Stunden (türkis, gefüllt) und die kumulierte Hochrechnung (blau gestrichelt) gegenüber der idealen Gleichverteilung (gepunktet) und dem Ziel (grün).</p>
+  <p class="hint">H1 = erste 6 Monate des Fiskaljahres, H2 = letzte 6. Ziel je Halbjahr = Jahresziel / 2. Das Diagramm zeigt die bereits gebuchten Stunden (grün, gefüllt) und die kumulierte Hochrechnung (orange gestrichelt) gegenüber dem Ziel (rot).</p>
   <div class="periods halves">
     {{$h1 := index .Goal.Halves 0}}
     {{$h2 := index .Goal.Halves 1}}
@@ -148,7 +148,7 @@
 
 <section class="card">
   <h2>Quartale</h2>
-  <p class="hint">Ziel je Quartal = Jahresziel / 4. Das Diagramm zeigt die bereits gebuchten Stunden (türkis, gefüllt) und die kumulierte Hochrechnung der drei Monate (blau gestrichelt) gegenüber der idealen Gleichverteilung (gepunktet) und dem Quartalsziel (grün).</p>
+  <p class="hint">Ziel je Quartal = Jahresziel / 4. Das Diagramm zeigt die bereits gebuchten Stunden (grün, gefüllt) und die kumulierte Hochrechnung der drei Monate (orange gestrichelt) gegenüber dem Quartalsziel (rot).</p>
   <div class="periods quarters">
     {{range $i, $q := .Goal.Quarters}}
     <div class="period">
