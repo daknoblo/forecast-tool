@@ -239,8 +239,10 @@ signs keyless with cosign and uploads the Trivy SARIF report.
 [.github/workflows/codeql.yml](.github/workflows/codeql.yml) runs CodeQL
 analysis on every push and pull request, plus weekly.
 
-Every push to `main` builds and pushes a multi-arch image tagged `latest`
-(`ghcr.io/daknoblo/forecast-tool:latest`). There are no further stages
+Every push to `main` builds and pushes a multi-arch image tagged `latest` plus
+`sha-<short>` for pinning an exact commit
+(`ghcr.io/daknoblo/forecast-tool:latest`). Pushing a git tag `v1.2.3`
+additionally publishes `1.2.3` and `1.2`. There are no further stages
 (no `stable`/`dev`).
 
 ### One-time setup
