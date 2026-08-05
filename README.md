@@ -56,7 +56,9 @@ optionally updated through an AI prompt.
   quarter
 - Remaining budget per project plus a burn-down chart (server-rendered SVG)
 - Dashboard with a **utilization Sankey diagram** and a **free capacity** chart,
-  both rendered server-side as inline SVG (no JavaScript dependencies)
+  both rendered server-side as inline SVG (no JavaScript dependencies). Every
+  horizon — from a single week up to the whole fiscal year — is bucketed by ISO
+  week, because the weekly rate is what drives the forecast accuracy
 - **Week-to-date** tile: the utilization reached since the fiscal year started —
   the hours actually booked against the FY goal spread evenly over the year's
   weeks. Working 40 h where the even split only asks for 27.7 h shows as ~147 %

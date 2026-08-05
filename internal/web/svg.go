@@ -565,13 +565,31 @@ func nodeWidth(n int, plotW float64) float64 {
 		return plotW * 0.45
 	}
 	w := plotW / float64(n) * 0.32
-	if w < 12 {
-		w = 12
+	if w < 8 {
+		w = 8
 	}
 	if w > 96 {
 		w = 96
 	}
 	return w
+}
+
+// labelStep returns how many columns to skip between annotations so labels of
+// the given width never collide. A whole fiscal year is ~52 week columns, far
+// more than fit a label each.
+func (g sankeyGeom) labelStep(textW float64) int {
+	if g.n <= 1 {
+		return 1
+	}
+	spacing := g.centerX(1) - g.centerX(0)
+	if spacing <= 0 {
+		return g.n
+	}
+	step := int(math.Ceil((textW + 6) / spacing))
+	if step < 1 {
+		step = 1
+	}
+	return step
 }
 
 // nodeX returns the left edge of bucket i's node column.
@@ -591,9 +609,13 @@ func estTextWidth(s string, fontSize float64) float64 {
 	return float64(len([]rune(s))) * fontSize * 0.55
 }
 
-// axisLabels appends the per-bucket week/month labels below the given baseline.
-func axisLabels(b *strings.Builder, g sankeyGeom, buckets []forecast.SankeyBucket, y float64) {
+// axisLabels appends the per-bucket week labels below the given baseline, every
+// `step`-th column so they cannot overlap.
+func axisLabels(b *strings.Builder, g sankeyGeom, buckets []forecast.SankeyBucket, y float64, step int) {
 	for i, bk := range buckets {
+		if i%step != 0 {
+			continue
+		}
 		cx := g.centerX(i)
 		fmt.Fprintf(b, `<text x="%g" y="%g" font-size="11" fill="#475569" text-anchor="middle">%s</text>`,
 			cx, y, template.HTMLEscapeString(bk.Label))
@@ -602,6 +624,21 @@ func axisLabels(b *strings.Builder, g sankeyGeom, buckets []forecast.SankeyBucke
 				cx, y+12, template.HTMLEscapeString(bk.SubLabel))
 		}
 	}
+}
+
+// bucketLabelStep picks a common step for the axis labels and the per-column
+// value labels, so both always sit on the same columns.
+func bucketLabelStep(g sankeyGeom, buckets []forecast.SankeyBucket, value func(forecast.SankeyBucket) string, valueSize float64) int {
+	widest := 0.0
+	for _, bk := range buckets {
+		if tw := estTextWidth(bk.Label, 11); tw > widest {
+			widest = tw
+		}
+		if tw := estTextWidth(value(bk), valueSize); tw > widest {
+			widest = tw
+		}
+	}
+	return g.labelStep(widest)
 }
 
 // sankeyLegend lays the project legend out inside the chart and returns the
@@ -681,11 +718,11 @@ func pausedProjects(data forecast.SankeyData, from, to map[string]sankeyBand, va
 }
 
 // sankeySVG renders the dashboard utilization flow as a dependency-free inline
-// SVG. Time buckets (weeks or months) are evenly spaced columns across the full
-// width; each project forms a coloured band whose height is proportional to its
-// planned hours, and adjacent buckets are joined by translucent ribbons.
-// Vertical dividers separate the weeks/months and every column is annotated
-// with its summed planned project hours. The project legend is drawn inside the
+// SVG. Week buckets are evenly spaced columns across the full width; each
+// project forms a coloured band whose height is proportional to its planned
+// hours, and adjacent buckets are joined by translucent ribbons. Vertical
+// dividers separate the weeks and the columns are annotated with their summed
+// planned project hours. The project legend is drawn inside the
 // chart. Vacation is an ordinary band, so a vacation week visibly absorbs the
 // other projects' ribbons and releases them again afterwards. Project colours
 // are sanitised and project names are HTML-escaped, so the emitted markup
@@ -698,7 +735,7 @@ func sankeySVG(data forecast.SankeyData, private bool) template.HTML {
 	const (
 		h        = 376.0 // ~20 % shorter than the original 470
 		headroom = 30.0  // room above the tallest column for its value labels
-		axisH    = 34.0  // week/month labels below the baseline
+		axisH    = 34.0  // week labels below the baseline
 		legRowH  = 15.0
 	)
 	g := newSankeyGeom(len(data.Buckets))
@@ -788,7 +825,7 @@ func sankeySVG(data forecast.SankeyData, private bool) template.HTML {
 	fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#cbd5e1"/>`, g.padL, plotTop, g.padL, baseY)
 	fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#cbd5e1"/>`, g.padL, baseY, g.padL+g.plotW, baseY)
 
-	// vertical dividers between the week/month columns
+	// vertical dividers between the week columns
 	for i := 0; i < g.n-1; i++ {
 		x := (nodeX(i) + g.nodeW + nodeX(i+1)) / 2
 		fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#e2e8f0"/>`, x, plotTop, x, baseY+4)
@@ -847,6 +884,9 @@ func sankeySVG(data forecast.SankeyData, private bool) template.HTML {
 	}
 
 	// nodes (stacked project bands) + column annotations
+	labelStep := bucketLabelStep(g, data.Buckets, func(bk forecast.SankeyBucket) string {
+		return chartHours(bk.Total, private)
+	}, 11)
 	for i, bk := range data.Buckets {
 		x := nodeX(i)
 		cx := g.centerX(i)
@@ -856,16 +896,14 @@ func sankeySVG(data forecast.SankeyData, private bool) template.HTML {
 			if !ok {
 				continue
 			}
-			col := sanitizeColor(p.Color)
-			rate := ""
-			if bk.SpansWeeks {
-				rate = "&#10;Ø " + chartHours(bk.PerWeek, private) + " h/Woche insgesamt"
-			}
 			fmt.Fprintf(&b,
-				`<rect class="node" x="%g" y="%g" width="%g" height="%g" fill="%s" rx="1"><title>%s&#10;%s: %s h von %s h gesamt%s</title></rect>`,
-				x, bd.top, g.nodeW, bd.bot-bd.top, col,
+				`<rect class="node" x="%g" y="%g" width="%g" height="%g" fill="%s" rx="1"><title>%s&#10;%s: %s h von %s h gesamt</title></rect>`,
+				x, bd.top, g.nodeW, bd.bot-bd.top, sanitizeColor(p.Color),
 				template.HTMLEscapeString(p.Name),
-				template.HTMLEscapeString(bk.Label), chartHours(bk.Hours[p.ID], private), chartHours(bk.Total, private), rate)
+				template.HTMLEscapeString(bk.Label), chartHours(bk.Hours[p.ID], private), chartHours(bk.Total, private))
+		}
+		if i%labelStep != 0 {
+			continue
 		}
 		// summed planned hours above the stack (muted when empty)
 		top := baseY - scale(bk.Total)
@@ -874,20 +912,11 @@ func sankeySVG(data forecast.SankeyData, private bool) template.HTML {
 			fill = "#cbd5e1"
 			top = baseY
 		}
-		if bk.SpansWeeks {
-			// A column spanning several weeks says little on its own, so the burn
-			// rate it implies is spelled out right below the total.
-			fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" font-weight="600" fill="%s" text-anchor="middle">%s</text>`,
-				cx, top-17, fill, chartHours(bk.Total, private))
-			fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="9" fill="#64748b" text-anchor="middle">Ø %s h/Wo</text>`,
-				cx, top-6, chartHours(bk.PerWeek, private))
-			continue
-		}
 		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" font-weight="600" fill="%s" text-anchor="middle">%s</text>`,
 			cx, top-6, fill, chartHours(bk.Total, private))
 	}
 
-	axisLabels(&b, g, data.Buckets, baseY+16)
+	axisLabels(&b, g, data.Buckets, baseY+16, labelStep)
 
 	b.WriteString(`</svg>`)
 	return template.HTML(b.String()) // #nosec G203 -- sanitised colours + escaped names; other values numeric/controlled
@@ -953,7 +982,7 @@ func freeTimeSVG(data forecast.SankeyData, private bool) template.HTML {
 		span = 1
 	}
 	// Keep a strip free below the deepest column so its value label never runs
-	// into the week/month labels underneath.
+	// into the week labels underneath.
 	usableH := plotH - 16
 	zeroY := padT + usableH*(maxPos*1.15)/span
 	scale := func(v float64) float64 { return usableH * v / span }
@@ -978,6 +1007,12 @@ func freeTimeSVG(data forecast.SankeyData, private bool) template.HTML {
 		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="10" fill="#94a3b8" text-anchor="end">0</text>`, g.padL-6, zeroY+3)
 	}
 
+	labelStep := bucketLabelStep(g, data.Buckets, func(bk forecast.SankeyBucket) string {
+		if private {
+			return ""
+		}
+		return formatHours(bk.FreeHours)
+	}, 10)
 	for i, bk := range data.Buckets {
 		cx := g.centerX(i)
 		v := value(bk.FreeHours)
@@ -1000,6 +1035,9 @@ func freeTimeSVG(data forecast.SankeyData, private bool) template.HTML {
 		fmt.Fprintf(&b, `<rect x="%g" y="%g" width="%g" height="%g" rx="2" fill="%s"><title>%s · %s h frei (Kapazität %s h, geplant %s h)</title></rect>`,
 			cx-barW/2, y, barW, bh, col,
 			template.HTMLEscapeString(bk.Label), formatHours(v), formatHours(bk.CapacityHours), formatHours(bk.Total))
+		if i%labelStep != 0 {
+			continue
+		}
 		textFill := "#166534"
 		if v < 0 {
 			textFill = "#b91c1c"
@@ -1008,7 +1046,7 @@ func freeTimeSVG(data forecast.SankeyData, private bool) template.HTML {
 			cx, labelY, textFill, formatHours(v))
 	}
 
-	axisLabels(&b, g, data.Buckets, baseY+16)
+	axisLabels(&b, g, data.Buckets, baseY+16, labelStep)
 
 	b.WriteString(`</svg>`)
 	return template.HTML(b.String()) // #nosec G203 -- escaped labels; other values numeric/controlled
