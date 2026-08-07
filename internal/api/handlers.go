@@ -668,9 +668,9 @@ func applyUtilization(dst *models.UtilizationSettings, u *utilInput) {
 }
 
 type fySettingsInput struct {
-	TargetHours       *float64 `json:"targetHours"`
 	WeekdayHours      *float64 `json:"weekdayHours"`
 	VacationDays      *int     `json:"vacationDays"`
+	HolidayDays       *int     `json:"holidayDays"`
 	StandardTaskLabel *string  `json:"standardTaskLabel"`
 	StandardTaskHours *float64 `json:"standardTaskHours"`
 
@@ -712,12 +712,12 @@ func (s *Server) handleUpdateFYSettings(w http.ResponseWriter, r *http.Request) 
 		s.writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if in.TargetHours != nil && *in.TargetHours < 0 {
-		s.writeError(w, http.StatusBadRequest, "targetHours darf nicht negativ sein")
-		return
-	}
 	if in.WeekdayHours != nil && *in.WeekdayHours < 0 {
 		s.writeError(w, http.StatusBadRequest, "weekdayHours darf nicht negativ sein")
+		return
+	}
+	if in.HolidayDays != nil && (*in.HolidayDays < 0 || *in.HolidayDays > 366) {
+		s.writeError(w, http.StatusBadRequest, "holidayDays muss zwischen 0 und 366 liegen")
 		return
 	}
 	vacDays, hasVacDays := in.vacationDays()
@@ -736,11 +736,11 @@ func (s *Server) handleUpdateFYSettings(w http.ResponseWriter, r *http.Request) 
 			d.FiscalYears = map[int]models.FiscalYearSettings{}
 		}
 		fy := d.FYFor(year)
-		if in.TargetHours != nil {
-			fy.TargetHours = *in.TargetHours
-		}
 		if in.WeekdayHours != nil {
 			fy.WeekdayHours = *in.WeekdayHours
+		}
+		if in.HolidayDays != nil {
+			fy.HolidayDays = in.HolidayDays
 		}
 		if hasVacDays {
 			fy.VacationDays = vacDays

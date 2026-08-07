@@ -245,7 +245,9 @@ func TestChatContextCarriesTheFigures(t *testing.T) {
 	fyStart, _ := forecast.FiscalYear(d.Settings.Year, d.Settings.FiscalYearStartMonth)
 	day := fyStart.Format("2006-01-02")
 	if err := store.Mutate(func(d *models.Data) error {
-		d.FiscalYears[d.Settings.Year] = models.FiscalYearSettings{TargetHours: 1440}
+		noHolidays := 0
+		// The FY target is derived: 1440 h gross with nothing deducted.
+		d.FiscalYears[d.Settings.Year] = models.FiscalYearSettings{WeekdayHours: 1440, HolidayDays: &noHolidays}
 		d.Projects = append(d.Projects, models.Project{
 			ID: "p1", AssignmentID: "1", Name: "Alpha", BudgetHours: 100, Color: "#2563eb",
 			Active: true, FiscalYear: d.Settings.Year,
@@ -258,7 +260,7 @@ func TestChatContextCarriesTheFigures(t *testing.T) {
 
 	snap := store.Snapshot()
 	cal := holidays.Get(snap.Settings.Year, snap.Settings.FederalState)
-	got := buildChatContext(snap, forecast.BuildYearSummary(snap, cal), forecast.BuildGoalSummary(snap, cal))
+	got := buildChatContext(snap, cal, forecast.BuildYearSummary(snap, cal), forecast.BuildGoalSummary(snap, cal))
 	for _, want := range []string{"Fiskaljahr", "Jahresziel: 1440 h", "Alpha", "6 h"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("chat context is missing %q:\n%s", want, got)

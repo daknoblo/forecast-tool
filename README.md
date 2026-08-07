@@ -49,9 +49,10 @@ optionally updated through an AI prompt.
 - Fiscal-year logic (configurable start month) with a central FY switcher in the
   header
 - Automatic public holidays (all 16 German federal states)
-- Configurable weekly target hours, vacation and standard tasks
-- Goal/capacity calculation: available hours, utilization in %, target per
-  week/month/quarter, plus an **hours-flow Sankey** (projects → months →
+- Configurable weekly target hours, vacation, public holidays and standard tasks
+- Goal/capacity calculation: the **fiscal-year goal is derived** from the hour
+  configuration (gross FY hours − vacation − holidays − standard tasks), with
+  target per week/month/quarter, an **hours-flow Sankey** (projects → months →
   quarters → half-years → fiscal year) and a progress chart per half-year and
   quarter
 - Remaining budget per project plus a burn-down chart (server-rendered SVG)
@@ -81,9 +82,13 @@ configured yet, the following defaults apply:
 |-----------------------------|------------------|
 | Federal state (holidays)    | `SN` (Saxony)    |
 | Weekly target hours         | `40`             |
-| FY target                   | `1440` h         |
-| Vacation H1 / H2            | `15` / `15` days |
+| Gross FY hours              | weekdays × 8 h   |
+| Vacation                    | `30` days        |
+| Public holidays             | from the state   |
 | Standard tasks              | `250` h          |
+
+The fiscal-year goal is not configured separately: it is what remains of the
+gross FY hours after vacation, public holidays and standard tasks.
 
 ## Quick start (local, with Go)
 ```bash

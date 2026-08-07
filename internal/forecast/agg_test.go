@@ -8,6 +8,8 @@ import (
 	"github.com/daknoblo/forecast-tool/internal/models"
 )
 
+func intPtr(v int) *int { return &v }
+
 func sampleData() models.Data {
 	return models.Data{
 		Settings: models.Settings{Year: 2026, FederalState: "BY", WeeklyTargetHours: 40, FiscalYearStartMonth: 1},
@@ -307,11 +309,14 @@ func TestBuildWeekToDate(t *testing.T) {
 	fyStart, _ := FiscalYear(year, startMonth)
 	weeks := FYWeeks(year, startMonth)
 
-	// Pick a goal that spreads to exactly 20 h per fiscal-year week.
+	// Pick a gross value that spreads to exactly 20 h per fiscal-year week; the
+	// target is the net of the hour configuration, so nothing may be deducted.
 	const perWeek = 20.0
 	d := models.Data{
-		Settings:    models.Settings{Year: year, FederalState: "BY", WeeklyTargetHours: 40, FiscalYearStartMonth: startMonth},
-		FiscalYears: map[int]models.FiscalYearSettings{year: {TargetHours: perWeek * float64(weeks)}},
+		Settings: models.Settings{Year: year, FederalState: "BY", WeeklyTargetHours: 40, FiscalYearStartMonth: startMonth},
+		FiscalYears: map[int]models.FiscalYearSettings{
+			year: {WeekdayHours: perWeek * float64(weeks), HolidayDays: intPtr(0)},
+		},
 		Projects: []models.Project{
 			{ID: "p1", Name: "Alpha", BudgetHours: 5000, Active: true, FiscalYear: year},
 			{ID: models.VacationProjectID(year), Name: "Urlaub", BudgetHours: 240, Active: true, FiscalYear: year, System: models.VacationSystem},
@@ -335,7 +340,7 @@ func TestBuildWeekToDate(t *testing.T) {
 	}
 	d.Entries = append(d.Entries, models.Entry{Date: todayISO, ProjectID: "p1", Hours: 99})
 
-	wtd := BuildWeekToDate(d)
+	wtd := BuildWeekToDate(d, holidays.New(year, "BY"))
 	if weekdays == 0 { // the fiscal year starts today
 		if wtd.HasData {
 			t.Error("HasData = true, want false while no weekday is over")
@@ -365,16 +370,17 @@ func TestBuildWeekToDate(t *testing.T) {
 	}
 }
 
-// Without a fiscal-year goal there is no plan to compare against.
+// Without a fiscal-year goal there is no plan to compare against. The goal is
+// derived, so "no goal" means the deductions eat the whole year.
 func TestBuildWeekToDateWithoutGoal(t *testing.T) {
 	now := time.Now().UTC()
 	startMonth := int(now.AddDate(0, -5, 0).Month())
 	year := FiscalYearOf(now, startMonth)
 	d := models.Data{
 		Settings:    models.Settings{Year: year, FederalState: "BY", WeeklyTargetHours: 40, FiscalYearStartMonth: startMonth},
-		FiscalYears: map[int]models.FiscalYearSettings{year: {TargetHours: 0}},
+		FiscalYears: map[int]models.FiscalYearSettings{year: {StandardTaskHours: 99999}},
 	}
-	if wtd := BuildWeekToDate(d); wtd.HasData {
+	if wtd := BuildWeekToDate(d, holidays.New(year, "BY")); wtd.HasData {
 		t.Error("HasData = true without a FY goal, want false")
 	}
 }
@@ -385,7 +391,7 @@ func TestBuildWeekToDateOutsideFiscalYear(t *testing.T) {
 	d := models.Data{
 		Settings: models.Settings{Year: year, FederalState: "BY", WeeklyTargetHours: 40, FiscalYearStartMonth: 7},
 	}
-	if wtd := BuildWeekToDate(d); wtd.HasData {
+	if wtd := BuildWeekToDate(d, holidays.New(year, "BY")); wtd.HasData {
 		t.Errorf("HasData = true for FY %d, want false", year)
 	}
 }
@@ -440,7 +446,11 @@ func TestMondayOfISOWeek(t *testing.T) {
 
 func TestGoalSummaryTotals(t *testing.T) {
 	d := models.Data{
-		Settings: models.Settings{Year: 2026, FederalState: "BY", FiscalYearTargetHours: 1000, FiscalYearStartMonth: 1},
+		Settings: models.Settings{Year: 2026, FederalState: "BY", FiscalYearStartMonth: 1},
+		// Gross 1000 h with nothing deducted -> the derived FY target is 1000 h.
+		FiscalYears: map[int]models.FiscalYearSettings{
+			2026: {WeekdayHours: 1000, HolidayDays: intPtr(0)},
+		},
 		Entries: []models.Entry{
 			{Date: "2026-01-12", ProjectID: "p1", Hours: 8},
 			{Date: "2026-12-21", ProjectID: "p1", Hours: 5},
@@ -450,8 +460,8 @@ func TestGoalSummaryTotals(t *testing.T) {
 	cal := holidays.New(2026, "BY")
 	gs := BuildGoalSummary(d, cal)
 
-	if !gs.HasTarget {
-		t.Fatal("expected HasTarget = true")
+	if !gs.HasTarget || gs.TargetHours != 1000 {
+		t.Fatalf("target = %v, want the net of the hour configuration (1000)", gs.TargetHours)
 	}
 	// All hours count towards the projection regardless of past/future.
 	if gs.Projected != 16 {
@@ -480,14 +490,14 @@ func TestFYCapacityBreakdownAndOverride(t *testing.T) {
 	d := models.Data{
 		Settings: models.Settings{Year: 2026, FederalState: "BY", FiscalYearStartMonth: 1},
 		FiscalYears: map[int]models.FiscalYearSettings{
-			2026: {TargetHours: 1000, VacationDays: 30, StandardTaskHours: 250},
+			2026: {VacationDays: 30, StandardTaskHours: 250},
 		},
 	}
 	cal := holidays.New(2026, "BY")
 
 	c := BuildFYCapacity(d, cal, 2026)
-	if c.Overridden {
-		t.Error("no override configured, must report the calendar value")
+	if c.HoursOverridden || c.HolidayOverridden {
+		t.Error("no override configured, must report the calendar values")
 	}
 	if c.WeekdayHours != c.WeekdayHoursAuto || c.WeekdayHours != round1(float64(c.WeekdayDays)*8) {
 		t.Errorf("gross hours = %v, want %d weekdays * 8h", c.WeekdayHours, c.WeekdayDays)
@@ -495,7 +505,7 @@ func TestFYCapacityBreakdownAndOverride(t *testing.T) {
 	if c.VacationHours != 240 {
 		t.Errorf("vacation hours = %v, want 240", c.VacationHours)
 	}
-	if c.HolidayDays == 0 || c.HolidayHours != round1(float64(c.HolidayDays)*8) {
+	if c.HolidayDays == 0 || c.HolidayDays != c.HolidayDaysAuto || c.HolidayHours != round1(float64(c.HolidayDays)*8) {
 		t.Errorf("holiday hours = %v for %d days", c.HolidayHours, c.HolidayDays)
 	}
 	want := round1(c.WeekdayHours - c.VacationHours - c.HolidayHours - 250)
@@ -503,28 +513,32 @@ func TestFYCapacityBreakdownAndOverride(t *testing.T) {
 		t.Errorf("remaining = %v, want %v", c.RemainingHours, want)
 	}
 
-	// A manual gross value wins over the calendar, in the capacity and the goal.
+	// Manual gross hours and holidays win over the calendar, and the net is the
+	// FY target.
 	fy := d.FiscalYears[2026]
 	fy.WeekdayHours = 1800
+	fy.HolidayDays = intPtr(3)
 	d.FiscalYears[2026] = fy
 	c = BuildFYCapacity(d, cal, 2026)
-	if !c.Overridden || c.WeekdayHours != 1800 {
-		t.Errorf("override ignored: %+v", c)
+	if !c.HoursOverridden || c.WeekdayHours != 1800 {
+		t.Errorf("gross override ignored: %+v", c)
+	}
+	if !c.HolidayOverridden || c.HolidayDays != 3 || c.HolidayHours != 24 {
+		t.Errorf("holiday override ignored: %+v", c)
 	}
 	gs := BuildGoalSummary(d, cal)
 	if gs.WeekdayHours != 1800 || gs.WeekdayHoursAuto != c.WeekdayHoursAuto {
 		t.Errorf("goal gross hours = %v (auto %v), want 1800", gs.WeekdayHours, gs.WeekdayHoursAuto)
 	}
-	if gs.AvailableHours != round1(1800-gs.HolidayHours-240-250) {
-		t.Errorf("available hours = %v, mismatch with the override", gs.AvailableHours)
+	if want := round1(1800 - 24 - 240 - 250); gs.AvailableHours != want || gs.TargetHours != want {
+		t.Errorf("available %v / target %v, want %v", gs.AvailableHours, gs.TargetHours, want)
 	}
 }
 
 func TestGoalHolidaysExcludedAndCapacity(t *testing.T) {
 	d := models.Data{
 		Settings: models.Settings{
-			Year: 2026, FederalState: "BY", FiscalYearTargetHours: 1000,
-			FiscalYearStartMonth: 1, AnnualVacationDays: 10,
+			Year: 2026, FederalState: "BY", FiscalYearStartMonth: 1, AnnualVacationDays: 10,
 		},
 		Entries: []models.Entry{
 			// One booking in the past, one in the future.
@@ -544,23 +558,24 @@ func TestGoalHolidaysExcludedAndCapacity(t *testing.T) {
 		t.Errorf("projected = %v, want %v (actual + forecast remaining, no holidays)", gs.Projected, wantProjected)
 	}
 
-	// Capacity: gross weekday hours, vacation deduction.
+	// Capacity: gross weekday hours, vacation deduction, and the net is the goal.
 	if gs.WeekdayHours != round1(float64(gs.WeekdayDays)*8) {
 		t.Errorf("weekday hours = %v, want %v", gs.WeekdayHours, float64(gs.WeekdayDays)*8)
 	}
 	if gs.VacationHours != 80 {
 		t.Errorf("vacation hours = %v, want 80", gs.VacationHours)
 	}
-	if gs.AvailableHours != round1(gs.WeekdayHours-gs.HolidayHours-gs.VacationHours) {
-		t.Errorf("available hours = %v, mismatch", gs.AvailableHours)
+	wantAvail := round1(gs.WeekdayHours - gs.HolidayHours - gs.VacationHours)
+	if gs.AvailableHours != wantAvail || gs.TargetHours != wantAvail {
+		t.Errorf("available %v / target %v, want %v", gs.AvailableHours, gs.TargetHours, wantAvail)
 	}
-	if gs.PctOfWeekdays != round1(1000/gs.WeekdayHours*100) {
+	if gs.PctOfWeekdays != round1(gs.TargetHours/gs.WeekdayHours*100) {
 		t.Errorf("pct of weekdays = %v", gs.PctOfWeekdays)
 	}
 
 	// Pace: remaining goal divided by remaining working days.
-	if gs.RemainingGoal != round1(1000-gs.ActualTotal) {
-		t.Errorf("remaining goal = %v, want %v", gs.RemainingGoal, 1000-gs.ActualTotal)
+	if gs.RemainingGoal != round1(gs.TargetHours-gs.ActualTotal) {
+		t.Errorf("remaining goal = %v, want %v", gs.RemainingGoal, gs.TargetHours-gs.ActualTotal)
 	}
 	if gs.RemainingWorkdays != gs.WorkingDaysYear-gs.WorkingDaysDone {
 		t.Errorf("remaining workdays = %d, mismatch", gs.RemainingWorkdays)
@@ -698,12 +713,16 @@ func TestProjectWindowBurnrate(t *testing.T) {
 }
 
 // vacationData has one real project and one auto-managed vacation project in
-// week 3 of 2026 (Mon 2026-01-12 .. Fri 2026-01-16).
+// week 3 of 2026 (Mon 2026-01-12 .. Fri 2026-01-16). The hour configuration is
+// set so the derived FY target is exactly 1000 h.
 func vacationData() models.Data {
 	return models.Data{
 		Settings: models.Settings{
 			Year: 2026, FederalState: "BY", WeeklyTargetHours: 40,
-			FiscalYearStartMonth: 1, FiscalYearTargetHours: 1000,
+			FiscalYearStartMonth: 1,
+		},
+		FiscalYears: map[int]models.FiscalYearSettings{
+			2026: {WeekdayHours: 1000, HolidayDays: intPtr(0)},
 		},
 		Projects: []models.Project{
 			{ID: "p1", Name: "Alpha", BudgetHours: 100, Active: true, FiscalYear: 2026},
@@ -805,7 +824,7 @@ func TestBuildGoalFlowRollsUpEveryStage(t *testing.T) {
 		models.Entry{Date: "2026-09-14", ProjectID: "p1", Hours: 2},
 		models.Entry{Date: "2025-12-15", ProjectID: "p1", Hours: 9}, // outside the FY
 	)
-	f := BuildGoalFlow(d)
+	f := BuildGoalFlow(d, holidays.New(2026, "BY"))
 
 	if !f.HasData {
 		t.Fatal("flow must carry data")
@@ -916,7 +935,7 @@ func TestFYMonthProgress(t *testing.T) {
 func TestBuildGoalFlowWithoutHours(t *testing.T) {
 	d := vacationData()
 	d.Entries = nil
-	if f := BuildGoalFlow(d); f.HasData || f.Total != 0 || len(f.Links) != 0 {
+	if f := BuildGoalFlow(d, holidays.New(2026, "BY")); f.HasData || f.Total != 0 || len(f.Links) != 0 {
 		t.Errorf("empty flow expected, got %+v", f)
 	}
 }

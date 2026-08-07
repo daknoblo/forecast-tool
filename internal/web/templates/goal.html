@@ -4,8 +4,8 @@
 
 {{if not .Goal.HasTarget}}
 <section class="card">
-  <p class="empty">Es ist noch kein Fiskaljahresziel gesetzt. Lege es unter
-    <a href="/settings">Einstellungen</a> fest (Stunden gesamt fürs FY).</p>
+  <p class="empty">Aus der Stundenkonfiguration ergibt sich noch kein Fiskaljahresziel. Pflege sie unter
+    <a href="/settings">Einstellungen</a> (Gesamtstunden abzüglich Urlaub, Feiertagen und Standard Tasks).</p>
 </section>
 {{else}}
 
@@ -67,15 +67,15 @@
 
 <section class="card">
   <h2>FY-Kapazität</h2>
+  <p class="hint">Das Fiskaljahresziel wird nicht separat gepflegt – es ist das Ergebnis dieser Rechnung. Die Werte änderst du unter <a href="/settings">Einstellungen</a>.</p>
   <table class="grid compact">
     <tbody>
       <tr><td>FY-Gesamtstunden (Wochentage à 8 h, ohne Wochenende)</td><td class="num">{{hours .Goal.WeekdayHours}} h</td><td class="num">{{.Goal.WeekdayDays}} Tage</td></tr>
       <tr><td>– Urlaub</td><td class="num">{{hours .Goal.VacationHours}} h</td><td class="num">{{.Goal.VacationDays}} Tage</td></tr>
       <tr><td>– Feiertage</td><td class="num">{{hours .Goal.HolidayHours}} h</td><td class="num">{{.Goal.HolidayDays}} Tage</td></tr>
       <tr><td>– {{if .Goal.StandardTaskLabel}}{{.Goal.StandardTaskLabel}}{{else}}Standard Tasks{{end}}</td><td class="num">{{hours .Goal.StandardTaskHours}} h</td><td></td></tr>
-      <tr><td><strong>Verfügbare Arbeitsstunden (netto)</strong></td><td class="num"><strong>{{hours .Goal.AvailableHours}} h</strong></td><td></td></tr>
+      <tr><td><strong>Verfügbare Arbeitsstunden (netto) = Fiskaljahresziel</strong></td><td class="num"><strong>{{hours .Goal.AvailableHours}} h</strong></td><td></td></tr>
       <tr><td>Jahresziel in % der FY-Gesamtstunden</td><td class="num">{{hours .Goal.PctOfWeekdays}} %</td><td></td></tr>
-      <tr><td>Jahresziel in % der verfügbaren Stunden</td><td class="num">{{hours .Goal.PctOfAvailable}} %</td><td></td></tr>
     </tbody>
   </table>
 </section>

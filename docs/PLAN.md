@@ -25,8 +25,8 @@ file under `appdata/`. Built by GitHub Actions and pushed to GHCR, operated with
   `ai { endpoint, deployment, apiVersion }` (the API key is **not** in the file —
   it comes from `FORECAST_AI_API_KEY`), `utilization` (traffic-light thresholds
   and labels).
-- `FiscalYears` (per FY): `targetHours`, `weekdayHours` (override of the gross
-  FY hours), `vacationDays`,
+- `FiscalYears` (per FY): `weekdayHours` (override of the gross
+  FY hours), `vacationDays`, `holidayDays` (override of the calendar),
   `standardTaskLabel`, `standardTaskHours`. Defaults for new/unconfigured fiscal
   years (`models.DefaultFYSettings`): target 1440 h, vacation 15 days per half,
   standard tasks 250 h.

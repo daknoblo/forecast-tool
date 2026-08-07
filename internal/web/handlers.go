@@ -194,7 +194,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		"FYYears":        fyYears(d),
 		"Summary":        ys,
 		"Goal":           goal,
-		"WeekToDate":     forecast.BuildWeekToDate(d),
+		"WeekToDate":     forecast.BuildWeekToDate(d, cal),
 		"Projects":       projects,
 		"ActiveProjects": len(activeProjects(projects)),
 		"CurrentWeek":    curWeek,
@@ -656,7 +656,7 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 		"H1Chart":         h1Chart,
 		"H2Chart":         h2Chart,
 		"QuarterCharts":   quarterCharts,
-		"FlowSVG":         goalFlowSVG(forecast.BuildGoalFlow(d), private),
+		"FlowSVG":         goalFlowSVG(forecast.BuildGoalFlow(d, cal), private),
 		"ChatPresets":     chatPresets,
 		"ChatPromptsJSON": template.JS(promptsJSON), // #nosec G203 -- JSON-encoded constants, no user input
 		"AIConfigured":    aiConfigured(effectiveAI(d.Settings.AI)),
@@ -666,17 +666,14 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 
 // --- Settings ---
 
+// handleSettings always edits the fiscal year selected in the header - there is
+// deliberately no second year picker on this page.
 func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 	d := s.store.Snapshot()
-	viewYear := d.Settings.Year
-	if q := trim(r.URL.Query().Get("year")); q != "" {
-		if y, err := strconv.Atoi(q); err == nil && models.ValidYear(y) {
-			viewYear = y
-		}
-	}
-	fy := d.FYFor(viewYear)
-	fyStart, fyEnd := forecast.FiscalYear(viewYear, d.Settings.FiscalYearStartMonth)
-	capacity := forecast.BuildFYCapacity(d, holidays.Get(viewYear, d.Settings.FederalState), viewYear)
+	year := d.Settings.Year
+	fy := d.FYFor(year)
+	fyStart, fyEnd := forecast.FiscalYear(year, d.Settings.FiscalYearStartMonth)
+	capacity := forecast.BuildFYCapacity(d, s.calendar(d), year)
 	s.render(w, r, "settings.html", map[string]any{
 		"Active":       "settings",
 		"Settings":     d.Settings,
@@ -685,10 +682,6 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		"Months":       monthOptions,
 		"DataPath":     s.store.Path(),
 		"DataSize":     formatBytes(s.store.FileSize()),
-		"ViewYear":     viewYear,
-		"PrevYear":     viewYear - 1,
-		"NextYear":     viewYear + 1,
-		"IsActive":     viewYear == d.Settings.Year,
 		"FY":           fy,
 		"Capacity":     capacity,
 		"FYStart":      fyStart.Format("02.01.2006"),
@@ -759,22 +752,17 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 		s.settingsSaved(w, r)
 		return
 	}
-	year, _ := strconv.Atoi(trim(r.FormValue("year")))
 	state := trim(r.FormValue("state"))
 	weekly, _ := strconv.ParseFloat(normalizeNum(r.FormValue("weekly")), 64)
 	fyStartMonth, fyMonthErr := strconv.Atoi(trim(r.FormValue("fyStartMonth")))
-	fyTarget, fyErr := strconv.ParseFloat(normalizeNum(r.FormValue("fyTarget")), 64)
 	grossHours, grossErr := strconv.ParseFloat(normalizeNum(r.FormValue("fyWeekdayHours")), 64)
 	vacDays, vacErr := strconv.Atoi(trim(r.FormValue("vacationDays")))
+	holDays, holErr := strconv.Atoi(trim(r.FormValue("holidayDays")))
 	stdHours, stdErr := strconv.ParseFloat(normalizeNum(r.FormValue("standardTaskHours")), 64)
 	_ = s.store.Update(func(d *models.Data) error {
-		// The page can edit a fiscal year other than the active one (?year=).
-		// Only the per-FY block is written to that year; switching the ACTIVE
-		// fiscal year stays the job of the header dropdown (POST /fy).
+		// The hour configuration always belongs to the fiscal year selected in
+		// the header; this page has no year picker of its own.
 		target := d.Settings.Year
-		if models.ValidYear(year) {
-			target = year
-		}
 		if state != "" {
 			d.Settings.FederalState = state
 		}
@@ -788,22 +776,25 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 			d.FiscalYears = map[int]models.FiscalYearSettings{}
 		}
 		fy := d.FYFor(target)
-		if fyErr == nil && fyTarget >= 0 {
-			fy.TargetHours = fyTarget
-		}
 		if vacErr == nil && vacDays >= 0 && vacDays <= 366 {
 			fy.VacationDays = vacDays
 		}
 		if stdErr == nil && stdHours >= 0 {
 			fy.StandardTaskHours = stdHours
 		}
+		// Only values that differ from the calendar are worth storing; matching it
+		// again drops the override so the field keeps tracking the calendar.
+		capacity := forecast.BuildFYCapacity(*d, holidays.Get(target, d.Settings.FederalState), target)
 		if grossErr == nil && grossHours >= 0 {
-			// Only a value that differs from the calendar is worth storing; matching
-			// it again drops the override so the field keeps tracking the calendar.
-			capacity := forecast.BuildFYCapacity(*d, holidays.Get(target, d.Settings.FederalState), target)
 			fy.WeekdayHours = grossHours
 			if grossHours == capacity.WeekdayHoursAuto {
 				fy.WeekdayHours = 0
+			}
+		}
+		if holErr == nil && holDays >= 0 && holDays <= 366 {
+			fy.HolidayDays = &holDays
+			if holDays == capacity.HolidayDaysAuto {
+				fy.HolidayDays = nil
 			}
 		}
 		d.FiscalYears[target] = fy

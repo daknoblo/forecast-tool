@@ -23,12 +23,12 @@
     <div class="kpi-label">Forecast gesamt</div>
   </div>
   {{if .Goal.HasTarget}}
-  <div class="card kpi" title="FY-Stundenziel für das gesamte Fiskaljahr {{.Settings.Year}} ({{.FYStart}} – {{.FYEnd}}), abzüglich allem, was schon gebucht oder geplant ist.&#10;&#10;{{hours .Goal.TargetHours}} h Jahresziel&#10;− {{hours .Goal.ActualTotal}} h gebucht&#10;− {{hours .Goal.ForecastRemaining}} h Forecast&#10;= {{hours .Goal.Remaining}} h offen&#10;&#10;Urlaub zählt nicht aufs Ziel. Das Ziel pflegst du in den Einstellungen.">
+  <div class="card kpi" title="FY-Stundenziel für das gesamte Fiskaljahr {{.Settings.Year}} ({{.FYStart}} – {{.FYEnd}}), abzüglich allem, was schon gebucht oder geplant ist.&#10;&#10;{{hours .Goal.TargetHours}} h Jahresziel&#10;− {{hours .Goal.ActualTotal}} h gebucht&#10;− {{hours .Goal.ForecastRemaining}} h Forecast&#10;= {{hours .Goal.Remaining}} h offen&#10;&#10;Urlaub zählt nicht aufs Ziel. Das Ziel ergibt sich aus der Stundenkonfiguration in den Einstellungen.">
     <div class="kpi-value{{if and (not .Private) (lt .Goal.Remaining 0.0)}} negative{{end}}">{{hours .Goal.Remaining}} h</div>
     <div class="kpi-label">Offen bis Ziel</div>
   </div>
   {{else}}
-  <div class="card kpi" title="Für das Fiskaljahr {{.Settings.Year}} ist kein Stundenziel hinterlegt. Trage es in den Einstellungen unter „Pro Fiskaljahr“ ein.">
+  <div class="card kpi" title="Für das Fiskaljahr {{.Settings.Year}} ergibt die Stundenkonfiguration kein Ziel. Pflege sie in den Einstellungen unter „Stundenkonfiguration“.">
     <div class="kpi-value muted">–</div>
     <div class="kpi-label">Offen bis Ziel</div>
   </div>

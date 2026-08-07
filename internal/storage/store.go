@@ -103,9 +103,8 @@ func normalize(d *models.Data) {
 	}
 	// Migrate legacy single-FY settings into the per-FY map on first load.
 	if _, ok := d.FiscalYears[d.Settings.Year]; !ok {
-		if d.Settings.FiscalYearTargetHours > 0 || d.Settings.AnnualVacationDays > 0 {
+		if d.Settings.AnnualVacationDays > 0 {
 			d.FiscalYears[d.Settings.Year] = models.FiscalYearSettings{
-				TargetHours:  d.Settings.FiscalYearTargetHours,
 				VacationDays: d.Settings.AnnualVacationDays,
 			}
 		}

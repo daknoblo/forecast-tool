@@ -839,7 +839,7 @@ type WeekToDate struct {
 // started. It returns HasData == false when the reviewed fiscal year does not
 // contain today, when it has no goal, or before the first weekday is over; the
 // caller then shows a placeholder.
-func BuildWeekToDate(d models.Data) WeekToDate {
+func BuildWeekToDate(d models.Data, cal *holidays.Calendar) WeekToDate {
 	year := d.Settings.Year
 	startMonth := d.Settings.FiscalYearStartMonth
 	now := time.Now().UTC().Truncate(24 * time.Hour)
@@ -854,7 +854,7 @@ func BuildWeekToDate(d models.Data) WeekToDate {
 	}
 	week := CurrentFYWeek(year, startMonth)
 	_, isoWeek := FYWeekMonday(year, startMonth, week).ISOWeek()
-	target := d.CurrentFY().TargetHours
+	target := BuildFYCapacity(d, cal, year).RemainingHours
 
 	wtd := WeekToDate{
 		Week:          week,
@@ -1024,9 +1024,8 @@ type GoalSummary struct {
 	VacationHours     float64 // vacation days * 8h
 	StandardTaskLabel string  // free-text label for recurring standard tasks
 	StandardTaskHours float64 // hours deducted like holidays/vacation
-	AvailableHours    float64 // WeekdayHours - HolidayHours - VacationHours - StandardTaskHours
+	AvailableHours    float64 // WeekdayHours - HolidayHours - VacationHours - StandardTaskHours; this IS the target
 	PctOfWeekdays     float64 // target / WeekdayHours * 100
-	PctOfAvailable    float64 // target / AvailableHours * 100
 
 	// Pace needed to still reach the goal from today onwards.
 	RemainingGoal     float64 // target - actual booked (>= 0)
@@ -1035,17 +1034,19 @@ type GoalSummary struct {
 }
 
 // FYCapacity breaks the hour budget of a fiscal year down from the gross
-// weekday hours to the hours that actually have to be delivered. Unlike
-// BuildGoalSummary it works for any fiscal year, not just the active one, so
-// the settings page can show the same arithmetic while another FY is edited.
+// weekday hours to the hours that actually have to be delivered - which are the
+// FY goal. Unlike BuildGoalSummary it works for any fiscal year, not just the
+// active one, so the settings page can show the same arithmetic.
 type FYCapacity struct {
 	WeekdayDays       int
 	WeekdayHoursAuto  float64 // weekdays * 8h, straight from the calendar
 	WeekdayHours      float64 // the configured override, or WeekdayHoursAuto
-	Overridden        bool    // true when a manual gross value is stored
+	HoursOverridden   bool    // true when a manual gross value is stored
 	VacationDays      int
 	VacationHours     float64
-	HolidayDays       int
+	HolidayDaysAuto   int // public holidays of the configured federal state
+	HolidayDays       int // the configured override, or HolidayDaysAuto
+	HolidayOverridden bool
 	HolidayHours      float64
 	StandardTaskLabel string
 	StandardTaskHours float64
@@ -1069,18 +1070,26 @@ func BuildFYCapacity(d models.Data, cal *holidays.Calendar, year int) FYCapacity
 		}
 		c.WeekdayDays++
 		if cal.IsHoliday(day.Format("2006-01-02")) {
-			c.HolidayDays++
+			c.HolidayDaysAuto++
 		}
 	}
 	c.WeekdayHoursAuto = round1(float64(c.WeekdayDays) * HolidayDayHours)
 	c.WeekdayHours = c.WeekdayHoursAuto
 	if fy.WeekdayHours > 0 {
 		c.WeekdayHours = round1(fy.WeekdayHours)
-		c.Overridden = true
+		c.HoursOverridden = true
+	}
+	c.HolidayDays = c.HolidayDaysAuto
+	if fy.HolidayDays != nil {
+		c.HolidayDays = *fy.HolidayDays
+		c.HolidayOverridden = true
 	}
 	c.HolidayHours = round1(float64(c.HolidayDays) * HolidayDayHours)
 	c.VacationHours = round1(float64(c.VacationDays) * HolidayDayHours)
 	c.RemainingHours = round1(c.WeekdayHours - c.VacationHours - c.HolidayHours - c.StandardTaskHours)
+	if c.RemainingHours < 0 {
+		c.RemainingHours = 0
+	}
 	return c
 }
 
@@ -1088,12 +1097,13 @@ func BuildFYCapacity(d models.Data, cal *holidays.Calendar, year int) FYCapacity
 // single hours value: days before today count as booked ("Ist"), today and
 // future days as forecast. Public holidays on weekdays are reported separately
 // but do NOT count towards the goal. Period targets are split evenly
-// (target/4 per quarter, target/12 per month).
+// (target/4 per quarter, target/12 per month). The FY target is not stored: it
+// is the net result of the hour configuration (BuildFYCapacity).
 func BuildGoalSummary(d models.Data, cal *holidays.Calendar) GoalSummary {
 	year := d.Settings.Year
 	startMonth := normMonth(d.Settings.FiscalYearStartMonth)
-	fy := d.CurrentFY()
-	target := fy.TargetHours
+	capacity := BuildFYCapacity(d, cal, year)
+	target := capacity.RemainingHours
 	fyStart, fyEnd := FiscalYear(year, startMonth)
 
 	// Days strictly before today are booked; today and later are forecast.
@@ -1116,7 +1126,6 @@ func BuildGoalSummary(d models.Data, cal *holidays.Calendar) GoalSummary {
 	}
 	quarters := make([]PeriodStat, 4)
 	months := make([]PeriodStat, 12)
-	weekdayDays := 0
 
 	for day := fyStart; !day.After(fyEnd); day = day.AddDate(0, 0, 1) {
 		iso := day.Format("2006-01-02")
@@ -1128,9 +1137,6 @@ func BuildGoalSummary(d models.Data, cal *holidays.Calendar) GoalSummary {
 		isHoliday := weekday && cal.IsHoliday(iso)
 		working := weekday && !isHoliday
 		past := day.Before(today)
-		if weekday {
-			weekdayDays++
-		}
 		if working {
 			gs.WorkingDaysYear++
 			if past {
@@ -1145,10 +1151,6 @@ func BuildGoalSummary(d models.Data, cal *holidays.Calendar) GoalSummary {
 			booked = h
 		} else {
 			forecast = h
-		}
-		if isHoliday {
-			gs.HolidayDays++
-			gs.HolidayHours += HolidayDayHours
 		}
 
 		gs.ActualTotal += booked
@@ -1206,7 +1208,6 @@ func BuildGoalSummary(d models.Data, cal *holidays.Calendar) GoalSummary {
 	actualRaw := gs.ActualTotal
 	gs.ActualTotal = round1(gs.ActualTotal)
 	gs.ForecastRemaining = round1(gs.ForecastRemaining)
-	gs.HolidayHours = round1(gs.HolidayHours)
 	gs.Projected = round1(gs.Projected)
 	gs.Remaining = round1(target - gs.Projected)
 	if target > 0 {
@@ -1216,24 +1217,20 @@ func BuildGoalSummary(d models.Data, cal *holidays.Calendar) GoalSummary {
 		gs.PctActual = 0
 	}
 
-	// Capacity overview: gross weekday hours minus holidays, planned vacation
-	// and recurring standard tasks.
-	gs.WeekdayDays = weekdayDays
-	gs.WeekdayHoursAuto = round1(float64(weekdayDays) * HolidayDayHours)
-	gs.WeekdayHours = gs.WeekdayHoursAuto
-	if fy.WeekdayHours > 0 {
-		gs.WeekdayHours = round1(fy.WeekdayHours)
-	}
-	gs.VacationDays = fy.VacationDays
-	gs.VacationHours = round1(float64(gs.VacationDays) * HolidayDayHours)
-	gs.StandardTaskLabel = fy.StandardTaskLabel
-	gs.StandardTaskHours = round1(fy.StandardTaskHours)
-	gs.AvailableHours = round1(gs.WeekdayHours - gs.HolidayHours - gs.VacationHours - gs.StandardTaskHours)
+	// Capacity overview: the configured breakdown, so an overridden gross value
+	// or holiday count wins over the calendar here too.
+	gs.WeekdayDays = capacity.WeekdayDays
+	gs.WeekdayHoursAuto = capacity.WeekdayHoursAuto
+	gs.WeekdayHours = capacity.WeekdayHours
+	gs.VacationDays = capacity.VacationDays
+	gs.VacationHours = capacity.VacationHours
+	gs.HolidayDays = capacity.HolidayDays
+	gs.HolidayHours = capacity.HolidayHours
+	gs.StandardTaskLabel = capacity.StandardTaskLabel
+	gs.StandardTaskHours = capacity.StandardTaskHours
+	gs.AvailableHours = capacity.RemainingHours
 	if gs.WeekdayHours > 0 {
 		gs.PctOfWeekdays = round1(target / gs.WeekdayHours * 100)
-	}
-	if gs.AvailableHours > 0 {
-		gs.PctOfAvailable = round1(target / gs.AvailableHours * 100)
 	}
 
 	// Pace required from today on to still reach the goal (real bookings only).
@@ -1382,14 +1379,14 @@ type GoalFlow struct {
 
 // BuildGoalFlow aggregates the fiscal year's project hours into the five stages
 // of the goal flow diagram.
-func BuildGoalFlow(d models.Data) GoalFlow {
+func BuildGoalFlow(d models.Data, cal *holidays.Calendar) GoalFlow {
 	year := d.Settings.Year
 	startMonth := normMonth(d.Settings.FiscalYearStartMonth)
 	fyStart, fyEnd := FiscalYear(year, startMonth)
 	fyStartISO, fyEndISO := fyStart.Format("2006-01-02"), fyEnd.Format("2006-01-02")
 	todayISO := todayISO()
 	monthsDone := FYMonthsDone(year, startMonth)
-	target := d.CurrentFY().TargetHours
+	target := BuildFYCapacity(d, cal, year).RemainingHours
 
 	vac := vacationSet(d.Projects)
 	projByID := make(map[string]models.Project, len(d.Projects))

@@ -39,7 +39,7 @@ func TestClassifyUtilizationFallback(t *testing.T) {
 func TestEnsureVacationProject(t *testing.T) {
 	d := Data{
 		Settings:    Settings{Year: 2026, FiscalYearStartMonth: 7},
-		FiscalYears: map[int]FiscalYearSettings{2026: {TargetHours: 1000, VacationDays: 15}},
+		FiscalYears: map[int]FiscalYearSettings{2026: {VacationDays: 15}},
 	}
 	// First call creates the project with budget 15*8 = 120.
 	if !EnsureVacationProject(&d, 2026) {
@@ -66,7 +66,7 @@ func TestEnsureVacationProject(t *testing.T) {
 		t.Errorf("projects = %d after second call, want 1", len(d.Projects))
 	}
 	// Changing vacation days re-syncs the budget.
-	d.FiscalYears[2026] = FiscalYearSettings{TargetHours: 1000, VacationDays: 25}
+	d.FiscalYears[2026] = FiscalYearSettings{VacationDays: 25}
 	if !EnsureVacationProject(&d, 2026) {
 		t.Error("expected change after vacation days increased")
 	}

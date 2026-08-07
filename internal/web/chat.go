@@ -10,6 +10,7 @@ import (
 
 	"github.com/daknoblo/forecast-tool/internal/ai"
 	"github.com/daknoblo/forecast-tool/internal/forecast"
+	"github.com/daknoblo/forecast-tool/internal/holidays"
 	"github.com/daknoblo/forecast-tool/internal/models"
 )
 
@@ -71,7 +72,7 @@ Regeln:
 // block: totals, the per-project split with budgets, and the hours per month per
 // project. That is far smaller than the raw document and already carries every
 // number the model needs.
-func buildChatContext(d models.Data, ys forecast.YearSummary, gs forecast.GoalSummary) string {
+func buildChatContext(d models.Data, cal *holidays.Calendar, ys forecast.YearSummary, gs forecast.GoalSummary) string {
 	var b strings.Builder
 	fyStart, fyEnd := forecast.FiscalYear(d.Settings.Year, d.Settings.FiscalYearStartMonth)
 
@@ -85,7 +86,7 @@ func buildChatContext(d models.Data, ys forecast.YearSummary, gs forecast.GoalSu
 		fmt.Fprintf(&b, "Soll-Tempo: %g h pro Woche, %g h pro Monat, %g h pro Quartal. Verbleibende Arbeitstage: %d, dafür nötig: %g h pro Tag.\n",
 			gs.TargetPerWeek, gs.TargetPerMonth, gs.TargetPerQuarter, gs.RemainingWorkdays, gs.RequiredPerDay)
 	} else {
-		b.WriteString("Für dieses Fiskaljahr ist kein Stundenziel hinterlegt.\n")
+		b.WriteString("Aus der Stundenkonfiguration dieses Fiskaljahres ergibt sich kein Stundenziel.\n")
 	}
 	fmt.Fprintf(&b, "Kapazität: %g h Wochentagsstunden, abzüglich %g h Urlaub, %g h Feiertage und %g h Standard-Tasks bleiben %g h netto.\n\n",
 		gs.WeekdayHours, gs.VacationHours, gs.HolidayHours, gs.StandardTaskHours, gs.AvailableHours)
@@ -111,7 +112,7 @@ func buildChatContext(d models.Data, ys forecast.YearSummary, gs forecast.GoalSu
 	}
 
 	b.WriteString("\nStunden je Projekt und Monat (nur Monate mit Stunden):\n")
-	for _, line := range projectMonthLines(d) {
+	for _, line := range projectMonthLines(d, cal) {
 		b.WriteString("- " + line + "\n")
 	}
 	return b.String()
@@ -119,8 +120,8 @@ func buildChatContext(d models.Data, ys forecast.YearSummary, gs forecast.GoalSu
 
 // projectMonthLines renders one line per project with its hours per fiscal-year
 // month, ordered by the project's total.
-func projectMonthLines(d models.Data) []string {
-	flow := forecast.BuildGoalFlow(d)
+func projectMonthLines(d models.Data, cal *holidays.Calendar) []string {
+	flow := forecast.BuildGoalFlow(d, cal)
 	if !flow.HasData {
 		return []string{"keine Stunden erfasst"}
 	}
@@ -201,7 +202,7 @@ func (s *Server) handleGoalChat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cal := s.calendar(d)
-	context := buildChatContext(d, forecast.BuildYearSummary(d, cal), forecast.BuildGoalSummary(d, cal))
+	context := buildChatContext(d, cal, forecast.BuildYearSummary(d, cal), forecast.BuildGoalSummary(d, cal))
 	user := "Daten:\n" + context + "\nFrage des Nutzers:\n" + prompt
 
 	s.logger.Info("chat requested", "promptChars", len(prompt), "contextChars", len(context))

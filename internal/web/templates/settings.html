@@ -2,77 +2,74 @@
 <h1>Einstellungen</h1>
 
 <section class="card">
-  <p class="hint">
-    Fiskaljahr wählen:
-    <a href="/settings?year={{.PrevYear}}">‹ FY {{.PrevYear}}</a>
-    · <strong>FY {{.ViewYear}}</strong>{{if .IsActive}} (aktiv){{end}}
-    · <a href="/settings?year={{.NextYear}}">FY {{.NextYear}} ›</a>
-  </p>
-  <form method="post" action="/settings" class="form-stack" data-autosave>
-    <input type="hidden" name="year" value="{{.ViewYear}}">
-
+  <form method="post" action="/settings" class="form-stack settings-form" data-autosave>
     <h2>Global</h2>
-    <label>Fiskaljahr-Startmonat
-      <select name="fyStartMonth" data-reload>
-        {{range .Months}}
-          <option value="{{.Value}}" {{if eq .Value $.Settings.FiscalYearStartMonth}}selected{{end}}>{{.Name}}</option>
-        {{end}}
-      </select>
-    </label>
-    <p class="hint">Aktuelles Fiskaljahr (FY {{.ViewYear}}): <strong>{{.FYStart}} – {{.FYEnd}}</strong>. Startmonat Januar = Kalenderjahr.</p>
-    <label>Bundesland (Feiertage)
-      <select name="state">
-        {{range .States}}
-          <option value="{{.Code}}" {{if eq .Code $.Settings.FederalState}}selected{{end}}>{{.Name}} ({{.Code}})</option>
-        {{end}}
-      </select>
-    </label>
-    <label>Wochensollstunden
-      <input type="text" inputmode="decimal" name="weekly" value="{{hoursRaw .Settings.WeeklyTargetHours}}" placeholder="40">
-    </label>
+    <div class="form-row globals">
+      <label>Fiskaljahr-Startmonat
+        <select name="fyStartMonth" data-reload>
+          {{range .Months}}
+            <option value="{{.Value}}" {{if eq .Value $.Settings.FiscalYearStartMonth}}selected{{end}}>{{.Name}}</option>
+          {{end}}
+        </select>
+      </label>
+      <label>Bundesland (Feiertage)
+        <select name="state" data-reload>
+          {{range .States}}
+            <option value="{{.Code}}" {{if eq .Code $.Settings.FederalState}}selected{{end}}>{{.Name}} ({{.Code}})</option>
+          {{end}}
+        </select>
+      </label>
+      <label>Wochensollstunden
+        <input type="text" inputmode="decimal" name="weekly" value="{{hoursRaw .Settings.WeeklyTargetHours}}" placeholder="40">
+      </label>
+    </div>
+    <p class="hint">Gilt für alle Fiskaljahre. FY {{.Settings.Year}}: <strong>{{.FYStart}} – {{.FYEnd}}</strong>. Startmonat Januar = Kalenderjahr.</p>
 
-    <h2>Pro Fiskaljahr (FY {{.ViewYear}})</h2>
-    <label>Fiskaljahresziel (Stunden gesamt)
-      <input type="text" inputmode="decimal" name="fyTarget" value="{{hoursRaw .FY.TargetHours}}">
-    </label>
-    <label>Gesamt FY-Arbeitsstunden
-      <input type="text" inputmode="decimal" name="fyWeekdayHours" value="{{hoursRaw .Capacity.WeekdayHours}}" data-reload>
-    </label>
-    <p class="hint">Vorberechnet aus {{.Capacity.WeekdayDays}} Wochentagen (Mo–Fr) à 8 h = {{hours .Capacity.WeekdayHoursAuto}} h. Ein eigener Wert wird gespeichert{{if .Capacity.Overridden}} (aktuell überschrieben){{end}}; trägst du wieder {{hours .Capacity.WeekdayHoursAuto}} ein, folgt das Feld erneut dem Kalender.</p>
-    <div class="field-pair">
-      <label>Urlaub – Tage
-        <input type="number" name="vacationDays" min="0" max="366" value="{{.FY.VacationDays}}" data-reload>
+    <h2>Stundenkonfiguration (FY {{.Settings.Year}})</h2>
+    <div class="hours-block">
+      <label>Gesamt FY-Arbeitsstunden
+        <input type="text" inputmode="decimal" name="fyWeekdayHours" value="{{hoursRaw .Capacity.WeekdayHours}}" data-reload>
       </label>
-      <label>Urlaub – Stunden
-        <input type="text" value="{{hoursRaw .Capacity.VacationHours}}" readonly tabindex="-1">
+      <div class="field-pair">
+        <label>Urlaub – Tage
+          <input type="number" name="vacationDays" min="0" max="366" value="{{.FY.VacationDays}}" data-reload>
+        </label>
+        <label>Urlaub – Stunden
+          <input type="text" value="{{hoursRaw .Capacity.VacationHours}}" readonly tabindex="-1">
+        </label>
+      </div>
+      <div class="field-pair">
+        <label>Feiertage – Tage
+          <input type="number" name="holidayDays" min="0" max="366" value="{{.Capacity.HolidayDays}}" data-reload>
+        </label>
+        <label>Feiertage – Stunden
+          <input type="text" value="{{hoursRaw .Capacity.HolidayHours}}" readonly tabindex="-1">
+        </label>
+      </div>
+      <label>{{if .FY.StandardTaskLabel}}{{.FY.StandardTaskLabel}}{{else}}Standard Tasks{{end}} – Stunden
+        <input type="text" inputmode="decimal" name="standardTaskHours" value="{{hoursRaw .FY.StandardTaskHours}}" data-reload>
+      </label>
+      <label>Verbleibende zu leistende FY-Stunden = Fiskaljahresziel
+        <input type="text" class="computed" value="{{hoursRaw .Capacity.RemainingHours}}" readonly tabindex="-1">
       </label>
     </div>
-    <div class="field-pair">
-      <label>Feiertage ({{.Settings.FederalState}}) – Tage
-        <input type="text" value="{{.Capacity.HolidayDays}}" readonly tabindex="-1">
-      </label>
-      <label>Feiertage – Stunden
-        <input type="text" value="{{hoursRaw .Capacity.HolidayHours}}" readonly tabindex="-1">
-      </label>
-    </div>
-    <label>{{if .FY.StandardTaskLabel}}{{.FY.StandardTaskLabel}}{{else}}Standard Tasks{{end}} – Stunden
-      <input type="text" inputmode="decimal" name="standardTaskHours" value="{{hoursRaw .FY.StandardTaskHours}}" data-reload>
-    </label>
-    <label>Verbleibende zu leistende FY-Stunden
-      <input type="text" class="computed" value="{{hoursRaw .Capacity.RemainingHours}}" readonly tabindex="-1">
-    </label>
-    <p class="hint">Urlaubs- und Feiertagsstunden ergeben sich aus den Tagen à 8 h; die Feiertage kommen aus dem oben gewählten Bundesland. Verbleibend = Gesamt − Urlaub − Feiertage − Standard Tasks.</p>
+    <p class="hint">
+      Gesamtstunden vorberechnet aus {{.Capacity.WeekdayDays}} Wochentagen (Mo–Fr) à 8 h = {{hours .Capacity.WeekdayHoursAuto}} h,
+      Feiertage aus {{.Settings.FederalState}} = {{.Capacity.HolidayDaysAuto}} Tage. Eigene Werte werden gespeichert{{if or .Capacity.HoursOverridden .Capacity.HolidayOverridden}} (aktuell überschrieben){{end}};
+      trägst du den vorberechneten Wert wieder ein, folgt das Feld erneut dem Kalender.
+      Urlaubs- und Feiertagsstunden ergeben sich aus den Tagen à 8 h.
+      Verbleibend = Gesamt − Urlaub − Feiertage − Standard Tasks – <strong>dieses Ergebnis ist das FY-Ziel</strong>.
+    </p>
 
     <span class="save-status ok" data-save-status>Automatisch gespeichert</span>
   </form>
-  <p class="hint">Globale Werte gelten für alle Fiskaljahre. Ziel, Urlaub und Standard Tasks werden für das oben gewählte FY {{.ViewYear}} gespeichert. Das <strong>aktive</strong> Fiskaljahr änderst du über die FY-Auswahl oben rechts im Kopfbereich.</p>
+  <p class="hint">Die Stundenkonfiguration gilt für das Fiskaljahr, das oben rechts im Kopfbereich ausgewählt ist. Willst du ein anderes FY konfigurieren, wechsle es dort.</p>
 </section>
 
 <section class="card">
   <h2>Auslastungs-Ampel (global)</h2>
   <p class="hint">Definiert, ab welcher Wochenbuchung welcher Status angezeigt wird. Die Punkte erscheinen in der Forecast-Übersicht sowie in den Wochentabellen von Dashboard und Zielen.</p>
   <form method="post" action="/settings" class="form-stack" data-autosave>
-    <input type="hidden" name="year" value="{{.ViewYear}}">
     <input type="hidden" name="section" value="utilization">
     <label><span class="util util-min"><span class="util-dot">↓</span></span> Soll Burnrate unterschritten – Stunden (≤)
       <input type="text" inputmode="decimal" name="utilMin" value="{{hoursRaw .Settings.Utilization.MinHours}}" placeholder="26" data-reload>
@@ -104,7 +101,6 @@
   <h2>KI-Endpoint</h2>
   <p class="hint">Konfiguriere einen entfernten, Azure-OpenAI-kompatiblen Endpoint (z. B. einen Azure&nbsp;AI&nbsp;Foundry Model-Router). Damit kannst du unter <a href="/goal#chat">Ziele &rarr; Chat with your data</a> Fragen zu deinen gebuchten und geplanten Stunden stellen.</p>
   <form method="post" action="/settings" class="form-stack" data-autosave>
-    <input type="hidden" name="year" value="{{.ViewYear}}">
     <input type="hidden" name="section" value="ai">
     <label>Endpoint-URL
       <input type="url" name="aiEndpoint" value="{{.Settings.AI.Endpoint}}" placeholder="https://mein-resource.openai.azure.com">

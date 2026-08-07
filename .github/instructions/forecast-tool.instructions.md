@@ -71,16 +71,18 @@ collects every requirement stated so far as the binding reference.
   Foundry model router). The **API key is NOT stored in the JSON**; it is
   supplied exclusively through the `FORECAST_AI_API_KEY` environment variable
   (`AISettings.APIKey` is `omitempty` and only a legacy read fallback).
-- `FiscalYearSettings` (per FY, in `Data.FiscalYears map[int]...`): targetHours,
-  weekdayHours, vacationDays, standardTaskLabel, standardTaskHours.
-  `weekdayHours` is an **override of the gross FY hours**; `0` means "follow the
-  calendar" (`weekdays × 8 h`), so the field keeps tracking the year unless the
-  user really typed a different number.
-- Legacy fields (`fiscalYearTargetHours`, `annualVacationDays`,
-  `vacationDaysH1`/`vacationDaysH2`) are kept `omitempty` for migration and the
-  `FYFor` fallback only. `FiscalYearSettings.MigrateVacationDays` folds the two
-  half-year values into `vacationDays`; `storage.normalize` and `Data.FYFor`
-  both call it, so no caller ever sees the legacy split.
+- `FiscalYearSettings` (per FY, in `Data.FiscalYears map[int]...`): weekdayHours,
+  vacationDays, holidayDays, standardTaskLabel, standardTaskHours. **There is no
+  stored FY target** — it is the net of this breakdown (see below).
+  `weekdayHours` overrides the gross FY hours; `0` means "follow the calendar"
+  (`weekdays × 8 h`). `holidayDays` overrides the public holidays of the
+  configured federal state; it is a **pointer**, because `0` is a meaningful
+  override there.
+- Legacy fields (`annualVacationDays`, `vacationDaysH1`/`vacationDaysH2`) are
+  kept `omitempty` for migration and the `FYFor` fallback only.
+  `FiscalYearSettings.MigrateVacationDays` folds the two half-year values into
+  `vacationDays`; `storage.normalize` and `Data.FYFor` both call it, so no caller
+  ever sees the legacy split.
 
 ## Defaults
 
@@ -114,36 +116,47 @@ collects every requirement stated so far as the binding reference.
 
 ## Per-fiscal-year settings
 
-- Target, vacation and standard tasks are stored **per fiscal year** (the values
-  change from year to year). Global values (start month, federal state, weekly
-  target) apply to all fiscal years.
-- The settings page allows switching the fiscal year under review (`?year=`).
-  The per-FY block is written to **that** year, but saving does **not** change
-  the active fiscal year — that stays the job of the header dropdown
-  (`POST /fy`).
+- The hour configuration (gross hours, vacation, holidays, standard tasks) is
+  stored **per fiscal year** (the values change from year to year). Global values
+  (start month, federal state, weekly target) apply to all fiscal years.
+- The settings page has **no year picker of its own**: it always writes to the
+  fiscal year selected in the header dropdown (`POST /fy`).
 
 ## Per-FY hours configuration
 
-- The per-FY block of the settings page reads **top-down as one calculation**:
-  gross FY hours → − vacation → − public holidays → − standard tasks →
-  "Verbleibende zu leistende FY-Stunden". Keep that order; it is what makes the
-  numbers legible.
+- The settings page **always edits the fiscal year selected in the header**.
+  There is deliberately **no second year picker and no `?year=` parameter** — the
+  header dropdown (`POST /fy`) is the single place to switch the FY, for every
+  tab.
+- The hour block reads **top-down as one calculation**: gross FY hours →
+  − vacation → − public holidays → − standard tasks → "Verbleibende zu leistende
+  FY-Stunden". Keep that order; it is what makes the numbers legible.
+- **That net result IS the fiscal-year target.** It is never stored and never
+  entered by hand: `BuildGoalSummary`, `BuildWeekToDate` and `BuildGoalFlow` all
+  take their target from `BuildFYCapacity(...).RemainingHours` (clamped at 0),
+  which is why those three take a `*holidays.Calendar`. Do not reintroduce a
+  `targetHours` field — two sources for the same number is exactly the bug this
+  removed.
 - **Gross FY hours** are an editable input pre-filled with `weekdays × 8 h`
-  (`FYCapacity.WeekdayHoursAuto`). A manually entered value is persisted in
-  `FiscalYearSettings.WeekdayHours`; typing the calendar value again **clears**
-  the override, so the field starts tracking the calendar once more. Never store
-  the computed value as an override — a stored value would silently go stale
-  when the FY start month or year changes.
+  (`FYCapacity.WeekdayHoursAuto`); **public holidays** are an editable day count
+  pre-filled from the federal state (`FYCapacity.HolidayDaysAuto`). A manually
+  entered value is persisted; typing the calendar value again **clears** the
+  override, so the field starts tracking the calendar once more. Never store the
+  computed value as an override — it would silently go stale when the FY start
+  month, year or federal state changes.
 - **Vacation and public holidays are day/hour pairs** (`.field-pair`, two inputs
-  side by side). Only the vacation *days* are editable; the vacation hours and
-  both holiday fields are `readonly` and carry no `name`, so they are never
-  posted. Holidays come from the configured federal state.
+  side by side): the *days* are editable, the hours next to them are `readonly`,
+  carry no `name` and are therefore never posted.
 - Everything that changes a derived field carries `data-reload`, so the
   autosave in `partials.html` reloads the page and the server recomputes the
   read-only fields. Do **not** duplicate the arithmetic in JavaScript.
 - `forecast.BuildFYCapacity(d, cal, year)` is the single source of that
   breakdown and works for **any** fiscal year (unlike `BuildGoalSummary`, which
-  is bound to the active one), because the settings page can edit `?year=`.
+  is bound to the active one).
+- Layout: the settings form is `.form-stack.settings-form` (`max-width: none`)
+  so the three **global** fields (FY start month, federal state, weekly target)
+  fit on one `.form-row.globals` line, while the hour block stays in a narrow
+  `.hours-block` column — it has to read as a sequence of steps.
 
 ## Vacation as a project
 

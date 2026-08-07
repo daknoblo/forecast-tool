@@ -43,10 +43,9 @@ type Settings struct {
 	// (global, shared across all fiscal years).
 	Utilization UtilizationSettings `json:"utilization"`
 
-	// Legacy fields retained only for migrating old documents into FiscalYears.
-	// They are no longer read once a per-FY entry exists. Deprecated.
-	FiscalYearTargetHours float64 `json:"fiscalYearTargetHours,omitempty"`
-	AnnualVacationDays    int     `json:"annualVacationDays,omitempty"`
+	// Legacy field retained only for migrating old documents into FiscalYears.
+	// It is no longer read once a per-FY entry exists. Deprecated.
+	AnnualVacationDays int `json:"annualVacationDays,omitempty"`
 }
 
 // AISettings configures the remote AI endpoint (e.g. an Azure AI Foundry
@@ -159,13 +158,15 @@ func isHexDigit(c byte) bool {
 // FiscalYearSettings holds configuration that changes from one fiscal year to
 // the next. It describes the hour budget of the year top-down: gross weekday
 // hours minus vacation, public holidays and standard tasks leave the hours that
-// actually have to be delivered.
+// actually have to be delivered - and those are the FY goal.
 type FiscalYearSettings struct {
-	TargetHours float64 `json:"targetHours"` // total target hours for the whole FY
 	// WeekdayHours overrides the gross FY hours (weekdays * 8h). 0 keeps the
 	// value derived from the calendar.
-	WeekdayHours      float64 `json:"weekdayHours,omitempty"`
-	VacationDays      int     `json:"vacationDays"`      // planned vacation days (8h each)
+	WeekdayHours float64 `json:"weekdayHours,omitempty"`
+	VacationDays int     `json:"vacationDays"` // planned vacation days (8h each)
+	// HolidayDays overrides the public holidays of the configured federal state.
+	// A pointer, because 0 is a meaningful override.
+	HolidayDays       *int    `json:"holidayDays,omitempty"`
 	StandardTaskLabel string  `json:"standardTaskLabel"` // free-text label for recurring standard tasks
 	StandardTaskHours float64 `json:"standardTaskHours"` // hours deducted like holidays/vacation
 
@@ -347,7 +348,6 @@ func DefaultData(year int) Data {
 // a fiscal year that has not been configured yet.
 func DefaultFYSettings() FiscalYearSettings {
 	return FiscalYearSettings{
-		TargetHours:       1440,
 		VacationDays:      30,
 		StandardTaskHours: 250,
 	}
@@ -361,11 +361,8 @@ func (d Data) FYFor(year int) FiscalYearSettings {
 		fy.MigrateVacationDays()
 		return fy
 	}
-	if d.Settings.FiscalYearTargetHours > 0 || d.Settings.AnnualVacationDays > 0 {
-		return FiscalYearSettings{
-			TargetHours:  d.Settings.FiscalYearTargetHours,
-			VacationDays: d.Settings.AnnualVacationDays,
-		}
+	if d.Settings.AnnualVacationDays > 0 {
+		return FiscalYearSettings{VacationDays: d.Settings.AnnualVacationDays}
 	}
 	return DefaultFYSettings()
 }
@@ -462,11 +459,11 @@ func Validate(d Data) error {
 		if !ValidYear(year) {
 			return fmt.Errorf("fiscalYears: Schlüssel %d liegt außerhalb von %d–%d", year, MinYear, MaxYear)
 		}
-		if fy.TargetHours < 0 {
-			return fmt.Errorf("fiscalYears[%d]: targetHours darf nicht negativ sein", year)
-		}
 		if fy.VacationDays < 0 || fy.VacationDays > 366 {
 			return fmt.Errorf("fiscalYears[%d]: Urlaubstage müssen zwischen 0 und 366 liegen", year)
+		}
+		if fy.HolidayDays != nil && (*fy.HolidayDays < 0 || *fy.HolidayDays > 366) {
+			return fmt.Errorf("fiscalYears[%d]: Feiertage müssen zwischen 0 und 366 liegen", year)
 		}
 		if fy.WeekdayHours < 0 {
 			return fmt.Errorf("fiscalYears[%d]: weekdayHours darf nicht negativ sein", year)
