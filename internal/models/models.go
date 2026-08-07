@@ -157,14 +157,22 @@ func isHexDigit(c byte) bool {
 }
 
 // FiscalYearSettings holds configuration that changes from one fiscal year to
-// the next. Vacation is entered per half-year because a fiscal year spans two
-// calendar years and vacation entitlement is counted per calendar year.
+// the next. It describes the hour budget of the year top-down: gross weekday
+// hours minus vacation, public holidays and standard tasks leave the hours that
+// actually have to be delivered.
 type FiscalYearSettings struct {
-	TargetHours       float64 `json:"targetHours"`       // total target hours for the whole FY
-	VacationDaysH1    int     `json:"vacationDaysH1"`    // vacation days in the first FY half (8h each)
-	VacationDaysH2    int     `json:"vacationDaysH2"`    // vacation days in the second FY half (8h each)
+	TargetHours float64 `json:"targetHours"` // total target hours for the whole FY
+	// WeekdayHours overrides the gross FY hours (weekdays * 8h). 0 keeps the
+	// value derived from the calendar.
+	WeekdayHours      float64 `json:"weekdayHours,omitempty"`
+	VacationDays      int     `json:"vacationDays"`      // planned vacation days (8h each)
 	StandardTaskLabel string  `json:"standardTaskLabel"` // free-text label for recurring standard tasks
 	StandardTaskHours float64 `json:"standardTaskHours"` // hours deducted like holidays/vacation
+
+	// Deprecated: vacation used to be split per FY half. Still read so existing
+	// data files migrate, and cleared on the next save.
+	VacationDaysH1 int `json:"vacationDaysH1,omitempty"`
+	VacationDaysH2 int `json:"vacationDaysH2,omitempty"`
 }
 
 // Project is a thing time is forecasted against, constrained by a budget.
@@ -236,9 +244,22 @@ func VacationProjectID(year int) string {
 }
 
 // VacationBudgetHours returns the vacation budget derived from the per-FY
-// settings: (H1 + H2 vacation days) * 8h.
+// settings: vacation days * 8h.
 func (fy FiscalYearSettings) VacationBudgetHours() float64 {
-	return float64(fy.VacationDaysH1+fy.VacationDaysH2) * vacationDayHours
+	return float64(fy.VacationDays) * vacationDayHours
+}
+
+// MigrateVacationDays folds the deprecated per-half vacation days into the
+// single total and reports whether anything changed.
+func (fy *FiscalYearSettings) MigrateVacationDays() bool {
+	if fy.VacationDaysH1 == 0 && fy.VacationDaysH2 == 0 {
+		return false
+	}
+	if fy.VacationDays == 0 {
+		fy.VacationDays = fy.VacationDaysH1 + fy.VacationDaysH2
+	}
+	fy.VacationDaysH1, fy.VacationDaysH2 = 0, 0
+	return true
 }
 
 // EnsureVacationProject makes sure a non-deletable vacation project exists for
@@ -327,8 +348,7 @@ func DefaultData(year int) Data {
 func DefaultFYSettings() FiscalYearSettings {
 	return FiscalYearSettings{
 		TargetHours:       1440,
-		VacationDaysH1:    15,
-		VacationDaysH2:    15,
+		VacationDays:      30,
 		StandardTaskHours: 250,
 	}
 }
@@ -338,12 +358,13 @@ func DefaultFYSettings() FiscalYearSettings {
 // the standard defaults, so an unconfigured year starts from sensible values.
 func (d Data) FYFor(year int) FiscalYearSettings {
 	if fy, ok := d.FiscalYears[year]; ok {
+		fy.MigrateVacationDays()
 		return fy
 	}
 	if d.Settings.FiscalYearTargetHours > 0 || d.Settings.AnnualVacationDays > 0 {
 		return FiscalYearSettings{
-			TargetHours:    d.Settings.FiscalYearTargetHours,
-			VacationDaysH1: d.Settings.AnnualVacationDays,
+			TargetHours:  d.Settings.FiscalYearTargetHours,
+			VacationDays: d.Settings.AnnualVacationDays,
 		}
 	}
 	return DefaultFYSettings()
@@ -444,8 +465,11 @@ func Validate(d Data) error {
 		if fy.TargetHours < 0 {
 			return fmt.Errorf("fiscalYears[%d]: targetHours darf nicht negativ sein", year)
 		}
-		if fy.VacationDaysH1 < 0 || fy.VacationDaysH1 > 366 || fy.VacationDaysH2 < 0 || fy.VacationDaysH2 > 366 {
+		if fy.VacationDays < 0 || fy.VacationDays > 366 {
 			return fmt.Errorf("fiscalYears[%d]: Urlaubstage müssen zwischen 0 und 366 liegen", year)
+		}
+		if fy.WeekdayHours < 0 {
+			return fmt.Errorf("fiscalYears[%d]: weekdayHours darf nicht negativ sein", year)
 		}
 		if fy.StandardTaskHours < 0 {
 			return fmt.Errorf("fiscalYears[%d]: standardTaskHours darf nicht negativ sein", year)

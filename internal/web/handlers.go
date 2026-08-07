@@ -676,8 +676,7 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	fy := d.FYFor(viewYear)
 	fyStart, fyEnd := forecast.FiscalYear(viewYear, d.Settings.FiscalYearStartMonth)
-	h2Start := fyStart.AddDate(0, 6, 0)
-	h1End := h2Start.AddDate(0, 0, -1)
+	capacity := forecast.BuildFYCapacity(d, holidays.Get(viewYear, d.Settings.FederalState), viewYear)
 	s.render(w, r, "settings.html", map[string]any{
 		"Active":       "settings",
 		"Settings":     d.Settings,
@@ -691,10 +690,9 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		"NextYear":     viewYear + 1,
 		"IsActive":     viewYear == d.Settings.Year,
 		"FY":           fy,
+		"Capacity":     capacity,
 		"FYStart":      fyStart.Format("02.01.2006"),
 		"FYEnd":        fyEnd.Format("02.01.2006"),
-		"H1Label":      halfLabel(fyStart, h1End),
-		"H2Label":      halfLabel(h2Start, fyEnd),
 		"AIKeyEnv":     aiAPIKeyEnv,
 		"AIKeySet":     trim(os.Getenv(aiAPIKeyEnv)) != "",
 		"AIKeyInStore": trim(d.Settings.AI.APIKey) != "",
@@ -766,8 +764,8 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	weekly, _ := strconv.ParseFloat(normalizeNum(r.FormValue("weekly")), 64)
 	fyStartMonth, fyMonthErr := strconv.Atoi(trim(r.FormValue("fyStartMonth")))
 	fyTarget, fyErr := strconv.ParseFloat(normalizeNum(r.FormValue("fyTarget")), 64)
-	vacH1, vacH1Err := strconv.Atoi(trim(r.FormValue("vacationH1")))
-	vacH2, vacH2Err := strconv.Atoi(trim(r.FormValue("vacationH2")))
+	grossHours, grossErr := strconv.ParseFloat(normalizeNum(r.FormValue("fyWeekdayHours")), 64)
+	vacDays, vacErr := strconv.Atoi(trim(r.FormValue("vacationDays")))
 	stdHours, stdErr := strconv.ParseFloat(normalizeNum(r.FormValue("standardTaskHours")), 64)
 	_ = s.store.Update(func(d *models.Data) error {
 		// The page can edit a fiscal year other than the active one (?year=).
@@ -793,14 +791,20 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 		if fyErr == nil && fyTarget >= 0 {
 			fy.TargetHours = fyTarget
 		}
-		if vacH1Err == nil && vacH1 >= 0 && vacH1 <= 366 {
-			fy.VacationDaysH1 = vacH1
-		}
-		if vacH2Err == nil && vacH2 >= 0 && vacH2 <= 366 {
-			fy.VacationDaysH2 = vacH2
+		if vacErr == nil && vacDays >= 0 && vacDays <= 366 {
+			fy.VacationDays = vacDays
 		}
 		if stdErr == nil && stdHours >= 0 {
 			fy.StandardTaskHours = stdHours
+		}
+		if grossErr == nil && grossHours >= 0 {
+			// Only a value that differs from the calendar is worth storing; matching
+			// it again drops the override so the field keeps tracking the calendar.
+			capacity := forecast.BuildFYCapacity(*d, holidays.Get(target, d.Settings.FederalState), target)
+			fy.WeekdayHours = grossHours
+			if grossHours == capacity.WeekdayHoursAuto {
+				fy.WeekdayHours = 0
+			}
 		}
 		d.FiscalYears[target] = fy
 		// Keep the vacation project's budget in sync with the vacation days.
@@ -892,21 +896,6 @@ func refererPath(r *http.Request) string {
 		dest += "?" + u.RawQuery
 	}
 	return dest
-}
-
-// halfLabel formats a half-year range like "Juli 2026 – Dezember 2026".
-func halfLabel(start, end time.Time) string {
-	return fmt.Sprintf("%s %d – %s %d",
-		monthName(int(start.Month())), start.Year(),
-		monthName(int(end.Month())), end.Year())
-}
-
-// monthName returns the German month name for 1..12.
-func monthName(m int) string {
-	if m < 1 || m > 12 {
-		return ""
-	}
-	return monthOptions[m-1].Name
 }
 
 // monthOption is a selectable month for the fiscal-year start dropdown.

@@ -105,9 +105,15 @@ func normalize(d *models.Data) {
 	if _, ok := d.FiscalYears[d.Settings.Year]; !ok {
 		if d.Settings.FiscalYearTargetHours > 0 || d.Settings.AnnualVacationDays > 0 {
 			d.FiscalYears[d.Settings.Year] = models.FiscalYearSettings{
-				TargetHours:    d.Settings.FiscalYearTargetHours,
-				VacationDaysH1: d.Settings.AnnualVacationDays,
+				TargetHours:  d.Settings.FiscalYearTargetHours,
+				VacationDays: d.Settings.AnnualVacationDays,
 			}
+		}
+	}
+	// Vacation used to be configured per FY half; fold those into the total.
+	for year, fy := range d.FiscalYears {
+		if fy.MigrateVacationDays() {
+			d.FiscalYears[year] = fy
 		}
 	}
 	// Ensure the non-deletable vacation project exists for the active FY and

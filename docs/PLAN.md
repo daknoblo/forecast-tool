@@ -25,7 +25,8 @@ file under `appdata/`. Built by GitHub Actions and pushed to GHCR, operated with
   `ai { endpoint, deployment, apiVersion }` (the API key is **not** in the file —
   it comes from `FORECAST_AI_API_KEY`), `utilization` (traffic-light thresholds
   and labels).
-- `FiscalYears` (per FY): `targetHours`, `vacationDaysH1`/`vacationDaysH2`,
+- `FiscalYears` (per FY): `targetHours`, `weekdayHours` (override of the gross
+  FY hours), `vacationDays`,
   `standardTaskLabel`, `standardTaskHours`. Defaults for new/unconfigured fiscal
   years (`models.DefaultFYSettings`): target 1440 h, vacation 15 days per half,
   standard tasks 250 h.
@@ -95,7 +96,7 @@ go.mod
   remaining budget and a burn-down SVG. Projects sharing an `assignmentId` with
   an earlier fiscal year carry that year's consumed hours over, so the budget of
   a multi-year assignment is only granted once.
-- **Goal/capacity**: FY target, vacation (per half-year), standard tasks,
+- **Goal/capacity**: FY target, vacation, standard tasks,
   available hours, target per week/month/quarter, half-year and quarter roll-ups.
 - **Settings**: FY start month, federal state (holidays), weekly target hours,
   per-FY values, utilization traffic light (`section=utilization`), AI endpoint

@@ -321,9 +321,9 @@ func TestSettingsAndFY(t *testing.T) {
 		t.Fatalf("invalid state should be 400, got %d", rr.Code)
 	}
 
-	// Per-FY settings drive the vacation project budget: (10+5)*8 = 120h.
+	// Per-FY settings drive the vacation project budget: 15*8 = 120h.
 	path := fmt.Sprintf("/api/v1/settings/fiscal-years/%d", year)
-	if rr := do(t, h, http.MethodPut, path, writeTok, map[string]any{"vacationDaysH1": 10, "vacationDaysH2": 5}); rr.Code != http.StatusOK {
+	if rr := do(t, h, http.MethodPut, path, writeTok, map[string]any{"vacationDays": 15}); rr.Code != http.StatusOK {
 		t.Fatalf("fy settings got %d (body: %s)", rr.Code, rr.Body.String())
 	}
 	rr := do(t, h, http.MethodGet, "/api/v1/projects/"+models.VacationProjectID(year), readTok, nil)
@@ -331,6 +331,13 @@ func TestSettingsAndFY(t *testing.T) {
 	_ = json.Unmarshal(rr.Body.Bytes(), &vac)
 	if vac.BudgetHours != 120 {
 		t.Fatalf("vacation budget should be 120, got %v", vac.BudgetHours)
+	}
+	// The deprecated half-year keys are still accepted and summed.
+	if rr := do(t, h, http.MethodPut, path, writeTok, map[string]any{"vacationDaysH1": 10, "vacationDaysH2": 5}); rr.Code != http.StatusOK {
+		t.Fatalf("legacy fy settings got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+	if got := st.Snapshot().FYFor(year).VacationDays; got != 15 {
+		t.Fatalf("legacy half-year keys should sum to 15, got %d", got)
 	}
 }
 

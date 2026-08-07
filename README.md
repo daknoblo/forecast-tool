@@ -49,7 +49,7 @@ optionally updated through an AI prompt.
 - Fiscal-year logic (configurable start month) with a central FY switcher in the
   header
 - Automatic public holidays (all 16 German federal states)
-- Configurable weekly target hours, vacation (per half-year) and standard tasks
+- Configurable weekly target hours, vacation and standard tasks
 - Goal/capacity calculation: available hours, utilization in %, target per
   week/month/quarter, plus an **hours-flow Sankey** (projects → months →
   quarters → half-years → fiscal year) and a progress chart per half-year and

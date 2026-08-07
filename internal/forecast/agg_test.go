@@ -476,6 +476,50 @@ func TestGoalSummaryTotals(t *testing.T) {
 	}
 }
 
+func TestFYCapacityBreakdownAndOverride(t *testing.T) {
+	d := models.Data{
+		Settings: models.Settings{Year: 2026, FederalState: "BY", FiscalYearStartMonth: 1},
+		FiscalYears: map[int]models.FiscalYearSettings{
+			2026: {TargetHours: 1000, VacationDays: 30, StandardTaskHours: 250},
+		},
+	}
+	cal := holidays.New(2026, "BY")
+
+	c := BuildFYCapacity(d, cal, 2026)
+	if c.Overridden {
+		t.Error("no override configured, must report the calendar value")
+	}
+	if c.WeekdayHours != c.WeekdayHoursAuto || c.WeekdayHours != round1(float64(c.WeekdayDays)*8) {
+		t.Errorf("gross hours = %v, want %d weekdays * 8h", c.WeekdayHours, c.WeekdayDays)
+	}
+	if c.VacationHours != 240 {
+		t.Errorf("vacation hours = %v, want 240", c.VacationHours)
+	}
+	if c.HolidayDays == 0 || c.HolidayHours != round1(float64(c.HolidayDays)*8) {
+		t.Errorf("holiday hours = %v for %d days", c.HolidayHours, c.HolidayDays)
+	}
+	want := round1(c.WeekdayHours - c.VacationHours - c.HolidayHours - 250)
+	if c.RemainingHours != want {
+		t.Errorf("remaining = %v, want %v", c.RemainingHours, want)
+	}
+
+	// A manual gross value wins over the calendar, in the capacity and the goal.
+	fy := d.FiscalYears[2026]
+	fy.WeekdayHours = 1800
+	d.FiscalYears[2026] = fy
+	c = BuildFYCapacity(d, cal, 2026)
+	if !c.Overridden || c.WeekdayHours != 1800 {
+		t.Errorf("override ignored: %+v", c)
+	}
+	gs := BuildGoalSummary(d, cal)
+	if gs.WeekdayHours != 1800 || gs.WeekdayHoursAuto != c.WeekdayHoursAuto {
+		t.Errorf("goal gross hours = %v (auto %v), want 1800", gs.WeekdayHours, gs.WeekdayHoursAuto)
+	}
+	if gs.AvailableHours != round1(1800-gs.HolidayHours-240-250) {
+		t.Errorf("available hours = %v, mismatch with the override", gs.AvailableHours)
+	}
+}
+
 func TestGoalHolidaysExcludedAndCapacity(t *testing.T) {
 	d := models.Data{
 		Settings: models.Settings{

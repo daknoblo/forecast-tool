@@ -35,17 +35,33 @@
     <label>Fiskaljahresziel (Stunden gesamt)
       <input type="text" inputmode="decimal" name="fyTarget" value="{{hoursRaw .FY.TargetHours}}">
     </label>
-    <label>Urlaub 1. Halbjahr ({{.H1Label}}) – Tage à 8 h
-      <input type="number" name="vacationH1" min="0" max="366" value="{{.FY.VacationDaysH1}}">
+    <label>Gesamt FY-Arbeitsstunden
+      <input type="text" inputmode="decimal" name="fyWeekdayHours" value="{{hoursRaw .Capacity.WeekdayHours}}" data-reload>
     </label>
-    <label>Urlaub 2. Halbjahr ({{.H2Label}}) – Tage à 8 h
-      <input type="number" name="vacationH2" min="0" max="366" value="{{.FY.VacationDaysH2}}">
+    <p class="hint">Vorberechnet aus {{.Capacity.WeekdayDays}} Wochentagen (Mo–Fr) à 8 h = {{hours .Capacity.WeekdayHoursAuto}} h. Ein eigener Wert wird gespeichert{{if .Capacity.Overridden}} (aktuell überschrieben){{end}}; trägst du wieder {{hours .Capacity.WeekdayHoursAuto}} ein, folgt das Feld erneut dem Kalender.</p>
+    <div class="field-pair">
+      <label>Urlaub – Tage
+        <input type="number" name="vacationDays" min="0" max="366" value="{{.FY.VacationDays}}" data-reload>
+      </label>
+      <label>Urlaub – Stunden
+        <input type="text" value="{{hoursRaw .Capacity.VacationHours}}" readonly tabindex="-1">
+      </label>
+    </div>
+    <div class="field-pair">
+      <label>Feiertage ({{.Settings.FederalState}}) – Tage
+        <input type="text" value="{{.Capacity.HolidayDays}}" readonly tabindex="-1">
+      </label>
+      <label>Feiertage – Stunden
+        <input type="text" value="{{hoursRaw .Capacity.HolidayHours}}" readonly tabindex="-1">
+      </label>
+    </div>
+    <label>{{if .FY.StandardTaskLabel}}{{.FY.StandardTaskLabel}}{{else}}Standard Tasks{{end}} – Stunden
+      <input type="text" inputmode="decimal" name="standardTaskHours" value="{{hoursRaw .FY.StandardTaskHours}}" data-reload>
     </label>
-    <p class="hint">Urlaub wird pro Halbjahr angegeben, da sich das Fiskaljahr über zwei Kalenderjahre erstreckt und der Urlaubsanspruch pro Kalenderjahr zählt.</p>
-    <label>Standard Tasks (Stunden gesamt fürs FY)
-      <input type="text" inputmode="decimal" name="standardTaskHours" value="{{hoursRaw .FY.StandardTaskHours}}">
+    <label>Verbleibende zu leistende FY-Stunden
+      <input type="text" class="computed" value="{{hoursRaw .Capacity.RemainingHours}}" readonly tabindex="-1">
     </label>
-    <p class="hint">Standard Tasks werden – wie Feiertage und Urlaub – von den FY-Gesamtstunden abgezogen.</p>
+    <p class="hint">Urlaubs- und Feiertagsstunden ergeben sich aus den Tagen à 8 h; die Feiertage kommen aus dem oben gewählten Bundesland. Verbleibend = Gesamt − Urlaub − Feiertage − Standard Tasks.</p>
 
     <span class="save-status ok" data-save-status>Automatisch gespeichert</span>
   </form>
@@ -100,8 +116,8 @@
       <input type="text" name="aiApiVersion" value="{{.Settings.AI.APIVersion}}" placeholder="2024-10-21">
     </label>
     <label>API-Key
-      {{if .AIKeySet}}<span class="msg ok" style="display:inline-block;padding:0.3rem 0.6rem;margin:0">aus Umgebungsvariable <code>{{.AIKeyEnv}}</code> geladen</span>
-      {{else}}<span class="msg error" style="display:inline-block;padding:0.3rem 0.6rem;margin:0">nicht gesetzt</span>{{end}}
+      {{if .AIKeySet}}<span class="badge ok">aus Umgebungsvariable <code>{{.AIKeyEnv}}</code> geladen</span>
+      {{else}}<span class="badge error">nicht gesetzt</span>{{end}}
     </label>
     <p class="hint">Der API-Key wird <strong>nicht</strong> in der Datendatei gespeichert, sondern über die Umgebungsvariable <code>{{.AIKeyEnv}}</code> bereitgestellt (z. B. als Docker-Secret bzw. <code>environment</code>-Eintrag in <code>docker-compose.yml</code>).{{if .AIKeyInStore}} Es liegt noch ein veralteter Key in der Datendatei – ändere ein Feld in dieser Karte (z. B. die API-Version neu eintragen und das Feld verlassen), um ihn zu entfernen, und rotiere den Schlüssel.{{end}}</p>
     <span class="save-status ok" data-save-status>Automatisch gespeichert</span>
@@ -111,14 +127,16 @@
 <section class="card">
   <h2>API-Zugriff</h2>
   <p class="hint">Die JSON-API unter <code>/api/v1</code> erlaubt externen Tools (z.&nbsp;B. vom Desktop) das Lesen und Synchronisieren von Forecast- und Ist-Stunden. Die Web-Oberfläche bleibt ohne Authentifizierung; nur <code>/api/**</code> ist über zwei Bearer-Tokens geschützt. Details in der <code>docs/API.md</code>.</p>
-  <table class="kv">
+  <table class="kv tokens">
     <tr>
-      <td>Lese-Token <code>{{.APIReadEnv}}</code></td>
-      <td>{{if .APIReadSet}}<span class="msg ok" style="display:inline-block;padding:0.3rem 0.6rem;margin:0">gesetzt</span>{{else}}<span class="msg error" style="display:inline-block;padding:0.3rem 0.6rem;margin:0">nicht gesetzt</span>{{end}}</td>
+      <td>Lese-Token</td>
+      <td><code>{{.APIReadEnv}}</code></td>
+      <td>{{if .APIReadSet}}<span class="badge ok">gesetzt</span>{{else}}<span class="badge error">nicht gesetzt</span>{{end}}</td>
     </tr>
     <tr>
-      <td>Schreib-Token <code>{{.APIWriteEnv}}</code></td>
-      <td>{{if .APIWriteSet}}<span class="msg ok" style="display:inline-block;padding:0.3rem 0.6rem;margin:0">gesetzt</span>{{else}}<span class="msg error" style="display:inline-block;padding:0.3rem 0.6rem;margin:0">nicht gesetzt</span>{{end}}</td>
+      <td>Schreib-Token</td>
+      <td><code>{{.APIWriteEnv}}</code></td>
+      <td>{{if .APIWriteSet}}<span class="badge ok">gesetzt</span>{{else}}<span class="badge error">nicht gesetzt</span>{{end}}</td>
     </tr>
   </table>
   <p class="hint">Die Tokens werden <strong>nicht</strong> in der Datendatei gespeichert, sondern über Umgebungsvariablen bereitgestellt (z.&nbsp;B. als Docker-Secret bzw. <code>environment</code>-Eintrag in <code>docker-compose.yml</code>). Der Lese-Token erlaubt nur GET-Zugriffe, der Schreib-Token zusätzlich Änderungen. Ist keiner gesetzt, ist die API deaktiviert.</p>

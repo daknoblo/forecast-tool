@@ -39,9 +39,9 @@ func TestClassifyUtilizationFallback(t *testing.T) {
 func TestEnsureVacationProject(t *testing.T) {
 	d := Data{
 		Settings:    Settings{Year: 2026, FiscalYearStartMonth: 7},
-		FiscalYears: map[int]FiscalYearSettings{2026: {TargetHours: 1000, VacationDaysH1: 10, VacationDaysH2: 5}},
+		FiscalYears: map[int]FiscalYearSettings{2026: {TargetHours: 1000, VacationDays: 15}},
 	}
-	// First call creates the project with budget (10+5)*8 = 120.
+	// First call creates the project with budget 15*8 = 120.
 	if !EnsureVacationProject(&d, 2026) {
 		t.Fatal("expected EnsureVacationProject to report a change on first call")
 	}
@@ -66,12 +66,29 @@ func TestEnsureVacationProject(t *testing.T) {
 		t.Errorf("projects = %d after second call, want 1", len(d.Projects))
 	}
 	// Changing vacation days re-syncs the budget.
-	d.FiscalYears[2026] = FiscalYearSettings{TargetHours: 1000, VacationDaysH1: 20, VacationDaysH2: 5}
+	d.FiscalYears[2026] = FiscalYearSettings{TargetHours: 1000, VacationDays: 25}
 	if !EnsureVacationProject(&d, 2026) {
 		t.Error("expected change after vacation days increased")
 	}
-	if d.Projects[0].BudgetHours != 200 { // (20+5)*8
+	if d.Projects[0].BudgetHours != 200 { // 25*8
 		t.Errorf("budget = %v, want 200", d.Projects[0].BudgetHours)
+	}
+}
+
+func TestFYForFoldsLegacyHalfYearVacation(t *testing.T) {
+	d := Data{
+		Settings:    Settings{Year: 2026, FiscalYearStartMonth: 7},
+		FiscalYears: map[int]FiscalYearSettings{2026: {VacationDaysH1: 12, VacationDaysH2: 18}},
+	}
+	fy := d.FYFor(2026)
+	if fy.VacationDays != 30 {
+		t.Errorf("vacation days = %d, want 30", fy.VacationDays)
+	}
+	if fy.VacationDaysH1 != 0 || fy.VacationDaysH2 != 0 {
+		t.Error("legacy half-year fields must be cleared")
+	}
+	if fy.VacationBudgetHours() != 240 {
+		t.Errorf("budget = %v, want 240", fy.VacationBudgetHours())
 	}
 }
 

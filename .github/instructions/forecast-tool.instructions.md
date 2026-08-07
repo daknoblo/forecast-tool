@@ -72,9 +72,15 @@ collects every requirement stated so far as the binding reference.
   supplied exclusively through the `FORECAST_AI_API_KEY` environment variable
   (`AISettings.APIKey` is `omitempty` and only a legacy read fallback).
 - `FiscalYearSettings` (per FY, in `Data.FiscalYears map[int]...`): targetHours,
-  vacationDaysH1, vacationDaysH2, standardTaskLabel, standardTaskHours.
-- Legacy fields (`fiscalYearTargetHours`, `annualVacationDays`) are kept
-  `omitempty` for migration and the `FYFor` fallback only.
+  weekdayHours, vacationDays, standardTaskLabel, standardTaskHours.
+  `weekdayHours` is an **override of the gross FY hours**; `0` means "follow the
+  calendar" (`weekdays × 8 h`), so the field keeps tracking the year unless the
+  user really typed a different number.
+- Legacy fields (`fiscalYearTargetHours`, `annualVacationDays`,
+  `vacationDaysH1`/`vacationDaysH2`) are kept `omitempty` for migration and the
+  `FYFor` fallback only. `FiscalYearSettings.MigrateVacationDays` folds the two
+  half-year values into `vacationDays`; `storage.normalize` and `Data.FYFor`
+  both call it, so no caller ever sees the legacy split.
 
 ## Defaults
 
@@ -116,13 +122,28 @@ collects every requirement stated so far as the binding reference.
   the active fiscal year — that stays the job of the header dropdown
   (`POST /fy`).
 
-## Vacation (per half-year)
+## Per-FY hours configuration
 
-- Vacation entitlement counts **per calendar year**, while a fiscal year spans
-  two calendar years. Vacation is therefore entered **separately for H1 and H2**
-  (days à 8 h).
-- In the capacity view it is reported separately as "Urlaub 1. Halbjahr" /
-  "Urlaub 2. Halbjahr".
+- The per-FY block of the settings page reads **top-down as one calculation**:
+  gross FY hours → − vacation → − public holidays → − standard tasks →
+  "Verbleibende zu leistende FY-Stunden". Keep that order; it is what makes the
+  numbers legible.
+- **Gross FY hours** are an editable input pre-filled with `weekdays × 8 h`
+  (`FYCapacity.WeekdayHoursAuto`). A manually entered value is persisted in
+  `FiscalYearSettings.WeekdayHours`; typing the calendar value again **clears**
+  the override, so the field starts tracking the calendar once more. Never store
+  the computed value as an override — a stored value would silently go stale
+  when the FY start month or year changes.
+- **Vacation and public holidays are day/hour pairs** (`.field-pair`, two inputs
+  side by side). Only the vacation *days* are editable; the vacation hours and
+  both holiday fields are `readonly` and carry no `name`, so they are never
+  posted. Holidays come from the configured federal state.
+- Everything that changes a derived field carries `data-reload`, so the
+  autosave in `partials.html` reloads the page and the server recomputes the
+  read-only fields. Do **not** duplicate the arithmetic in JavaScript.
+- `forecast.BuildFYCapacity(d, cal, year)` is the single source of that
+  breakdown and works for **any** fiscal year (unlike `BuildGoalSummary`, which
+  is bound to the active one), because the settings page can edit `?year=`.
 
 ## Vacation as a project
 
@@ -133,7 +154,7 @@ collects every requirement stated so far as the binding reference.
   `models.EnsureVacationProject(d, year)` – called in `storage.normalize`
   (load + JSON editor + first start via `load()`), on an FY switch
   (`handleSetActiveFY`) and when saving the settings (`handleSettingsSave`).
-- **Budget = (VacationDaysH1 + VacationDaysH2) × 8 h** from the FY settings
+- **Budget = VacationDays × 8 h** from the FY settings
   (`FiscalYearSettings.VacationBudgetHours`) – this is the **only** automatically
   managed value: `EnsureVacationProject` synchronizes the budget only (plus the
   name when it is empty).

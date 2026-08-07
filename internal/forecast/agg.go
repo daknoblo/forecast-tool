@@ -1017,14 +1017,11 @@ type GoalSummary struct {
 	Halves            []PeriodStat // H1 (first 6 FY months) and H2 (last 6)
 
 	// Capacity overview (working time available in the FY).
-	WeekdayHours      float64 // all FY weekdays (Mon-Fri) * 8h, weekends excluded
+	WeekdayHours      float64 // gross FY hours: weekdays (Mon-Fri) * 8h, or the configured override
+	WeekdayHoursAuto  float64 // the calendar-derived value, before any override
 	WeekdayDays       int     // number of weekdays in the FY
-	VacationDays      int     // planned vacation days (H1 + H2)
+	VacationDays      int     // planned vacation days
 	VacationHours     float64 // vacation days * 8h
-	VacationDaysH1    int     // vacation days in the first FY half
-	VacationDaysH2    int     // vacation days in the second FY half
-	VacationHoursH1   float64
-	VacationHoursH2   float64
 	StandardTaskLabel string  // free-text label for recurring standard tasks
 	StandardTaskHours float64 // hours deducted like holidays/vacation
 	AvailableHours    float64 // WeekdayHours - HolidayHours - VacationHours - StandardTaskHours
@@ -1035,6 +1032,56 @@ type GoalSummary struct {
 	RemainingGoal     float64 // target - actual booked (>= 0)
 	RemainingWorkdays int     // remaining working days (weekdays minus holidays)
 	RequiredPerDay    float64 // RemainingGoal / RemainingWorkdays
+}
+
+// FYCapacity breaks the hour budget of a fiscal year down from the gross
+// weekday hours to the hours that actually have to be delivered. Unlike
+// BuildGoalSummary it works for any fiscal year, not just the active one, so
+// the settings page can show the same arithmetic while another FY is edited.
+type FYCapacity struct {
+	WeekdayDays       int
+	WeekdayHoursAuto  float64 // weekdays * 8h, straight from the calendar
+	WeekdayHours      float64 // the configured override, or WeekdayHoursAuto
+	Overridden        bool    // true when a manual gross value is stored
+	VacationDays      int
+	VacationHours     float64
+	HolidayDays       int
+	HolidayHours      float64
+	StandardTaskLabel string
+	StandardTaskHours float64
+	RemainingHours    float64 // WeekdayHours - vacation - holidays - standard tasks
+}
+
+// BuildFYCapacity computes the capacity breakdown of the given fiscal year.
+// The calendar must cover that year.
+func BuildFYCapacity(d models.Data, cal *holidays.Calendar, year int) FYCapacity {
+	fy := d.FYFor(year)
+	fyStart, fyEnd := FiscalYear(year, normMonth(d.Settings.FiscalYearStartMonth))
+
+	c := FYCapacity{
+		VacationDays:      fy.VacationDays,
+		StandardTaskLabel: fy.StandardTaskLabel,
+		StandardTaskHours: round1(fy.StandardTaskHours),
+	}
+	for day := fyStart; !day.After(fyEnd); day = day.AddDate(0, 0, 1) {
+		if wd := day.Weekday(); wd == time.Saturday || wd == time.Sunday {
+			continue
+		}
+		c.WeekdayDays++
+		if cal.IsHoliday(day.Format("2006-01-02")) {
+			c.HolidayDays++
+		}
+	}
+	c.WeekdayHoursAuto = round1(float64(c.WeekdayDays) * HolidayDayHours)
+	c.WeekdayHours = c.WeekdayHoursAuto
+	if fy.WeekdayHours > 0 {
+		c.WeekdayHours = round1(fy.WeekdayHours)
+		c.Overridden = true
+	}
+	c.HolidayHours = round1(float64(c.HolidayDays) * HolidayDayHours)
+	c.VacationHours = round1(float64(c.VacationDays) * HolidayDayHours)
+	c.RemainingHours = round1(c.WeekdayHours - c.VacationHours - c.HolidayHours - c.StandardTaskHours)
+	return c
 }
 
 // BuildGoalSummary computes fiscal-year goal attainment. Each day carries a
@@ -1170,14 +1217,14 @@ func BuildGoalSummary(d models.Data, cal *holidays.Calendar) GoalSummary {
 	}
 
 	// Capacity overview: gross weekday hours minus holidays, planned vacation
-	// (per half-year) and recurring standard tasks.
+	// and recurring standard tasks.
 	gs.WeekdayDays = weekdayDays
-	gs.WeekdayHours = round1(float64(weekdayDays) * HolidayDayHours)
-	gs.VacationDaysH1 = fy.VacationDaysH1
-	gs.VacationDaysH2 = fy.VacationDaysH2
-	gs.VacationDays = fy.VacationDaysH1 + fy.VacationDaysH2
-	gs.VacationHoursH1 = round1(float64(fy.VacationDaysH1) * HolidayDayHours)
-	gs.VacationHoursH2 = round1(float64(fy.VacationDaysH2) * HolidayDayHours)
+	gs.WeekdayHoursAuto = round1(float64(weekdayDays) * HolidayDayHours)
+	gs.WeekdayHours = gs.WeekdayHoursAuto
+	if fy.WeekdayHours > 0 {
+		gs.WeekdayHours = round1(fy.WeekdayHours)
+	}
+	gs.VacationDays = fy.VacationDays
 	gs.VacationHours = round1(float64(gs.VacationDays) * HolidayDayHours)
 	gs.StandardTaskLabel = fy.StandardTaskLabel
 	gs.StandardTaskHours = round1(fy.StandardTaskHours)

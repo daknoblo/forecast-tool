@@ -314,15 +314,18 @@ curl -X PUT https://host/api/v1/settings \
 
 ### `PUT /api/v1/settings/fiscal-years/{year}` — per-FY settings
 
-Partial update of the FY values: `targetHours`, `vacationDaysH1`,
-`vacationDaysH2` (0–366), `standardTaskLabel`, `standardTaskHours`. The
-**vacation budget** of the vacation project is automatically synchronized to
-`(vacationDaysH1 + vacationDaysH2) × 8 h`.
+Partial update of the FY values: `targetHours`, `weekdayHours` (gross FY hours;
+`0` keeps the calendar-derived value), `vacationDays` (0–366),
+`standardTaskLabel`, `standardTaskHours`. The **vacation budget** of the
+vacation project is automatically synchronized to `vacationDays × 8 h`.
+
+The deprecated keys `vacationDaysH1`/`vacationDaysH2` are still accepted and
+summed into `vacationDays`.
 
 ```bash
 curl -X PUT https://host/api/v1/settings/fiscal-years/2027 \
   -H "Authorization: Bearer $WRITE" -H "Content-Type: application/json" \
-  -d '{"targetHours":1440,"vacationDaysH1":15,"vacationDaysH2":15,"standardTaskHours":250}'
+  -d '{"targetHours":1440,"vacationDays":30,"standardTaskHours":250}'
 ```
 ```json
 { "fiscalYear": 2027, "settings": { … }, "vacationBudgetHours": 240 }

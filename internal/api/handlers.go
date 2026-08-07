@@ -669,10 +669,34 @@ func applyUtilization(dst *models.UtilizationSettings, u *utilInput) {
 
 type fySettingsInput struct {
 	TargetHours       *float64 `json:"targetHours"`
-	VacationDaysH1    *int     `json:"vacationDaysH1"`
-	VacationDaysH2    *int     `json:"vacationDaysH2"`
+	WeekdayHours      *float64 `json:"weekdayHours"`
+	VacationDays      *int     `json:"vacationDays"`
 	StandardTaskLabel *string  `json:"standardTaskLabel"`
 	StandardTaskHours *float64 `json:"standardTaskHours"`
+
+	// Deprecated: vacation used to be split per FY half. Both keys are still
+	// accepted and summed into VacationDays.
+	VacationDaysH1 *int `json:"vacationDaysH1"`
+	VacationDaysH2 *int `json:"vacationDaysH2"`
+}
+
+// vacationDays resolves the requested vacation days, folding the deprecated
+// per-half keys into the total. It returns false when nothing was sent.
+func (in fySettingsInput) vacationDays() (int, bool) {
+	if in.VacationDays != nil {
+		return *in.VacationDays, true
+	}
+	if in.VacationDaysH1 == nil && in.VacationDaysH2 == nil {
+		return 0, false
+	}
+	days := 0
+	if in.VacationDaysH1 != nil {
+		days += *in.VacationDaysH1
+	}
+	if in.VacationDaysH2 != nil {
+		days += *in.VacationDaysH2
+	}
+	return days, true
 }
 
 // handleUpdateFYSettings upserts the settings of one fiscal year and keeps that
@@ -692,12 +716,13 @@ func (s *Server) handleUpdateFYSettings(w http.ResponseWriter, r *http.Request) 
 		s.writeError(w, http.StatusBadRequest, "targetHours darf nicht negativ sein")
 		return
 	}
-	if in.VacationDaysH1 != nil && (*in.VacationDaysH1 < 0 || *in.VacationDaysH1 > 366) {
-		s.writeError(w, http.StatusBadRequest, "vacationDaysH1 muss zwischen 0 und 366 liegen")
+	if in.WeekdayHours != nil && *in.WeekdayHours < 0 {
+		s.writeError(w, http.StatusBadRequest, "weekdayHours darf nicht negativ sein")
 		return
 	}
-	if in.VacationDaysH2 != nil && (*in.VacationDaysH2 < 0 || *in.VacationDaysH2 > 366) {
-		s.writeError(w, http.StatusBadRequest, "vacationDaysH2 muss zwischen 0 und 366 liegen")
+	vacDays, hasVacDays := in.vacationDays()
+	if hasVacDays && (vacDays < 0 || vacDays > 366) {
+		s.writeError(w, http.StatusBadRequest, "vacationDays muss zwischen 0 und 366 liegen")
 		return
 	}
 	if in.StandardTaskHours != nil && *in.StandardTaskHours < 0 {
@@ -714,11 +739,11 @@ func (s *Server) handleUpdateFYSettings(w http.ResponseWriter, r *http.Request) 
 		if in.TargetHours != nil {
 			fy.TargetHours = *in.TargetHours
 		}
-		if in.VacationDaysH1 != nil {
-			fy.VacationDaysH1 = *in.VacationDaysH1
+		if in.WeekdayHours != nil {
+			fy.WeekdayHours = *in.WeekdayHours
 		}
-		if in.VacationDaysH2 != nil {
-			fy.VacationDaysH2 = *in.VacationDaysH2
+		if hasVacDays {
+			fy.VacationDays = vacDays
 		}
 		if in.StandardTaskLabel != nil {
 			fy.StandardTaskLabel = capLen(strings.TrimSpace(*in.StandardTaskLabel), 200)
