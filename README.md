@@ -14,11 +14,36 @@ configurable). Public holidays are applied automatically per German federal
 state.
 
 Data lives in a single JSON file under `appdata/data.json` — no database
-required. The file can be edited directly in the browser, exported, and
-optionally updated through an AI prompt.
+required. The file can be exported at any time and analysed through an AI
+prompt on the goals page.
 
 > **Note on language:** the user interface is intentionally German. Everything
 > else in this repository (code, comments, documentation) is English.
+
+## Demo & screenshots
+**[→ Live demo and documentation site](https://daknoblo.github.io/forecast-tool/)**
+
+The site is rebuilt on every push to `main`: the application is started with a
+generated demo data set, every page is captured as a **clickable static
+snapshot**, the screenshots below are taken automatically and the Markdown files
+of this repository are rendered alongside them. So the documentation, the demo
+and the screenshots can never drift away from the code.
+
+| | |
+|---|---|
+| [![Dashboard](https://daknoblo.github.io/forecast-tool/screenshots/dashboard.png)](https://daknoblo.github.io/forecast-tool/screenshots.html#dashboard.png) | [![Forecast grid](https://daknoblo.github.io/forecast-tool/screenshots/forecast.png)](https://daknoblo.github.io/forecast-tool/screenshots.html#forecast.png) |
+| **Dashboard** – KPI tiles, utilization Sankey, free capacity, budgets | **Forecast grid** – projects × days, one hours value per day, auto-saved |
+| [![Goals](https://daknoblo.github.io/forecast-tool/screenshots/goal.png)](https://daknoblo.github.io/forecast-tool/screenshots.html#goal.png) | [![Projects](https://daknoblo.github.io/forecast-tool/screenshots/projects.png)](https://daknoblo.github.io/forecast-tool/screenshots.html#projects.png) |
+| **Goals & capacity** – derived FY target, hours flow, progress charts | **Projects** – budget, carry-over, burn rate, burn-down |
+
+Building the site locally:
+```bash
+(cd tools/screenshots && npm ci && npx playwright install chromium)
+go run ./cmd/docsite -out site
+# then open site/index.html
+```
+`go run ./cmd/docsite -out site -screenshots=false` skips the browser step and
+only renders the docs and the demo snapshot.
 
 ## Features
 - Projects with an hour budget (CRUD, colour, active/inactive), scoped to a
@@ -66,11 +91,10 @@ optionally updated through an AI prompt.
   (today is excluded while it is still running, vacation does not count)
 - **Private mode**: a header toggle that masks all project names and figures —
   useful when sharing a screen
-- **JSON editor** in the browser: edit, export and save the whole data file with
-  server-side validation
-- **AI update**: update the JSON via a prompt against a configurable,
-  Azure OpenAI-compatible endpoint (e.g. an Azure AI Foundry model router) — the
-  result is validated before it can be saved
+- **Chat with your data**: ask questions about the fiscal year in plain language
+  against a configurable, Azure OpenAI-compatible endpoint (e.g. an Azure AI
+  Foundry model router); only a compact summary is sent, never the raw file
+- **Export** the whole data file as JSON from the settings page
 - **HTTP JSON API** under `/api/v1` for external clients, protected by bearer tokens
 - Data stored as JSON in a volume; runs as a small distroless container
 
@@ -246,6 +270,10 @@ signs keyless with cosign and uploads the Trivy SARIF report.
 [.github/workflows/codeql.yml](.github/workflows/codeql.yml) runs CodeQL
 analysis on every push and pull request, plus weekly.
 
+[.github/workflows/pages.yml](.github/workflows/pages.yml) rebuilds the
+documentation site (docs, screenshots, demo snapshot) on every push to `main`
+and publishes it to GitHub Pages.
+
 Every push to `main` builds and pushes a multi-arch image tagged `latest` plus
 `sha-<short>` for pinning an exact commit
 (`ghcr.io/daknoblo/forecast-tool:latest`). Pushing a git tag `v1.2.3`
@@ -325,7 +353,9 @@ go test ./...
 ```
 
 ## Project structure & plan
-See [docs/PLAN.md](docs/PLAN.md) for the architecture and design decisions.
+See [docs/PLAN.md](docs/PLAN.md) for the architecture and design decisions, and
+[docs/DOCSITE.md](docs/DOCSITE.md) for how the demo, the screenshots and the
+published site are generated.
 
 
 ## License

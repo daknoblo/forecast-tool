@@ -1,0 +1,78 @@
+name: Pages
+
+# Publishes the documentation site: rendered Markdown, an automatically
+# captured screenshot gallery and a clickable static snapshot of the
+# application running on generated demo data. Everything is rebuilt from
+# scratch on every push, so a new feature ships with up-to-date docs.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Never cancel a running deployment: GitHub Pages allows only one at a time.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build docs, demo & screenshots
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tools/screenshots/package-lock.json
+
+      - name: Install screenshot tooling
+        working-directory: tools/screenshots
+        run: npm ci
+
+      - name: Install Chromium
+        working-directory: tools/screenshots
+        run: npx playwright install --with-deps chromium
+
+      - name: Build site
+        run: go run ./cmd/docsite -out site -require-screenshots
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+          # site/.nojekyll is hidden and would otherwise be dropped.
+          include-hidden-files: true
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v5

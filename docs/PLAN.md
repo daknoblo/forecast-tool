@@ -128,6 +128,10 @@ go.mod
   (public/private) are cloned once at startup; static assets are served immutable
   with a content-hash query.
 - **Security**: see the "Security model" section in the README.
+- **Documentation**: the public site (docs, screenshot gallery and a clickable
+  static snapshot of the running application) is generated from this repository
+  by `cmd/docsite` and published to GitHub Pages on every push to `main`, so it
+  cannot drift away from the code. See [DOCSITE.md](DOCSITE.md).
 
 ## Verification
 - `gofmt`, `go vet ./...`, `go build ./...` and `go test ./...` must be clean

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} · Forecast Tool</title>
+<meta name="description" content="{{.Lead}}">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="index.html">Forecast&nbsp;Tool</a>
+  <nav>
+    {{range .Nav}}<a href="{{.Href}}"{{if .External}} target="_blank" rel="noopener noreferrer"{{end}}{{if eq .Href $.Active}} class="active"{{end}}>{{.Label}}</a>{{end}}
+  </nav>
+</header>
+
+{{if .Hero}}
+<section class="hero">
+  <h1>Forecast Tool</h1>
+  <p>{{.Lead}}</p>
+  <p class="hero-actions">
+    <a class="btn primary" href="demo/index.html">Live-Demo öffnen</a>
+    <a class="btn" href="screenshots.html">Screenshots</a>
+    <a class="btn" href="{{.RepoURL}}" target="_blank" rel="noopener noreferrer">Quellcode</a>
+  </p>
+  <p class="hero-note">Die Demo ist ein statischer Abzug der echten Anwendung mit Beispieldaten – klickbar, aber ohne Speichern.</p>
+</section>
+{{end}}
+
+<main>
+{{if not .Hero}}<h1>{{.Title}}</h1>{{if .Lead}}<p class="lead">{{.Lead}}</p>{{end}}{{end}}
+
+{{if eq .Active "screenshots.html"}}
+<div class="shots">
+  {{range .Shots}}
+  <figure id="{{.File}}">
+    <a href="screenshots/{{.File}}"><img src="screenshots/{{.File}}" alt="{{.Title}}" loading="lazy"></a>
+    <figcaption><strong>{{.Title}}</strong> {{.Description}}</figcaption>
+  </figure>
+  {{end}}
+</div>
+<h2 id="demo">Demo durchklicken</h2>
+<p>Jede Seite gibt es zusätzlich als statischen Abzug mit denselben Beispieldaten:</p>
+<p class="chips">
+  {{range .DemoPages}}{{if .Title}}<a class="chip" href="demo/{{.File}}">{{.Title}}</a>{{end}}{{end}}
+</p>
+{{else}}
+{{.Content}}
+{{end}}
+</main>
+
+<footer>
+  <span>Forecast Tool · automatisch erzeugt am {{.GeneratedAt}}</span>
+  <a href="{{.RepoURL}}" target="_blank" rel="noopener noreferrer">github.com/daknoblo/forecast-tool</a>
+</footer>
+</body>
+</html>

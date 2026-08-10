@@ -740,6 +740,40 @@ collects every requirement stated so far as the binding reference.
   **never the API key**. Errors and warnings therefore also show up in the
   container output for debugging.
 
+## Documentation site, demo & screenshots
+
+- The public site (GitHub Pages) is **generated, never hand-written**:
+  `go run ./cmd/docsite -out site` starts the real application in-process on a
+  loopback port against a generated demo document and derives everything from
+  that instance. `.github/workflows/pages.yml` runs the same command on every
+  push to `main`, so docs, demo and screenshots can never drift from the code.
+- `internal/docsite` holds the four steps: `demo.go` (deterministic demo data),
+  `snapshot.go` (static, clickable copy of every GET page), `shots.go` (the shot
+  list handed to `tools/screenshots/capture.mjs`) and `site.go` (Markdown →
+  HTML with goldmark, plus the screenshot gallery).
+- **The demo data must stay deterministic**: it is anchored on today and derives
+  its pattern from a hash of the date (`docsite.hash`), never from
+  `math/rand`. It covers every feature that has to be visible in a screenshot –
+  several assignments, the automatic vacation project, a carry-over from the
+  previous fiscal year, booked days in the past and forecast days ahead.
+- **The snapshot must stay inert.** `rewrite` points every internal link at its
+  local file, copies the stylesheet and injects a script that swallows form
+  submits and `fetch` – there is no server behind the published copy, and
+  without the stub the auto-save would show a red "save failed" pill. Links to
+  pages that were not captured fall back to the closest captured page
+  (`fallbackURL`), so nothing dead-ends.
+- **A new route belongs in `docsite.DemoPages`, a new screenshot in
+  `docsite.DemoShots`, a new document in `markdownPages` + `nav`.** The shot
+  title and description are German (they are the gallery caption); the rendered
+  documents stay English, like the rest of the repository.
+- Screenshots need `npm ci` + `npx playwright install chromium` in
+  `tools/screenshots`. Without them the build only warns and skips the gallery;
+  CI passes `-require-screenshots` so a broken capture fails the workflow.
+- The README embeds the screenshots through their **Pages URLs**; the PNGs are
+  build artifacts and are deliberately **not committed** (`/site/` is ignored).
+- Enabling the site is a one-time manual step: *Settings → Pages → Source:
+  GitHub Actions*. See `docs/DOCSITE.md`.
+
 ## Working conventions (for the agent)
 
 - Before committing: `gofmt`, `go vet ./...`, `go build ./...` and
@@ -749,3 +783,5 @@ collects every requirement stated so far as the binding reference.
 - Do not create separate markdown documentation files unless explicitly asked.
 - Templates and static files live under `internal/web/` (via `embed`), not in the
   repository root.
+- **When a feature changes the UI, check `internal/docsite`**: does the demo data
+  still show it, is the page part of the snapshot, does a screenshot cover it?

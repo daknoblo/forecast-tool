@@ -1,0 +1,12 @@
+{
+  "name": "forecast-tool-screenshots",
+  "private": true,
+  "type": "module",
+  "description": "Playwright helper that captures the documentation screenshots of the demo instance.",
+  "scripts": {
+    "install-browser": "playwright install --with-deps chromium"
+  },
+  "dependencies": {
+    "playwright": "1.56.1"
+  }
+}

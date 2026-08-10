@@ -5,6 +5,10 @@
 /forecast
 /out/
 
+# Generated documentation site (built by `go run ./cmd/docsite`)
+/site/
+/tools/screenshots/node_modules/
+
 # Go
 *.test
 *.out
