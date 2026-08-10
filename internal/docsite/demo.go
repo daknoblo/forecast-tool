@@ -41,12 +41,14 @@ type demoProject struct {
 	carryOver float64
 }
 
+// demoProjects are deliberately short-named: the hours-flow chart renders the
+// project labels into a fixed left padding, where a long name would be clipped.
 var demoProjects = []demoProject{
-	{assignmentID: "5641245", name: "Migration Cloud-Plattform", budget: 480, color: "#2563eb", startMonth: 0, endMonth: 8, share: 5, carryOver: 130},
+	{assignmentID: "5641245", name: "Cloud-Migration", budget: 480, color: "#2563eb", startMonth: 0, endMonth: 8, share: 5, carryOver: 130},
 	{assignmentID: "5698112", name: "Betrieb & Support", budget: 260, color: "#0d9488", startMonth: -1, endMonth: -1, share: 4},
-	{assignmentID: "5701330", name: "Data-Warehouse Ablösung", budget: 340, color: "#d97706", startMonth: 2, endMonth: 11, share: 4},
+	{assignmentID: "5701330", name: "Data-Warehouse", budget: 340, color: "#d97706", startMonth: 2, endMonth: 11, share: 4},
 	{assignmentID: "5712004", name: "Security-Audit", budget: 120, color: "#dc2626", startMonth: 5, endMonth: 7, share: 3},
-	{assignmentID: "5720881", name: "Innovation & Weiterbildung", budget: 90, color: "#7c3aed", startMonth: -1, endMonth: -1, share: 1},
+	{assignmentID: "5720881", name: "Weiterbildung", budget: 90, color: "#7c3aed", startMonth: -1, endMonth: -1, share: 1},
 }
 
 // WriteDemoData builds a deterministic demo document and writes it to
@@ -146,7 +148,9 @@ func demoEntries(projects []models.Project, today time.Time, year int, fyStart, 
 	vacationID := models.VacationProjectID(year)
 	vacation := vacationWeeks(today, fyStart, fyEnd)
 
-	last := today.AddDate(0, 0, demoForecastWeeks*7)
+	// End on a Friday, otherwise the horizon cuts a week in half and the last
+	// Sankey column shows a stub.
+	last := mondayOf(today.AddDate(0, 0, demoForecastWeeks*7)).AddDate(0, 0, 4)
 	if last.After(fyEnd) {
 		last = fyEnd
 	}
@@ -259,8 +263,9 @@ func carryOverEntries(fyStart time.Time) []models.Entry {
 }
 
 // vacationWeeks returns the ISO dates covered by the demo vacation: one week
-// already taken, one still ahead, plus a bridge day - enough for the vacation
-// band in the Sankey to absorb and release the other projects.
+// already taken, one in the week after today - close enough to show up in the
+// forecast screenshot and in the default Sankey horizon - plus a bridge day, so
+// the vacation band visibly absorbs the other projects and releases them again.
 func vacationWeeks(today, fyStart, fyEnd time.Time) map[string]bool {
 	out := map[string]bool{}
 	mark := func(from time.Time, days int) {
@@ -276,7 +281,7 @@ func vacationWeeks(today, fyStart, fyEnd time.Time) map[string]bool {
 		}
 	}
 	mark(mondayOf(today.AddDate(0, 0, -35)), 5)
-	mark(mondayOf(today.AddDate(0, 0, 28)), 5)
+	mark(mondayOf(today.AddDate(0, 0, 7)), 5)
 	mark(mondayOf(today.AddDate(0, 0, -14)), 1)
 	return out
 }

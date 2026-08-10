@@ -33,7 +33,13 @@ type shotJob struct {
 // DemoShots lists the screenshots shown in the gallery. Every section of the
 // application appears at least once, so the gallery documents the whole tool.
 func DemoShots(week int) []Shot {
-	weekPath := fmt.Sprintf("/week/%d?weeks=3", week)
+	// Start one week early: the current week may not have a past day yet, and
+	// without one the screenshot cannot show the "gebucht" markers.
+	from := week - 1
+	if from < 1 {
+		from = 1
+	}
+	weekPath := fmt.Sprintf("/week/%d?weeks=3", from)
 	return []Shot{
 		{
 			File: "dashboard.png", Path: "/", FullPage: true,

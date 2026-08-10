@@ -16,7 +16,9 @@ const job = JSON.parse(await readFile(jobFile, 'utf8'));
 const baseURL = job.baseUrl.replace(/\/$/, '');
 const origin = new URL(baseURL);
 
-const browser = await chromium.launch();
+// Use the full Chromium in new-headless mode rather than the headless shell:
+// it renders exactly like a headed browser, which is what the screenshots document.
+const browser = await chromium.launch({ channel: 'chromium' });
 try {
   for (const shot of job.shots) {
     const context = await browser.newContext({
