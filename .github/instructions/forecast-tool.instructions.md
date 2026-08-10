@@ -353,8 +353,9 @@ collects every requirement stated so far as the binding reference.
 - **Budgets table (`table.grid.budgets`), columns in this order:** project
   (colour dot + name + `assignmentid` badge) · budget · **Übertrag** (only
   rendered when `Summary.HasCarryOver`, shows `−CarryOver`) · forecast · booked ·
-  remaining · window (date + "(noch …)" from `ProjectSummary.RemainingLabel`,
-  e.g. "2 Wochen und 3 Tage" / "3 Monate") · burn rate (`.burncol`: `BurnPerWeek`
+  remaining · window (date + "(…)" from `ProjectSummary.RemainingLabel`, which
+  already carries its own "noch " prefix, e.g. "noch 2 Wochen und 3 Tage" /
+  "noch 3 Monate", or reads "abgelaufen") · burn rate (`.burncol`: `BurnPerWeek`
   plus, when working days are left, the muted line "offen `RequiredPerWeek`" —
   **both in h/Woche** so they are comparable) · utilization (`.utilcol`): the
   **Übertrag** bar (only when `CarryOver > 0`, `CarryOverPct` against the whole

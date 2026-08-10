@@ -432,7 +432,7 @@ type ProjectSummary struct {
 	StartLabel      string // DD.MM.YYYY
 	EndLabel        string // DD.MM.YYYY
 	HasCustomWindow bool   // true if the project sets an explicit start or end
-	RemainingLabel  string // time left until the window end, e.g. "2 Wochen und 3 Tage"
+	RemainingLabel  string // time left until the window end, e.g. "noch 2 Wochen und 3 Tage"
 
 	// Burn-rate over the window (holiday-aware working days, Mon-Fri). It is
 	// based on AvailableBudget, so an assignment continued from an earlier
@@ -516,21 +516,22 @@ func countWorkdays(start, end time.Time, cal *holidays.Calendar) int {
 }
 
 // remainingLabel renders the calendar time left until the inclusive end date in
-// a compact German form, e.g. "7 Tage", "2 Wochen und 3 Tage" or "3 Monate".
+// a compact German form, e.g. "noch 7 Tage", "noch 2 Wochen und 3 Tage" or
+// "abgelaufen". The label is self-contained so callers never prefix it.
 func remainingLabel(from, to time.Time) string {
 	days := int(to.Sub(from).Hours()/24) + 1
 	switch {
 	case days <= 0:
 		return "abgelaufen"
 	case days == 1:
-		return "1 Tag"
+		return "noch 1 Tag"
 	case days < 7:
-		return fmt.Sprintf("%d Tage", days)
+		return fmt.Sprintf("noch %d Tage", days)
 	case days < 60:
 		weeks, rest := days/7, days%7
-		out := fmt.Sprintf("%d Wochen", weeks)
+		out := fmt.Sprintf("noch %d Wochen", weeks)
 		if weeks == 1 {
-			out = "1 Woche"
+			out = "noch 1 Woche"
 		}
 		switch {
 		case rest == 1:
@@ -540,7 +541,7 @@ func remainingLabel(from, to time.Time) string {
 		}
 		return out
 	default:
-		return fmt.Sprintf("%d Monate", (days+15)/30)
+		return fmt.Sprintf("noch %d Monate", (days+15)/30)
 	}
 }
 

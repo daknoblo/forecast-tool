@@ -87,7 +87,7 @@
       <td class="num">{{hours .Forecast}} h</td>
       <td class="num ist">{{hours .Actual}} h</td>
       <td class="num {{if lt .Remaining 0.0}}negative{{end}}">{{hours .Remaining}} h</td>
-      <td><small>{{.StartLabel}} – {{.EndLabel}} <span class="muted">(noch {{.RemainingLabel}})</span>{{if gt .OutOfWindow 0.0}} <span class="warn" title="außerhalb des Zeitraums gebucht">⚠ {{hours .OutOfWindow}} h</span>{{end}}</small></td>
+      <td><small>{{.StartLabel}} – {{.EndLabel}} <span class="muted">({{.RemainingLabel}})</span>{{if gt .OutOfWindow 0.0}} <span class="warn" title="außerhalb des Zeitraums gebucht">⚠ {{hours .OutOfWindow}} h</span>{{end}}</small></td>
       <td class="num burncol"><small title="Verfügbares Budget ({{hours .AvailableBudget}} h) gleichmäßig über {{.WindowWorkdays}} Arbeitstage">{{hours .BurnPerWeek}} h/Woche</small>{{if gt .RemainingWorkdays 0}}<small class="muted" title="Noch nicht verplantes Budget über {{.RemainingWorkdays}} verbleibende Arbeitstage">offen {{hours .RequiredPerWeek}} h/Woche</small>{{end}}</td>
       <td class="utilcol">
         {{if gt .CarryOver 0.0}}
