@@ -112,7 +112,7 @@ func CaptureScreenshots(script, baseURL, outDir string, shots []Shot) error {
 	}
 	defer func() { _ = os.Remove(jobFile) }()
 
-	cmd := exec.Command("node", script, jobFile) //nolint:gosec // fixed helper script from this repository
+	cmd := exec.Command("node", script, jobFile) // #nosec G204 -- fixed helper script from this repository, no external input
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {

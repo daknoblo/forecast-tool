@@ -99,7 +99,7 @@ func BuildSite(repoRoot, outDir string, shots []Shot, demo []Page, generatedAt s
 	)
 
 	for _, p := range markdownPages {
-		src, err := os.ReadFile(filepath.Join(repoRoot, p.Source))
+		src, err := os.ReadFile(filepath.Join(repoRoot, p.Source)) // #nosec G304 -- fixed list of documents from this repository
 		if err != nil {
 			return fmt.Errorf("read %s: %w", p.Source, err)
 		}
@@ -113,7 +113,7 @@ func BuildSite(repoRoot, outDir string, shots []Shot, demo []Page, generatedAt s
 			Hero:        p.Hero,
 			Nav:         nav,
 			Active:      p.File,
-			Content:     template.HTML(rewriteDocLinks(buf.String())), //nolint:gosec // rendered by goldmark with raw HTML disabled
+			Content:     template.HTML(rewriteDocLinks(buf.String())), // #nosec G203 -- rendered by goldmark with raw HTML disabled
 			Shots:       shots,
 			RepoURL:     RepoURL,
 			GeneratedAt: generatedAt,

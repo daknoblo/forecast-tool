@@ -176,7 +176,10 @@ func demoEntries(projects []models.Project, today time.Time, year int, fyStart, 
 // dayHourPattern is the daily total booked on a demo day, picked by a hash of
 // the date. The spread makes the utilization traffic light and the free-capacity
 // chart show every state.
-var dayHourPattern = []float64{8, 8, 6, 9, 8, 10, 7, 8, 4, 8.5}
+var dayHourPattern = [dayHourPatternLen]float64{8, 8, 6, 9, 8, 10, 7, 8, 4, 8.5}
+
+// Fixed array length so the hash can be reduced without an int conversion.
+const dayHourPatternLen = 10
 
 // dayEntries splits a day's total over the projects whose booking window covers
 // that day, weighted by their share.
@@ -198,7 +201,7 @@ func dayEntries(projects []models.Project, year int, iso string) []models.Entry 
 	}
 
 	h := hash(iso)
-	total := dayHourPattern[h%uint32(len(dayHourPattern))]
+	total := dayHourPattern[h%dayHourPatternLen]
 	// Rotate which project leads the day so no single band dominates the Sankey.
 	lead := int(h/7) % len(cands)
 	cands = append(cands[lead:], cands[:lead]...)
