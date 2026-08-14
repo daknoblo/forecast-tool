@@ -15,7 +15,7 @@
     <div class="kpi-label">Fiskaljahresziel</div>
   </div>
   <div class="card kpi">
-    <div class="kpi-value ist">{{hours .Goal.ActualTotal}} h</div>
+    <div class="kpi-value">{{hours .Goal.ActualTotal}} h</div>
     <div class="kpi-label">Aktuell gebucht</div>
   </div>
   <div class="card kpi">
@@ -27,11 +27,11 @@
     <div class="kpi-label">Hochrechnung</div>
   </div>
   <div class="card kpi">
-    <div class="kpi-value {{if and (not .Private) (lt .Goal.PctProjected 100.0)}}negative{{end}}">{{hours .Goal.PctProjected}} %</div>
+    <div class="kpi-value">{{hours .Goal.PctProjected}} %</div>
     <div class="kpi-label">Prognose %</div>
   </div>
   <div class="card kpi" title="Fiskaljahresziel − gebucht − Forecast: die Stunden, die noch geplant werden müssen.">
-    <div class="kpi-value {{if and (not .Private) (gt .Goal.Remaining 0.0)}}negative{{end}}">{{hours .Goal.Remaining}} h</div>
+    <div class="kpi-value">{{hours .Goal.Remaining}} h</div>
     <div class="kpi-label">Offen</div>
   </div>
 </section>
@@ -84,7 +84,7 @@
   <h2>Resttempo bis FY-Ende</h2>
   <div class="cards">
     <div class="card kpi">
-      <div class="kpi-value {{if gt .Goal.RemainingGoal 0.0}}negative{{end}}">{{hours .Goal.RemainingGoal}} h</div>
+      <div class="kpi-value">{{hours .Goal.RemainingGoal}} h</div>
       <div class="kpi-label">Restliches Ziel (Ziel − Ist gebucht)</div>
     </div>
     <div class="card kpi">

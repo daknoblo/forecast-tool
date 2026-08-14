@@ -334,6 +334,13 @@ collects every requirement stated so far as the binding reference.
   **Every tile shows only its value and label**; the details live in a
   multi-line `title` tooltip on the card (`&#10;` for the line breaks). All
   figures go through `hours`/`pct`, so private mode masks the tooltips too.
+- **Tile figures are never coloured.** `.kpi-value` always keeps the normal text
+  colour — no red for a negative value, no orange for a rate below plan, and the
+  week link inherits it too (only its hover underline marks it as clickable).
+  The single exception is `.kpi-value.muted` for the `–` placeholder, which is
+  not a figure. Do not reintroduce status colours here: they used to leak the
+  sign of a masked figure in private mode, and the surrounding cards carry the
+  same information already.
 - **The `YearSummary.Total*` roll-ups describe the ASSIGNMENT work of the fiscal
   year and exclude the vacation project** (its budget is derived from the
   vacation days and its hours never count towards the goal, so it would inflate
@@ -350,8 +357,7 @@ collects every requirement stated so far as the binding reference.
     `TargetHours - ActualTotal - ForecastRemaining` (identical to the
     "Ziele" page, vacation excluded). When the fiscal year has no goal
     (`Goal.HasTarget` false) the tile shows a `–` placeholder pointing at the
-    settings. A negative value gets `.kpi-value.negative`, but never in private
-    mode, where the colour would leak the sign of the masked figure.
+    settings.
 - **Week-to-date tile (first):** `forecast.BuildWeekToDate(d)` reports the
   **utilization reached since the fiscal year started**, up to the current week.
   The FY goal is spread evenly over the fiscal year's weeks
@@ -362,8 +368,7 @@ collects every requirement stated so far as the binding reference.
   **Today is excluded on purpose** – it is still forecast. **Public holidays DO
   count** as elapsed: the annual goal does not shrink because of them, so they
   really do put you behind the even split. **Vacation is excluded**, exactly as
-  in `BuildGoalSummary`. `< 100 %` colours the value (`.kpi-value.under`), but
-  never in private mode, where the class would leak the masked figure.
+  in `BuildGoalSummary`.
   `HasData` is false when the reviewed fiscal year does not contain today, has
   no goal, or has not had a single weekday yet; the tile then shows a
   placeholder.
@@ -486,6 +491,13 @@ collects every requirement stated so far as the binding reference.
 
 - On the goal page the **quarter and month overviews are always visible** (not
   collapsible).
+- **Goal page KPI tiles (`.cards`), in this order:** Fiskaljahresziel
+  (`TargetHours`) · Aktuell gebucht (`ActualTotal`) · Forecast
+  (`ForecastRemaining`) · Hochrechnung (`Projected`) · Prognose %
+  (`PctProjected`) · **Offen** (`Remaining` = target − booked − forecast, the
+  hours still to be planned). Public holidays deliberately have **no tile** —
+  they do not count towards the goal and the figure lives in the capacity table
+  ("– Feiertage", hours plus days).
 - **Goal page order (chronological):** whole FY (KPIs, status including the
   progress chart) → **hours flow** → FY capacity, remaining pace, target pace →
   **half-years H1 & H2** (`GoalSummary.Halves`) → **quarters**

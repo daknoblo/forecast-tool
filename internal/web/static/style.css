@@ -58,9 +58,11 @@ h2 { font-size: 1.1rem; margin: 1.5rem 0 0.75rem; }
   margin-bottom: 1rem;
 }
 .kpi { text-align: center; }
+/* Tile figures always stay in the normal text colour; only the "no data"
+   placeholder is greyed out. The week link keeps its hover underline as the
+   only hint that it is clickable. */
 .kpi-value { font-size: 1.8rem; font-weight: 700; }
-.kpi-value.under { color: #b45309; }
-.kpi-value.negative { color: var(--danger); }
+.kpi-value a { color: inherit; }
 .kpi-value.muted { color: var(--muted); }
 .kpi-label { color: var(--muted); font-size: 0.85rem; }
 /* secondary KPI line, e.g. the cross-fiscal-year carry-over */
@@ -231,7 +233,7 @@ table.week td.day.past.holiday, table.week th.day.past.holiday { background: var
 .tag.booked { background: #0891b2; }
 
 /* "Ist" (booked) accent colour in reports */
-small.ist, td.num.ist, .kpi-value.ist { color: #0e7490; }
+small.ist, td.num.ist { color: #0e7490; }
 
 /* goal / fiscal-year target page */
 .goalbar-track { position: relative; height: 22px; background: var(--line); border-radius: 6px; overflow: hidden; }
