@@ -542,6 +542,13 @@ collects every requirement stated so far as the binding reference.
   (`max-width: none`), so **only the FY chart** fills the full card width while
   the font sizes stay identical; halves and quarters stay capped at
   `max-width: 560px` so their 11 px labels remain readable.
+- **The chart carries two y axes: hours on the left, share of the target on the
+  right.** The right axis reuses the *same* gridlines (`v / target × 100`), so
+  both sides describe one and the same curve — never give it its own scale. The
+  target line is by definition the 100 % mark and is labelled as such in the
+  target red; a gridline percentage closer than 13 px to it is dropped so the
+  two labels cannot collide. Without a target (`target <= 0`) the axis has no
+  basis and is left out entirely, and `padR` drops back from 46 to 14.
 - **Chart colours on the goal page must carry real contrast.** The cards sit on
   a light background, so pale greys disappear even when dashed: gridlines are
   `#e2e8f0`, axes `#94a3b8` and every axis label `#475569`. The same applies to

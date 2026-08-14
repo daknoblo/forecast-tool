@@ -136,6 +136,8 @@ func niceStep(max float64, want int) float64 {
 // (booked) up to `todayPos` and orange (projection incl. forecast) from there on
 // - both halves meet in the same point, because everything before today is
 // booked. `todayPos` is measured in sub-periods (0 = period start, len = end).
+// The left axis carries the hours, the right one the same gridlines as a share
+// of the target, so the target line is exactly the 100 % mark.
 // Booked, forecast, projection and target are labelled as a centred row of
 // pills above the plot so no figure competes with the curve. `wide` doubles the
 // viewBox for the full-width fiscal-year chart, keeping the font sizes intact.
@@ -144,10 +146,15 @@ func niceStep(max float64, want int) float64 {
 func progressSVG(labels []string, booked, projected []float64, target, todayPos float64, wide, private bool) template.HTML {
 	const (
 		padL = 48.0
-		padR = 14.0
 		padT = 30.0
 		padB = 40.0
 	)
+	// Without a target a percentage has no basis, so that axis is dropped.
+	pctAxis := target > 0
+	padR := 14.0
+	if pctAxis {
+		padR = 46.0
+	}
 	w, h := 560.0, 232.0
 	class := "progress-chart"
 	if wide {
@@ -262,14 +269,32 @@ func progressSVG(labels []string, booked, projected []float64, target, todayPos 
 		px += widths[i] + 8
 	}
 
+	// The target sits on the percentage axis at exactly 100 %, so it gets its own
+	// label there; a gridline label too close to it would collide and is dropped.
+	targetY := math.NaN()
+	if pctAxis && target <= yMax {
+		targetY = y(target)
+	}
 	for v := 0.0; v <= yMax+step/2; v += step {
 		yy := y(v)
 		fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s"/>`, padL, yy, padL+plotW, yy, colGrid)
 		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" fill="#475569" text-anchor="end">%s</text>`,
 			padL-7, yy+4, chartHours(round1(v), private))
+		if pctAxis && (math.IsNaN(targetY) || math.Abs(yy-targetY) >= 13) {
+			fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" fill="#475569" text-anchor="start">%s</text>`,
+				padL+plotW+7, yy+4, chartPct(v/target*100, private))
+		}
 	}
 	fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s"/>`, padL, padT, padL, padT+plotH, colAxis)
 	fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s"/>`, padL, padT+plotH, padL+plotW, padT+plotH, colAxis)
+	if pctAxis {
+		fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s"/>`,
+			padL+plotW, padT, padL+plotW, padT+plotH, colAxis)
+	}
+	if !math.IsNaN(targetY) {
+		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" font-weight="600" fill="%s" text-anchor="start">%s</text>`,
+			padL+plotW+7, targetY+4, colTarget, chartPct(100, private))
+	}
 
 	if target > 0 && target <= yMax {
 		ty := y(target)

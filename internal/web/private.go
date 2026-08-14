@@ -2,8 +2,10 @@ package web
 
 import (
 	"html/template"
+	"math"
 	"net/http"
 	"sort"
+	"strconv"
 
 	"github.com/daknoblo/forecast-tool/internal/models"
 )
@@ -124,4 +126,13 @@ func chartHours(v float64, private bool) string {
 		return maskedValue
 	}
 	return formatHours(v)
+}
+
+// chartPct formats a whole percentage for an inline SVG chart axis, masking it
+// in private mode.
+func chartPct(v float64, private bool) string {
+	if private {
+		return maskedValue
+	}
+	return strconv.FormatFloat(math.Round(v), 'f', 0, 64) + " %"
 }

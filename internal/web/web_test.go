@@ -346,3 +346,28 @@ func TestProjectActiveToggleReleasesBudget(t *testing.T) {
 		t.Errorf("reactivated: active=%v released=%v remaining=%v, want true/0/90", ps.Project.Active, ps.Released, ps.Remaining)
 	}
 }
+
+// The progress chart shows the hours on the left and the same gridlines as a
+// share of the target on the right, with the target line labelled 100 %.
+func TestProgressChartPercentAxis(t *testing.T) {
+	labels := []string{"Jul", "Aug"}
+	booked := []float64{50, 100}
+	projected := []float64{50, 150}
+
+	got := string(progressSVG(labels, booked, projected, 200, 1, false, false))
+	for _, want := range []string{">0 %<", ">100 %<"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("percentage axis is missing %q", want)
+		}
+	}
+
+	// Without a target a percentage has no basis.
+	if got := string(progressSVG(labels, booked, projected, 0, 1, false, false)); strings.Contains(got, " %<") {
+		t.Error("chart without a target must not draw a percentage axis")
+	}
+
+	// Private mode masks the percentages like every other figure.
+	if got := string(progressSVG(labels, booked, projected, 200, 1, false, true)); strings.Contains(got, " %<") {
+		t.Error("private mode leaks percentages on the axis")
+	}
+}
