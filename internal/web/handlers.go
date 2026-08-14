@@ -673,6 +673,7 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 		"FYYears":         fyYears(d),
 		"Goal":            gs,
 		"WeekTotals":      ys.WeekTotals,
+		"LastPlannedWeek": ys.LastPlannedWeek,
 		"FYChart":         fyChart,
 		"H1Chart":         h1Chart,
 		"H2Chart":         h2Chart,

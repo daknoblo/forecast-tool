@@ -126,7 +126,7 @@
   <thead><tr><th>Woche</th><th class="num">Soll Stunden</th><th class="num">Gebuchte Stunden</th><th>Status</th><th class="weekutil">Auslastung</th></tr></thead>
   <tbody>
   {{range .Summary.WeekTotals}}
-    {{if gt .Hours 0.0}}
+    {{if le .Week $.Summary.LastPlannedWeek}}
     <tr>
       <td><a href="/week/{{.Week}}">{{.Label}}</a> <span class="weekrange">{{.RangeLabel}}</span></td>
       <td class="num">{{hours .TargetHours}} h</td>

@@ -185,7 +185,7 @@
     </thead>
     <tbody>
     {{range .WeekTotals}}
-      {{if gt .Hours 0.0}}
+      {{if le .Week $.LastPlannedWeek}}
       <tr>
         <td><a href="/week/{{.Week}}">{{.Label}}</a></td>
         <td class="num">{{hours .Forecast}} h</td>

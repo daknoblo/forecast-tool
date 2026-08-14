@@ -1139,3 +1139,34 @@ func TestInactiveProjectReleasesUnplannedBudget(t *testing.T) {
 		t.Error("HasReleased = true although no active project releases budget")
 	}
 }
+
+// The weekly utilization tables run from week 1 up to the last week that has
+// hours, so unplanned gaps stay visible. Hours outside the fiscal year never
+// extend that bound — the list always ends at the fiscal-year change.
+func TestLastPlannedWeek(t *testing.T) {
+	cal := holidays.New(2026, "BY")
+	d := sampleData() // FY 2026 == calendar year, hours in week 3
+
+	if got := BuildYearSummary(d, cal).LastPlannedWeek; got != 3 {
+		t.Errorf("LastPlannedWeek = %d, want 3", got)
+	}
+
+	d.Entries = append(d.Entries, models.Entry{Date: "2027-02-01", ProjectID: "p1", Hours: 8})
+	if got := BuildYearSummary(d, cal).LastPlannedWeek; got != 3 {
+		t.Errorf("LastPlannedWeek = %d after booking into the next fiscal year, want 3", got)
+	}
+
+	d.Entries = append(d.Entries, models.Entry{Date: "2026-12-30", ProjectID: "p1", Hours: 8})
+	ys := BuildYearSummary(d, cal)
+	if want := FYWeeks(2026, 1); ys.LastPlannedWeek != want {
+		t.Errorf("LastPlannedWeek = %d, want %d (last week of the fiscal year)", ys.LastPlannedWeek, want)
+	}
+	if ys.LastPlannedWeek > len(ys.WeekTotals) {
+		t.Errorf("LastPlannedWeek = %d exceeds the %d listed weeks", ys.LastPlannedWeek, len(ys.WeekTotals))
+	}
+
+	d.Entries = nil
+	if got := BuildYearSummary(d, cal).LastPlannedWeek; got != 0 {
+		t.Errorf("LastPlannedWeek = %d without any hours, want 0", got)
+	}
+}

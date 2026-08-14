@@ -473,6 +473,11 @@ type YearSummary struct {
 	HasReleased    bool    // true when at least one inactive assignment released budget
 	HasFYSplit     bool    // true when at least one assignment spans fiscal years
 	WeekTotals     []WeekTotal
+	// LastPlannedWeek is the highest fiscal-year week that has hours (0 when the
+	// year is empty). The weekly tables list every week up to it — including the
+	// ones without hours, so gaps in the plan are visible — and stop there,
+	// because beyond the last forecast there is nothing to judge yet.
+	LastPlannedWeek int
 }
 
 // WeekTotal is the summed hours for a single fiscal-year week.
@@ -824,6 +829,9 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 			UtilizationPct: util,
 			Status:         d.Settings.ClassifyUtilization(hrs),
 		})
+		if hrs > 0 {
+			ys.LastPlannedWeek = w
+		}
 	}
 	return ys
 }

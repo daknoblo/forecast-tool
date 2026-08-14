@@ -390,6 +390,12 @@ collects every requirement stated so far as the binding reference.
   line) · "Soll Stunden" · "Gebuchte Stunden" · Status (directly next to the
   hours) · Auslastung (`.weekutil`, 28rem wide, bar + percentage in a `.barrow`
   flex row so the bar fills the column).
+- **The weekly tables (dashboard and goal page) list every week from 1 up to
+  `YearSummary.LastPlannedWeek`** — the highest fiscal-year week that carries
+  hours. Weeks without hours are shown as well, so gaps in the plan are visible;
+  weeks beyond the last forecast are dropped, and the fiscal year is the hard
+  upper bound (`WeekTotals` never leaves it). Do not filter the rows by
+  `Hours > 0` again.
 - **Shifting the horizon:** `GET /?sankey=<key>&soff=<n>` shifts the horizon by
   whole spans (negative = into the past); `forecast.shiftSankeySpan` clamps flush
   against the FY borders (`SankeyMaxOffset` bounds the parameter).
