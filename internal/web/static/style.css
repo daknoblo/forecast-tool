@@ -247,6 +247,11 @@ small.ist, td.num.ist { color: #0e7490; }
 
 /* utilization traffic-light ("Ampel") */
 .util { display: inline-flex; align-items: center; gap: 0.4rem; white-space: nowrap; }
+/* utilization traffic light in the settings: icon, threshold and label per row */
+.util-form { max-width: none; }
+.util-grid { display: grid; grid-template-columns: auto 7rem minmax(0, 1fr); gap: 0.5rem 0.75rem; align-items: center; max-width: 520px; }
+.util-grid .util-cap { color: var(--muted); font-size: 0.8rem; }
+.util-grid .util-none { color: var(--muted); font-size: 0.8rem; text-align: center; }
 .util-dot {
   display: inline-flex; align-items: center; justify-content: center;
   width: 20px; height: 20px; border-radius: 50%;

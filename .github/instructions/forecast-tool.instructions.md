@@ -594,6 +594,12 @@ collects every requirement stated so far as the binding reference.
   (`utilMin`/`utilOptimal`/`utilOver`) and four label fields
   (`utilMinLabel`/`utilOptimalLabel`/`utilHighLabel`/`utilOverLabel`). It sits
   between the per-FY card and the AI-endpoint card.
+  Layout is a compact `.util-grid` (`auto 7rem 1fr`) inside `.form-stack.util-form`
+  (`max-width: none`, otherwise the 420 px stack squeezes it): **one row per
+  status** with the coloured dot, the narrow hours field and the free label field
+  side by side, under a single caption row. The inputs are therefore **not**
+  wrapped in `<label>` – they carry `aria-label` plus an explanatory `title`.
+  "Zu hoch" has no threshold of its own and shows a muted "dazwischen" instead.
 - **Forecast page (`/week`):** the grid is **grouped per week** (`.Span.Blocks`):
   after the five day columns each week has a **week-total column** (`.weeksum`,
   hours per project), and at the far right a **grand-total column** across all
