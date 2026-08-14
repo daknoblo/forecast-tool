@@ -1,6 +1,8 @@
 module github.com/daknoblo/forecast-tool
 
-go 1.26
+// Pinned to the patch level: the workflows install this exact toolchain via
+// go-version-file, and 1.26.6 carries the current standard-library fixes.
+go 1.26.6
 
 require (
 	github.com/rickar/cal/v2 v2.1.29
