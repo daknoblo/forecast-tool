@@ -310,9 +310,11 @@ collects every requirement stated so far as the binding reference.
 - **Build version:** `web.Version` (template function `{{version}}`, rendered in
   the footer as `.ver`) defaults to `"dev"`. The container build stamps the real
   value through `-ldflags "-X …/internal/web.Version=$VERSION"`; the release
-  workflow passes the git tag for a tag push and `<branch>-<short sha>`
-  otherwise. Never read it from a file or an env var — it has to describe the
-  binary.
+  workflow passes the git tag for a tag push and `<latest tag>+main` otherwise
+  (hence `fetch-depth: 0` on that checkout — `git describe` needs the tags).
+  Show the **release tag**, never a bare commit hash: the footer is what the
+  user reads to tell which version is deployed. Never read it from a file or an
+  env var — it has to describe the binary.
 - **Navigation (header)** in this order and wording:
   Dashboard (`/`) – Projekte (`/projects`) – Forecast (`/week`) – Ziele
   (`/goal`) – Einstellungen (`/settings`). The active-class keys remain

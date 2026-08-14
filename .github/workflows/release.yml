@@ -53,6 +53,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
+          # The version stamp is derived from the latest tag, so the tags have to
+          # be there.
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Set up QEMU
@@ -83,14 +86,17 @@ jobs:
         id: image
         run: echo "name=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
 
-      # Stamped into the binary and shown in the app footer.
+      # Stamped into the binary and shown in the app footer. A tag build carries
+      # the tag itself; a build from main names the release it builds on and
+      # marks that it is ahead of it.
       - name: Resolve version
         id: version
         run: |
           if [ "$GITHUB_REF_TYPE" = "tag" ]; then
             echo "value=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
           else
-            echo "value=$GITHUB_REF_NAME-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+            tag="$(git describe --tags --abbrev=0 2>/dev/null || echo untagged)"
+            echo "value=$tag+main" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build and push
