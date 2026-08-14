@@ -31,6 +31,12 @@ var staticFS embed.FS
 // AppName is the central application name shown in the header and footer.
 const AppName = "Forecast Tool"
 
+// Version is the release this binary was built from, shown in the footer. The
+// container build stamps it via
+// `-ldflags "-X github.com/daknoblo/forecast-tool/internal/web.Version=v1.2.0"`;
+// a plain `go build` or `go run` leaves it at "dev".
+var Version = "dev"
+
 // Server wires storage, templates and HTTP routing together.
 type Server struct {
 	store  *storage.Store
@@ -57,6 +63,7 @@ func NewServer(store *storage.Store, logger *slog.Logger) (*Server, error) {
 		"hours":    formatHours,
 		"hoursRaw": formatHours,
 		"appName":  func() string { return AppName },
+		"version":  func() string { return Version },
 		"asset":    assetURL,
 		"pct":      func(f float64) string { return formatHours(f) + " %" },
 		"cellName": func(projectID, date string) string {

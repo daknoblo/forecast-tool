@@ -6,6 +6,9 @@ WORKDIR /src
 
 ARG TARGETOS
 ARG TARGETARCH
+# Stamped into the binary and shown in the footer; the release workflow passes
+# the git tag, a plain `docker build` keeps "dev".
+ARG VERSION=dev
 
 # Download modules first so BuildKit can reuse the cache for unchanged
 # dependencies between builds.
@@ -21,7 +24,9 @@ RUN mkdir -p /out/appdata
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-$(go env GOARCH)} \
-    go build -trimpath -ldflags="-s -w" -o /out/forecast ./cmd/server
+    go build -trimpath \
+      -ldflags="-s -w -X github.com/daknoblo/forecast-tool/internal/web.Version=${VERSION}" \
+      -o /out/forecast ./cmd/server
 
 # ---- Runtime stage ----
 FROM gcr.io/distroless/static:nonroot

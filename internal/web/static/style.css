@@ -224,6 +224,7 @@ details form { margin-top: 0.75rem; }
 .foot.wide { max-width: 90vw; width: 90vw; }
 .foot .ghlink { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--muted); text-decoration: none; }
 .foot .ghlink:hover { color: var(--text); }
+.foot .ver { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.95em; }
 .foot .ghlink svg { display: block; }
 
 /* booked (past) day cells in the week grid */

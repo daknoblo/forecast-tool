@@ -307,13 +307,20 @@ collects every requirement stated so far as the binding reference.
 - **Static assets** are referenced with `{{asset "/static/style.css"}}`, which
   appends a content hash; the static handler answers with a long-lived
   `Cache-Control: immutable`. Never link a static path without `asset`.
+- **Build version:** `web.Version` (template function `{{version}}`, rendered in
+  the footer as `.ver`) defaults to `"dev"`. The container build stamps the real
+  value through `-ldflags "-X …/internal/web.Version=$VERSION"`; the release
+  workflow passes the git tag for a tag push and `<branch>-<short sha>`
+  otherwise. Never read it from a file or an env var — it has to describe the
+  binary.
 - **Navigation (header)** in this order and wording:
   Dashboard (`/`) – Projekte (`/projects`) – Forecast (`/week`) – Ziele
   (`/goal`) – Einstellungen (`/settings`). The active-class keys remain
   technically `dashboard`/`projects`/`week`/`goal`/`settings` (display and order
   only).
-- **Footer:** `{{appName}} · Fiskaljahr {{Year}}` on the left, on the right a
-  link to the **project repository** `https://github.com/daknoblo/forecast-tool`
+- **Footer:** `{{appName}} · Fiskaljahr {{Year}} · {{version}}` on the left, on
+  the right a link to the **project repository**
+  `https://github.com/daknoblo/forecast-tool`
   with an inline SVG icon (no external asset, because of `embed`). The footer
   always spans the **same width as the page's `main`**: it carries the same
   `wide` class (`<footer class="foot{{if .Wide}} wide{{end}}">`) and the CSS
