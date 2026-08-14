@@ -14,7 +14,7 @@
     <div class="kpi-label">Week-to-date</div>
   </div>
   {{end}}
-  <div class="card kpi" title="Summe der Assignment-Budgets für das Fiskaljahr {{.Settings.Year}} – ohne Urlaubsprojekt.&#10;&#10;Budget der Assignments insgesamt: {{hours .Summary.TotalBudget}} h&#10;{{if .Summary.HasCarryOver}}Davon in früheren Fiskaljahren verbraucht: −{{hours .Summary.TotalCarryOver}} h&#10;{{end}}In diesem Fiskaljahr verfügbar: {{hours .Summary.TotalAvailable}} h&#10;&#10;Bereits verplant (gebucht + Forecast): {{hours .Summary.TotalHours}} h&#10;Budget noch nicht verplant: {{hours .Summary.TotalRemaining}} h">
+  <div class="card kpi" title="Summe der Assignment-Budgets für das Fiskaljahr {{.Settings.Year}} – ohne Urlaubsprojekt.&#10;&#10;Budget der Assignments insgesamt: {{hours .Summary.TotalBudget}} h&#10;{{if .Summary.HasCarryOver}}Davon in früheren Fiskaljahren verbraucht: −{{hours .Summary.TotalCarryOver}} h&#10;{{end}}{{if .Summary.HasReleased}}Durch inaktive Projekte freigegeben: −{{hours .Summary.TotalReleased}} h&#10;{{end}}In diesem Fiskaljahr verfügbar: {{hours .Summary.TotalAvailable}} h&#10;&#10;Bereits verplant (gebucht + Forecast): {{hours .Summary.TotalHours}} h&#10;Budget noch nicht verplant: {{hours .Summary.TotalRemaining}} h">
     <div class="kpi-value">{{hours .Summary.TotalAvailable}} h</div>
     <div class="kpi-label">Budget gesamt</div>
   </div>
@@ -71,6 +71,11 @@
   die in <em>früheren</em> Fiskaljahren bereits auf dieselbe Assignment ID gebucht wurden – sie werden vom Budget abgezogen,
   bevor Rest und Burnrate berechnet werden.</p>
 {{end}}
+{{if .Summary.HasReleased}}
+<p class="hint">Ein <strong>inaktives</strong> Projekt ist abgeschlossen: Gebuchte und geplante Stunden bleiben erhalten, das nicht verplante
+  Restbudget wird freigegeben und zählt weder in Budget noch in Rest oder Burnrate. Insgesamt sind das
+  <strong>{{hours .Summary.TotalReleased}} h</strong>.</p>
+{{end}}
 <p class="hint">Die Balken <strong>Verplant</strong> und <strong>Gebucht</strong> beziehen sich auf das in diesem Fiskaljahr
   <em>verfügbare</em> Budget (Budget abzüglich Übertrag). „Verplant 100 %“ heißt also: die verfügbaren Stunden sind
   vollständig verplant, egal ob schon gebucht oder noch Forecast.</p>
@@ -81,7 +86,7 @@
   <tbody>
   {{range .Summary.Projects}}
     <tr>
-      <td><span class="dot" style="background:{{.Project.Color}}"></span>{{.Project.Name}}{{if .Project.AssignmentID}} <code class="assignmentid">{{.Project.AssignmentID}}</code>{{end}}{{if not .Project.Active}} <em>(inaktiv)</em>{{end}}</td>
+      <td><span class="dot" style="background:{{.Project.Color}}"></span>{{.Project.Name}}{{if .Project.AssignmentID}} <code class="assignmentid">{{.Project.AssignmentID}}</code>{{end}}{{if not .Project.Active}} <em title="Inaktiv – nicht verplantes Restbudget{{if gt .Released 0.0}} ({{hours .Released}} h){{end}} ist freigegeben">(inaktiv)</em>{{end}}</td>
       <td class="num">{{hours .Project.BudgetHours}} h</td>
       {{if $.Summary.HasCarryOver}}<td class="num carrycol">{{if gt .CarryOver 0.0}}<span title="in früheren Fiskaljahren auf dieselbe Assignment ID gebucht">−{{hours .CarryOver}} h</span>{{else}}<span class="muted">–</span>{{end}}</td>{{end}}
       <td class="num">{{hours .Forecast}} h</td>

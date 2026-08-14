@@ -49,6 +49,9 @@ only renders the docs and the demo snapshot.
 - Projects with an hour budget (CRUD, colour, active/inactive), scoped to a
   fiscal year, each with a unique **assignment ID** (required on creation,
   e.g. `5641245`)
+- **Closing a project**: switching it to inactive keeps every booked and forecast
+  hour, but releases the budget that was never planned — it drops out of the
+  available budget, the remainder and the burn rate
 - **Assignments across fiscal years**: a project belongs to exactly one fiscal
   year, so a continuing assignment is re-created in the new year with the same
   assignment ID and the assignment's total budget. Hours are attributed to a

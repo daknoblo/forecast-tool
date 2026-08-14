@@ -1065,3 +1065,77 @@ func TestBuildSankeyOffsetShiftsIntoThePast(t *testing.T) {
 		t.Errorf("navigation offsets = %d/%d, want -2/0", prev.PrevOffset, prev.NextOffset)
 	}
 }
+
+// An inactive project is finished: hours already booked or forecast stay
+// untouched, but the budget nobody ever planned is released and stops counting
+// towards the available budget, the remainder and the required pace. The fiscal
+// year is in the past so every hour counts as booked, independent of today.
+func TestInactiveProjectReleasesUnplannedBudget(t *testing.T) {
+	d := models.Data{
+		Settings: models.Settings{Year: 2020, FederalState: "BY", WeeklyTargetHours: 40, FiscalYearStartMonth: 1},
+		Projects: []models.Project{
+			{ID: "done", AssignmentID: "A-1", Name: "Abgeschlossen", BudgetHours: 100, Active: false, FiscalYear: 2020},
+			{ID: "open", AssignmentID: "A-2", Name: "Laufend", BudgetHours: 100, Active: true, FiscalYear: 2020},
+			{ID: "over", AssignmentID: "A-3", Name: "Überbucht", BudgetHours: 10, Active: false, FiscalYear: 2020},
+		},
+		Entries: []models.Entry{
+			{Date: "2020-01-13", ProjectID: "done", Hours: 30},
+			{Date: "2020-01-14", ProjectID: "open", Hours: 20},
+			{Date: "2020-01-15", ProjectID: "over", Hours: 25},
+		},
+	}
+	cal := holidays.New(2020, "BY")
+	ys := BuildYearSummary(d, cal)
+	byID := map[string]ProjectSummary{}
+	for _, ps := range ys.Projects {
+		byID[ps.Project.ID] = ps
+	}
+
+	done := byID["done"]
+	if done.Released != 70 || done.AvailableBudget != 30 {
+		t.Errorf("inactive Released/AvailableBudget = %v/%v, want 70/30", done.Released, done.AvailableBudget)
+	}
+	if done.Remaining != 0 {
+		t.Errorf("inactive Remaining = %v, want 0", done.Remaining)
+	}
+	if done.Consumed != 30 {
+		t.Errorf("inactive Consumed = %v, want 30 (booked hours are kept)", done.Consumed)
+	}
+	if done.PlannedPct != 100 {
+		t.Errorf("inactive PlannedPct = %v, want 100", done.PlannedPct)
+	}
+	if done.RequiredPerWorkday != 0 {
+		t.Errorf("inactive RequiredPerWorkday = %v, want 0", done.RequiredPerWorkday)
+	}
+
+	if open := byID["open"]; open.Released != 0 || open.Remaining != 80 {
+		t.Errorf("active Released/Remaining = %v/%v, want 0/80", open.Released, open.Remaining)
+	}
+	// Nothing is released when more was booked than budgeted.
+	if over := byID["over"]; over.Released != 0 || over.Remaining != -15 {
+		t.Errorf("over-booked Released/Remaining = %v/%v, want 0/-15", over.Released, over.Remaining)
+	}
+
+	if !ys.HasReleased || ys.TotalReleased != 70 {
+		t.Errorf("HasReleased/TotalReleased = %v/%v, want true/70", ys.HasReleased, ys.TotalReleased)
+	}
+	if ys.TotalBudget != 210 || ys.TotalAvailable != 140 || ys.TotalRemaining != 65 {
+		t.Errorf("totals budget/available/remaining = %v/%v/%v, want 210/140/65",
+			ys.TotalBudget, ys.TotalAvailable, ys.TotalRemaining)
+	}
+	if ys.TotalHours != 75 {
+		t.Errorf("TotalHours = %v, want 75 (booked hours are kept)", ys.TotalHours)
+	}
+
+	// Reactivating hands the whole budget back.
+	d.Projects[0].Active = true
+	ys = BuildYearSummary(d, cal)
+	for _, ps := range ys.Projects {
+		if ps.Project.ID == "done" && (ps.Released != 0 || ps.Remaining != 70) {
+			t.Errorf("reactivated Released/Remaining = %v/%v, want 0/70", ps.Released, ps.Remaining)
+		}
+	}
+	if ys.HasReleased {
+		t.Error("HasReleased = true although no active project releases budget")
+	}
+}

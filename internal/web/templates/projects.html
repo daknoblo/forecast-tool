@@ -24,11 +24,12 @@
 {{range .Views}}
 <section class="card project">
   <div class="project-head">
-    <h2><span class="dot" style="background:{{.Summary.Project.Color}}"></span>{{.Summary.Project.Name}}{{if .Summary.Project.AssignmentID}} <code class="assignmentid">{{.Summary.Project.AssignmentID}}</code>{{end}}{{if .Summary.Project.IsVacation}} <span class="fy-badge">automatisch · Urlaub</span>{{end}}</h2>
+    <h2><span class="dot" style="background:{{.Summary.Project.Color}}"></span>{{.Summary.Project.Name}}{{if .Summary.Project.AssignmentID}} <code class="assignmentid">{{.Summary.Project.AssignmentID}}</code>{{end}}{{if .Summary.Project.IsVacation}} <span class="fy-badge">automatisch · Urlaub</span>{{end}}{{if not .Summary.Project.Active}} <span class="fy-badge inactive" title="Inaktiv: nicht verplantes Restbudget ist freigegeben, das Projekt erscheint nicht mehr im Forecast-Raster.">inaktiv</span>{{end}}</h2>
     <div class="project-kpis">
       <span>Budget <strong>{{hours .Summary.Project.BudgetHours}} h</strong></span>
       {{if gt .Summary.CarryOver 0.0}}<span title="in früheren Fiskaljahren auf dieselbe Assignment ID gebucht">Übertrag <strong>−{{hours .Summary.CarryOver}} h</strong></span>
       <span>Verfügbar <strong>{{hours .Summary.AvailableBudget}} h</strong></span>{{end}}
+      {{if gt .Summary.Released 0.0}}<span title="Nicht verplante Reststunden – freigegeben, weil das Projekt inaktiv ist">Freigegeben <strong>−{{hours .Summary.Released}} h</strong></span>{{end}}
       <span>Forecast <strong>{{hours .Summary.Forecast}} h</strong></span>
       <span>Ist gebucht <strong>{{hours .Summary.Actual}} h</strong></span>
       <span class="{{if lt .Summary.Remaining 0.0}}negative{{end}}">Rest <strong>{{hours .Summary.Remaining}} h</strong></span>
@@ -82,7 +83,13 @@
         <label>Start <input type="date" name="startDate" value="{{.Summary.Project.StartDate}}"></label>
         <label>Ende <input type="date" name="endDate" value="{{.Summary.Project.EndDate}}"></label>
         <label>Farbe <input type="color" name="color" value="{{.Summary.Project.Color}}"></label>
-        <label class="check"><input type="checkbox" name="active" value="1" {{if .Summary.Project.Active}}checked{{end}}> aktiv</label>
+        {{if .Summary.Project.Active}}
+        <button type="submit" class="btn" name="active" value="0" formaction="/projects/{{.Summary.Project.ID}}/active" formnovalidate
+                title="Gebuchte und geplante Stunden bleiben erhalten. Das nicht verplante Restbudget wird freigegeben und zählt nicht mehr in Budget, Rest und Burnrate.">Auf inaktiv setzen</button>
+        {{else}}
+        <button type="submit" class="btn primary" name="active" value="1" formaction="/projects/{{.Summary.Project.ID}}/active" formnovalidate
+                title="Das volle Budget zählt wieder und das Projekt erscheint erneut im Forecast-Raster.">Wieder aktivieren</button>
+        {{end}}
         {{if not .Summary.Project.IsVacation}}
         <button type="submit" class="btn danger" formaction="/projects/{{.Summary.Project.ID}}/delete" formnovalidate
                 onclick="return confirm('Projekt und alle erfassten Stunden löschen?');">Löschen</button>
@@ -92,6 +99,11 @@
     </form>
     {{if .Summary.Project.IsVacation}}
     <p class="hint">Das Urlaubsprojekt ist ein normales Projekt: Trage Urlaub im <a href="/week">Forecast</a> tageweise ein – die Stunden zählen in die Wochen-Auslastung, aber nicht aufs Jahresziel. Nur das <strong>Budget</strong> ist fest: Es ergibt sich aus den Urlaubstagen in den <a href="/settings">Einstellungen</a> (Tage à 8 h). Löschen ist nicht möglich.</p>
+    {{end}}
+    {{if .Summary.Project.Active}}
+    <p class="hint">„Auf inaktiv setzen“ schließt das Projekt ab: Alle bereits gebuchten und geplanten Stunden bleiben unverändert erhalten, aber die <strong>nicht verplanten Reststunden</strong> werden freigegeben – sie zählen dann nicht mehr in Budget, Rest, Burnrate und Hochrechnung, weil sie voraussichtlich nicht mehr abgerufen werden. Das Projekt verschwindet außerdem aus dem Forecast-Raster.</p>
+    {{else}}
+    <p class="hint">Dieses Projekt ist <strong>inaktiv</strong>: {{if gt .Summary.Released 0.0}}{{hours .Summary.Released}} h nicht verplantes Restbudget sind freigegeben und zählen nicht mehr mit. {{end}}Gebuchte und geplante Stunden bleiben erhalten. „Wieder aktivieren“ macht das rückgängig.</p>
     {{end}}
   </details>
   {{end}}

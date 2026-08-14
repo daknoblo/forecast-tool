@@ -410,11 +410,17 @@ type ProjectSummary struct {
 	// new one. Because the project is re-created per fiscal year while it keeps
 	// carrying the assignment's total budget, the earlier years' hours have to be
 	// deducted, or they would silently be granted again.
+	//
+	// An INACTIVE project is finished: everything booked or forecast on it stays
+	// untouched, but the budget that was never planned is assumed to never be
+	// called off again. It is released and drops out of the available budget, the
+	// remainder and the burn rate.
 	CarryOver       float64   // hours of this assignment dated in earlier fiscal years
 	FutureFY        float64   // hours of this assignment dated in later fiscal years
 	FYSplit         []FYHours // hours per fiscal year, ascending (only years with hours)
 	SpansFY         bool      // the assignment has hours in more than one fiscal year
-	AvailableBudget float64   // BudgetHours - CarryOver (what is left for this FY)
+	Released        float64   // unplanned budget given up because the project is inactive
+	AvailableBudget float64   // BudgetHours - CarryOver - Released (what is left for this FY)
 
 	Remaining      float64 // AvailableBudget - Consumed
 	UtilizationPct float64 // (CarryOver + Consumed) / budget * 100, across all fiscal years
@@ -458,11 +464,13 @@ type YearSummary struct {
 	TotalHours     float64 // booked + forecast hours dated inside the fiscal year
 	TotalBudget    float64 // summed budget of the assignments
 	TotalCarryOver float64 // hours of those assignments already spent in earlier fiscal years
-	TotalAvailable float64 // TotalBudget - TotalCarryOver (usable in this fiscal year)
+	TotalReleased  float64 // unplanned budget given up by inactive assignments
+	TotalAvailable float64 // TotalBudget - TotalCarryOver - TotalReleased (usable in this fiscal year)
 	TotalRemaining float64 // TotalAvailable - TotalHours (neither booked nor planned yet)
 	TotalForecast  float64 // summed forecast hours (today and later)
 	TotalActual    float64 // summed booked hours (past days)
 	HasCarryOver   bool    // true when at least one project carries hours over
+	HasReleased    bool    // true when at least one inactive assignment released budget
 	HasFYSplit     bool    // true when at least one assignment spans fiscal years
 	WeekTotals     []WeekTotal
 }
@@ -687,6 +695,13 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 			over = p.BudgetHours // never show a negative available budget
 		}
 		avail := p.BudgetHours - over
+		// An inactive project is done: booked and forecast hours stay, the rest of
+		// its budget is released because it will not be called off any more.
+		released := 0.0
+		if !p.Active && avail > c {
+			released = avail - c
+			avail = c
+		}
 		rem := avail - c
 		// An exhausted budget reads as 100 %, not as a division by zero.
 		pctOf := func(v, base float64) float64 {
@@ -737,6 +752,7 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 			FutureFY:           round1(future),
 			FYSplit:            split,
 			SpansFY:            len(split) > 1,
+			Released:           round1(released),
 			AvailableBudget:    round1(avail),
 			Remaining:          round1(rem),
 			UtilizationPct:     util,
@@ -764,10 +780,14 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 			ys.TotalHours += c
 			ys.TotalBudget += p.BudgetHours
 			ys.TotalCarryOver += over
+			ys.TotalReleased += released
 			ys.TotalForecast += forecastByGroup[g]
 			ys.TotalActual += actualByGroup[g]
 			if over > 0 {
 				ys.HasCarryOver = true
+			}
+			if released > 0 {
+				ys.HasReleased = true
 			}
 		}
 		if len(split) > 1 {
@@ -777,7 +797,8 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 	ys.TotalHours = round1(ys.TotalHours)
 	ys.TotalBudget = round1(ys.TotalBudget)
 	ys.TotalCarryOver = round1(ys.TotalCarryOver)
-	ys.TotalAvailable = round1(ys.TotalBudget - ys.TotalCarryOver)
+	ys.TotalReleased = round1(ys.TotalReleased)
+	ys.TotalAvailable = round1(ys.TotalBudget - ys.TotalCarryOver - ys.TotalReleased)
 	ys.TotalRemaining = round1(ys.TotalAvailable - ys.TotalHours)
 	ys.TotalForecast = round1(ys.TotalForecast)
 	ys.TotalActual = round1(ys.TotalActual)

@@ -145,7 +145,7 @@ curl -H "Authorization: Bearer $READ" "https://host/api/v1/projects/summary"
     {
       "id": "abc", "assignmentId": "5641245", "name": "Projekt A", "fiscalYear": 2027,
       "budgetHours": 200, "carryOverHours": 40, "futureFyHours": 0,
-      "availableBudgetHours": 160,
+      "releasedHours": 0, "availableBudgetHours": 160,
       "forecastHours": 120, "actualHours": 42,
       "consumedHours": 162, "remainingHours": -2, "utilizationPct": 101,
       "startDate": "2026-07-01", "endDate": "2027-06-30",
@@ -164,7 +164,8 @@ curl -H "Authorization: Bearer $READ" "https://host/api/v1/projects/summary"
 |-------|---------|
 | `carryOverHours` | hours of the same assignment dated in **earlier** fiscal years |
 | `futureFyHours` | hours of the same assignment dated in **later** fiscal years |
-| `availableBudgetHours` | `budgetHours − carryOverHours` — what is still available in this FY |
+| `releasedHours` | unplanned budget an **inactive** project gives up (`0` while `active`) |
+| `availableBudgetHours` | `budgetHours − carryOverHours − releasedHours` — what is still available in this FY |
 | `forecastHours` | hours on today and future days, inside this fiscal year |
 | `actualHours` | hours on past days (booked), inside this fiscal year |
 | `consumedHours` | all hours dated **inside** this fiscal year: `forecastHours + actualHours` |
@@ -184,6 +185,12 @@ curl -H "Authorization: Bearer $READ" "https://host/api/v1/projects/summary"
 > hours are reported as `carryOverHours` and deducted from the budget, so budget
 > is never granted twice; hours that already lie in a later fiscal year appear as
 > `futureFyHours`.
+
+> **Inactive projects** (`"active": false`, also settable through
+> `PUT /api/v1/projects/{id}`) are treated as finished: every booked and forecast
+> hour stays, but the budget that was never planned is assumed to never be called
+> off. It is reported as `releasedHours` and removed from
+> `availableBudgetHours`, `remainingHours` and the burn rate.
 
 ### `GET /api/v1/projects/{id}`
 A single project, or `404`.

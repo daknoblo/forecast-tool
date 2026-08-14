@@ -46,6 +46,9 @@ collects every requirement stated so far as the binding reference.
   fiscal year. `Project.Bookable(iso)` checks membership with a lexicographic
   string comparison and is used for **warnings and UI hints only** – it never
   blocks a write. `Validate` checks the date format and `startDate <= endDate`.
+  `active` marks a project as **finished** rather than merely hiding it: an
+  inactive project drops out of the forecast grid **and** releases the budget it
+  never planned (see "Project booking window & burn rate").
 - `Entry`: date (YYYY-MM-DD), projectId, hours. There is exactly **one** hours
   value per day and project; whether it counts as booked (actual) or forecast
   follows from the date (past days = booked, today and later = forecast). The
@@ -226,11 +229,22 @@ collects every requirement stated so far as the binding reference.
   (`groupKey` = assignment ID, or the project ID when there is none, e.g. the
   vacation project). Derived fields: `Consumed` (hours dated **inside** the FY),
   `CarryOver` (earlier FYs), `FutureFY` (later FYs), `FYSplit []FYHours` +
-  `SpansFY` (the full per-year split), `AvailableBudget` (= `BudgetHours -
-  CarryOver`, floored at 0), `Remaining` (= `AvailableBudget - Consumed`),
+  `SpansFY` (the full per-year split), `Released` (unplanned budget of an
+  inactive project, see below), `AvailableBudget` (= `BudgetHours - CarryOver -
+  Released`, floored at 0), `Remaining` (= `AvailableBudget - Consumed`),
   `UtilizationPct` (= `(CarryOver + Consumed) / BudgetHours`, the whole
   assignment across all fiscal years) and `CarryOverPct` (= `CarryOver /
   BudgetHours`).
+- **An inactive project releases its unplanned budget.** Setting `active` to
+  false means the project is done: every booked and forecast hour stays exactly
+  as it is, but the part of the budget that was never planned is assumed to never
+  be called off again. `BuildYearSummary` therefore caps `AvailableBudget` at
+  `Consumed` and reports the difference as `Released`, which makes `Remaining`
+  zero and shrinks the burn rate accordingly. Nothing is released while more was
+  booked than budgeted. The flag has its **own route and its own button**
+  (`POST /projects/{id}/active` with `active=0|1`); `handleProjectUpdate`
+  deliberately does **not** touch it, so an autosave of the edit form can never
+  flip it by accident.
 - **The two shares of the current fiscal year run against `AvailableBudget`, not
   against `BudgetHours`:** `PlannedPct` = `Consumed / AvailableBudget` (booked +
   forecast, so **100 % means the available hours are completely planned**) and
@@ -238,8 +252,8 @@ collects every requirement stated so far as the binding reference.
   assignment budget would make a continued assignment look idle although its
   remaining budget is long gone. With `AvailableBudget == 0` an exhausted budget
   reads as 100 % instead of dividing by zero.
-  `YearSummary` carries `TotalCarryOver`, `TotalAvailable`, `HasCarryOver` and
-  `HasFYSplit`.
+  `YearSummary` carries `TotalCarryOver`, `TotalReleased`, `TotalAvailable`,
+  `HasCarryOver`, `HasReleased` and `HasFYSplit`.
 - **Because of that, `BuildYearSummary(d, cal)` must be called with the projects
   of ALL fiscal years**; it filters to `d.Settings.Year` itself via
   `models.ProjectsForFY`. Never narrow `d.Projects` before calling it, otherwise
@@ -278,6 +292,12 @@ collects every requirement stated so far as the binding reference.
 - The projects page shows window, working days, burn rate (h/week · h/day),
   remaining pace and, when applicable, the "outside the window" warning; the
   dashboard has the columns "Zeitraum" and "Burnrate".
+- Every project's edit form carries a **button** "Auf inaktiv setzen" /
+  "Wieder aktivieren" (`formaction="/projects/{id}/active"`, `formnovalidate`,
+  `name="active"` with value `0`/`1`) instead of a checkbox, plus a hint
+  explaining that the hours stay and only the unplanned rest is released. An
+  inactive project shows the badge "inaktiv" and, once something was released,
+  the KPI "Freigegeben".
 
 ## UI requirements
 
@@ -319,10 +339,11 @@ collects every requirement stated so far as the binding reference.
   vacation days and its hours never count towards the goal, so it would inflate
   the budget and make `TotalRemaining` meaningless). `Projects` still contains
   the vacation row.
-  - **Budget gesamt** shows `TotalAvailable` = `TotalBudget - TotalCarryOver`,
-    i.e. what is really left for this fiscal year after the hours an assignment
-    already spent in earlier years. Its tooltip carries the budget-scoped
-    leftover (`TotalRemaining` = `TotalAvailable - TotalHours`).
+  - **Budget gesamt** shows `TotalAvailable` = `TotalBudget - TotalCarryOver -
+    TotalReleased`, i.e. what is really left for this fiscal year after the hours
+    an assignment already spent in earlier years and the budget inactive projects
+    gave up. Its tooltip carries the budget-scoped leftover (`TotalRemaining` =
+    `TotalAvailable - TotalHours`).
   - **Offen bis Ziel** measures against the **fiscal year's hour goal**, not
     against the summed assignment budgets: `handleDashboard` also calls
     `forecast.BuildGoalSummary` and the tile renders `Goal.Remaining` =

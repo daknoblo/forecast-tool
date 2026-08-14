@@ -111,6 +111,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /projects", s.handleProjects)
 	mux.HandleFunc("POST /projects", s.handleProjectCreate)
 	mux.HandleFunc("POST /projects/{id}/update", s.handleProjectUpdate)
+	mux.HandleFunc("POST /projects/{id}/active", s.handleProjectActive)
 	mux.HandleFunc("POST /projects/{id}/delete", s.handleProjectDelete)
 	mux.HandleFunc("GET /goal", s.handleGoal)
 	mux.HandleFunc("POST /goal/chat", s.handleGoalChat)
@@ -525,7 +526,6 @@ func (s *Server) handleProjectUpdate(w http.ResponseWriter, r *http.Request) {
 	if color != "" && !models.IsHexColor(color) {
 		color = ""
 	}
-	active := r.FormValue("active") != ""
 	startDate := validISODate(r.FormValue("startDate"))
 	endDate := validISODate(r.FormValue("endDate"))
 	_ = s.store.Update(func(d *models.Data) error {
@@ -545,7 +545,6 @@ func (s *Server) handleProjectUpdate(w http.ResponseWriter, r *http.Request) {
 				if color != "" {
 					d.Projects[i].Color = color
 				}
-				d.Projects[i].Active = active
 				d.Projects[i].StartDate = startDate
 				d.Projects[i].EndDate = endDate
 			}
@@ -556,6 +555,28 @@ func (s *Server) handleProjectUpdate(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
+	http.Redirect(w, r, "/projects", http.StatusSeeOther)
+}
+
+// handleProjectActive switches a project between active and inactive. The flag
+// has its own route (and its own button) because it is not an ordinary field:
+// an inactive project keeps every booked and forecast hour, but releases the
+// budget that was never planned — see forecast.ProjectSummary.Released.
+func (s *Server) handleProjectActive(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	id := r.PathValue("id")
+	active := r.FormValue("active") == "1"
+	_ = s.store.Update(func(d *models.Data) error {
+		for i := range d.Projects {
+			if d.Projects[i].ID == id {
+				d.Projects[i].Active = active
+			}
+		}
+		return nil
+	})
 	http.Redirect(w, r, "/projects", http.StatusSeeOther)
 }
 

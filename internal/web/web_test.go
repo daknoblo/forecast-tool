@@ -267,3 +267,82 @@ func TestChatContextCarriesTheFigures(t *testing.T) {
 		}
 	}
 }
+
+// The active flag has its own route (and its own button) because switching a
+// project to inactive keeps every booked hour but releases the budget that was
+// never planned. Saving the edit form must not touch the flag.
+func TestProjectActiveToggleReleasesBudget(t *testing.T) {
+	store, err := storage.New(filepath.Join(t.TempDir(), "data.json"))
+	if err != nil {
+		t.Fatalf("storage.New: %v", err)
+	}
+	srv, err := NewServer(store, nil)
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	h := srv.Handler()
+
+	d := store.Snapshot()
+	fyStart, _ := forecast.FiscalYear(d.Settings.Year, d.Settings.FiscalYearStartMonth)
+	day := fyStart.Format("2006-01-02")
+	if err := store.Mutate(func(d *models.Data) error {
+		d.Projects = append(d.Projects, models.Project{
+			ID: "p1", AssignmentID: "1", Name: "Alpha", BudgetHours: 100, Color: "#2563eb",
+			Active: true, FiscalYear: d.Settings.Year,
+		})
+		d.Entries = append(d.Entries, models.Entry{Date: day, ProjectID: "p1", Hours: 10})
+		return nil
+	}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	post := func(path, body string) *httptest.ResponseRecorder {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec
+	}
+	summary := func() forecast.ProjectSummary {
+		t.Helper()
+		snap := store.Snapshot()
+		ys := forecast.BuildYearSummary(snap, holidays.Get(snap.Settings.Year, snap.Settings.FederalState))
+		for _, ps := range ys.Projects {
+			if ps.Project.ID == "p1" {
+				return ps
+			}
+		}
+		t.Fatal("project p1 disappeared from the summary")
+		return forecast.ProjectSummary{}
+	}
+
+	if rec := post("/projects/p1/active", "active=0"); rec.Code != http.StatusSeeOther {
+		t.Fatalf("deactivate = %d, want 303", rec.Code)
+	}
+	ps := summary()
+	if ps.Project.Active {
+		t.Error("project is still active after posting active=0")
+	}
+	if ps.Released != 90 || ps.AvailableBudget != 10 || ps.Remaining != 0 {
+		t.Errorf("released/available/remaining = %v/%v/%v, want 90/10/0", ps.Released, ps.AvailableBudget, ps.Remaining)
+	}
+	if ps.Consumed != 10 {
+		t.Errorf("Consumed = %v, want 10 (booked hours are kept)", ps.Consumed)
+	}
+
+	// The edit form no longer carries the flag, so saving it must not revive it.
+	if rec := post("/projects/p1/update", "name=Alpha+2&assignmentId=1&budget=100&color=%232563eb"); rec.Code != http.StatusSeeOther {
+		t.Fatalf("update = %d, want 303", rec.Code)
+	}
+	if ps := summary(); ps.Project.Active || ps.Project.Name != "Alpha 2" {
+		t.Errorf("after update: active=%v name=%q, want false/\"Alpha 2\"", ps.Project.Active, ps.Project.Name)
+	}
+
+	if rec := post("/projects/p1/active", "active=1"); rec.Code != http.StatusSeeOther {
+		t.Fatalf("reactivate = %d, want 303", rec.Code)
+	}
+	if ps := summary(); !ps.Project.Active || ps.Released != 0 || ps.Remaining != 90 {
+		t.Errorf("reactivated: active=%v released=%v remaining=%v, want true/0/90", ps.Project.Active, ps.Released, ps.Remaining)
+	}
+}
