@@ -268,7 +268,9 @@ static build.
 [.github/workflows/release.yml](.github/workflows/release.yml) first re-runs
 `go vet` and the race tests — so a red build can never publish an image — then
 builds and pushes multi-arch images to GHCR, produces SBOM and provenance,
-signs keyless with cosign and uploads the Trivy SARIF report.
+signs keyless with cosign and uploads the Trivy SARIF report. For a `v*` tag it
+also publishes the GitHub release entry, using the annotated tag message plus
+the auto-generated changelog, so tagging is the only manual release step.
 
 [.github/workflows/codeql.yml](.github/workflows/codeql.yml) runs CodeQL
 analysis on every push and pull request, plus weekly.
@@ -280,8 +282,14 @@ and publishes it to GitHub Pages.
 Every push to `main` builds and pushes a multi-arch image tagged `latest` plus
 `sha-<short>` for pinning an exact commit
 (`ghcr.io/daknoblo/forecast-tool:latest`). Pushing a git tag `v1.2.3`
-additionally publishes `1.2.3` and `1.2`. There are no further stages
-(no `stable`/`dev`).
+additionally publishes `1.2.3` and `1.2` and creates the matching GitHub
+release. There are no further stages (no `stable`/`dev`).
+
+To cut a release, annotate and push a tag — everything else is automatic:
+```bash
+git tag -a v1.2.3 -m "v1.2.3" -m "What changed ..."
+git push origin v1.2.3
+```
 
 ### One-time setup
 1. **Repository permissions**: under *Settings → Actions → General → Workflow
