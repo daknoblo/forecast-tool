@@ -12,27 +12,27 @@
 <section class="cards">
   <div class="card kpi">
     <div class="kpi-value">{{hours .Goal.TargetHours}} h</div>
-    <div class="kpi-label">FY-Ziel</div>
+    <div class="kpi-label">Fiskaljahresziel</div>
   </div>
   <div class="card kpi">
     <div class="kpi-value ist">{{hours .Goal.ActualTotal}} h</div>
-    <div class="kpi-label">Ist gebucht</div>
+    <div class="kpi-label">Aktuell gebucht</div>
   </div>
   <div class="card kpi">
     <div class="kpi-value">{{hours .Goal.ForecastRemaining}} h</div>
-    <div class="kpi-label">Forecast verbleibend</div>
+    <div class="kpi-label">Forecast</div>
   </div>
   <div class="card kpi">
     <div class="kpi-value">{{hours .Goal.Projected}} h</div>
     <div class="kpi-label">Hochrechnung</div>
   </div>
   <div class="card kpi">
-    <div class="kpi-value">{{hours .Goal.HolidayHours}} h</div>
-    <div class="kpi-label">Feiertage ({{.Goal.HolidayDays}} Tage à 8 h) – zählt nicht aufs Ziel</div>
+    <div class="kpi-value {{if and (not .Private) (lt .Goal.PctProjected 100.0)}}negative{{end}}">{{hours .Goal.PctProjected}} %</div>
+    <div class="kpi-label">Prognose %</div>
   </div>
-  <div class="card kpi">
-    <div class="kpi-value {{if lt .Goal.PctProjected 100.0}}negative{{end}}">{{hours .Goal.PctProjected}} %</div>
-    <div class="kpi-label">Zielerreichung (Hochrechnung)</div>
+  <div class="card kpi" title="Fiskaljahresziel − gebucht − Forecast: die Stunden, die noch geplant werden müssen.">
+    <div class="kpi-value {{if and (not .Private) (gt .Goal.Remaining 0.0)}}negative{{end}}">{{hours .Goal.Remaining}} h</div>
+    <div class="kpi-label">Offen</div>
   </div>
 </section>
 
