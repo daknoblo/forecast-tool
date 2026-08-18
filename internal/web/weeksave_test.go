@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/daknoblo/forecast-tool/internal/forecast"
+	"github.com/daknoblo/forecast-tool/internal/holidays"
 	"github.com/daknoblo/forecast-tool/internal/models"
 )
 
@@ -99,5 +100,58 @@ func TestWeekCellsReportSkippedProjects(t *testing.T) {
 		if e.ProjectID == "ghost" {
 			t.Error("the unknown project was stored anyway")
 		}
+	}
+}
+
+// The first fiscal-year week can start in the previous fiscal year. Those cells
+// stay visible and writable, but they must be marked so the live recalculation
+// keeps them out of this year's sums - exactly like the server does.
+func TestWeekGridMarksOutOfYearCells(t *testing.T) {
+	h, store := newTestServer(t)
+	d := store.Snapshot()
+	year, sm := d.Settings.Year, d.Settings.FiscalYearStartMonth
+	fyStart, _ := forecast.FiscalYear(year, sm)
+	monday := forecast.FYWeekMonday(year, sm, 1)
+	if !monday.Before(fyStart) {
+		t.Skip("the first FY week starts on the fiscal-year border this time")
+	}
+
+	if err := store.Mutate(func(d *models.Data) error {
+		d.Projects = append(d.Projects, models.Project{
+			ID: "p1", AssignmentID: "1", Name: "Alpha", BudgetHours: 100,
+			Color: "#2563eb", Active: true, FiscalYear: year,
+		})
+		d.Entries = append(d.Entries,
+			models.Entry{Date: monday.Format("2006-01-02"), ProjectID: "p1", Hours: 8},
+			models.Entry{Date: fyStart.Format("2006-01-02"), ProjectID: "p1", Hours: 5},
+		)
+		return nil
+	}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/week/1?weeks=1", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `data-date="`+monday.Format("2006-01-02")+`" data-outyear="1"`) {
+		t.Error("the out-of-year cell is not marked for the client-side recalculation")
+	}
+	if strings.Contains(body, `data-date="`+fyStart.Format("2006-01-02")+`" data-outyear="1"`) {
+		t.Error("a day inside the fiscal year was marked as out-of-year")
+	}
+
+	// The grid and the dashboard must agree on the week.
+	snap := store.Snapshot()
+	cal := holidays.Get(year, snap.Settings.FederalState)
+	wv := forecast.BuildWeek(snap, cal, 1)
+	ys := forecast.BuildYearSummary(snap, cal)
+	if wv.Total != 5 {
+		t.Errorf("grid week 1 = %v h, want 5 (the 8 h belong to the previous FY)", wv.Total)
+	}
+	if ys.WeekTotals[0].Hours != wv.Total {
+		t.Errorf("dashboard week 1 = %v h, grid = %v h", ys.WeekTotals[0].Hours, wv.Total)
 	}
 }

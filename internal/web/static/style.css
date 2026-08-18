@@ -121,7 +121,15 @@ table.week.span thead th.pname { background: #f8fafc; }
 table.week.span tfoot td.pname { background: #f8fafc; }
 table.week.span .weekgroup { text-align: center; border-left: 2px solid var(--line); border-right: 2px solid var(--line); white-space: nowrap; }
 table.week.span .weekgroup small { font-weight: 400; color: var(--muted); }
-table.week.span .outyear { background: #f8fafc; color: var(--muted); }
+/* Days of the neighbouring fiscal year: still bookable, but outside every sum
+   of this year - so they must be unmistakable, also against .past. */
+table.week.span th.day.outyear, table.week.span td.day.outyear,
+table.week.span th.day.outyear.past, table.week.span td.day.outyear.past {
+  background: repeating-linear-gradient(-45deg, #eef2f7, #eef2f7 5px, #e2e8f0 5px, #e2e8f0 10px);
+  color: var(--muted);
+}
+table.week.span td.day.outyear .hcell { background: #fff; color: var(--muted); font-style: italic; }
+.tag.otherfy { background: #64748b; }
 table.week.span .hcell { width: 100%; max-width: 70px; padding: 0.45rem 0.35rem; }
 
 .span-ctl { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; margin: 0.25rem 0 1rem; }

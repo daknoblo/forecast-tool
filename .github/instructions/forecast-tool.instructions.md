@@ -225,6 +225,17 @@ collects every requirement stated so far as the binding reference.
   FY and everything from 1 July counts towards the new one — even when it was
   entered on the previous year's project row (the forecast grid's first/last
   week can reach across the boundary).
+- **The forecast grid's out-of-year days are shown but never summed.** A
+  Monday-based FY week can start before the FY (e.g. FY 2027 begins on a
+  Wednesday, so week 1 runs from 29.06.) or end after it. Those cells stay
+  visible and writable — the hours belong to the neighbouring FY and reduce
+  *its* budget — but `buildWeek` keeps them out of `Total`, `ProjectTotals`,
+  `HolidayHours` and therefore out of the utilization, matching
+  `BuildYearSummary.WeekTotals` (`FYWeekIndexOf` returns 0 outside the FY),
+  `BuildSankey` and `BuildGoalSummary`. The cell keeps its own `Total`, the day
+  column is marked `.outyear` with an "anderes FY" tag, and the live JS
+  recalculation skips inputs carrying `data-outyear` — otherwise the numbers
+  would jump on the next reload.
   `BuildYearSummary` pools the hours per assignment and fiscal year
   (`groupKey` = assignment ID, or the project ID when there is none, e.g. the
   vacation project). Derived fields: `Consumed` (hours dated **inside** the FY),

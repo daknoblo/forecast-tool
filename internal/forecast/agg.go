@@ -231,17 +231,27 @@ func buildWeek(d models.Data, cal *holidays.Calendar, week int, hidx map[string]
 		}
 		if cell.IsHoliday {
 			cell.HolidayHours = HolidayDayHours
-			wv.HolidayHours += HolidayDayHours
+			if inYear {
+				wv.HolidayHours += HolidayDayHours
+			}
 		}
+		// Days outside the fiscal year stay visible and editable, but their hours
+		// belong to the neighbouring FY: counting them here would book the old
+		// year's hours onto this one.
 		for _, p := range d.Projects {
 			h := hidx[iso+"|"+p.ID]
-			if h != 0 {
-				cell.Hours[p.ID] = h
-				cell.Total += h
+			if h == 0 {
+				continue
+			}
+			cell.Hours[p.ID] = h
+			cell.Total += h
+			if inYear {
 				wv.ProjectTotals[p.ID] += h
 			}
 		}
-		wv.Total += cell.Total
+		if inYear {
+			wv.Total += cell.Total
+		}
 		wv.Days = append(wv.Days, cell)
 	}
 

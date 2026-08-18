@@ -47,7 +47,7 @@
         <th class="day{{if $d.IsHoliday}} holiday{{end}}{{if not $d.InYear}} outyear{{end}}{{if $d.Past}} past{{end}}{{if eq $i 0}} weekstart{{end}}{{if $d.MonthEnd}} monthend{{end}}">
           {{$d.WeekdayName}}<br><small>{{slice $d.Date 8 10}}.{{slice $d.Date 5 7}}.</small>
           {{if not $.Private}}<button type="button" class="clearbtn" data-clear-dates="{{$d.Date}}" title="Tag leeren">✕</button>{{end}}
-          {{if $d.IsHoliday}}<br><span class="tag" title="{{$d.HolidayName}}">Feiertag</span>{{else if $d.Past}}<br><span class="tag booked" title="Vergangener Tag – gebuchte Stunden">gebucht</span>{{end}}
+          {{if not $d.InYear}}<br><span class="tag otherfy" title="Dieser Tag gehört zum benachbarten Fiskaljahr. Stunden bleiben buchbar, zählen aber dort – nicht in die Summen dieses Fiskaljahres.">anderes FY</span>{{else if $d.IsHoliday}}<br><span class="tag" title="{{$d.HolidayName}}">Feiertag</span>{{else if $d.Past}}<br><span class="tag booked" title="Vergangener Tag – gebuchte Stunden">gebucht</span>{{end}}
         </th>
         {{end}}
       {{end}}
@@ -71,8 +71,8 @@
           <input type="text" inputmode="decimal" name="{{cellName $p.ID $d.Date}}"
                  value="{{with cellHours $d $p.ID}}{{hours .}}{{end}}"
                  class="hcell{{if $d.Past}} booked{{end}}{{if not $open}} outside{{end}}" autocomplete="off" placeholder="0"
-                 title="{{if not $open}}Außerhalb des Projektzeitraums – Buchen bleibt möglich{{else if $d.Past}}Gebuchte Stunden (vergangener Tag){{else}}Forecast (geplante Stunden){{end}}"
-                 data-project="{{$p.ID}}" data-week="{{$b.Week}}" data-date="{{$d.Date}}"{{if $.Private}} readonly{{end}}>
+                 title="{{if not $d.InYear}}Gehört noch nicht zu diesem Fiskaljahr – zählt nicht in die Wochen- und Jahressummen{{else if not $open}}Außerhalb des Projektzeitraums – Buchen bleibt möglich{{else if $d.Past}}Gebuchte Stunden (vergangener Tag){{else}}Forecast (geplante Stunden){{end}}"
+                 data-project="{{$p.ID}}" data-week="{{$b.Week}}" data-date="{{$d.Date}}"{{if not $d.InYear}} data-outyear="1"{{end}}{{if $.Private}} readonly{{end}}>
         </td>
         {{end}}
         <td class="num strong sumcol weeksum">
@@ -91,7 +91,7 @@
       <td class="pname">Stunden / Tag</td>
       {{range $b := .Span.Blocks}}
         {{range $i, $d := $b.Days}}
-          <td class="num center{{if $d.IsHoliday}} holiday{{end}}{{if $d.Past}} past{{end}}{{if eq $i 0}} weekstart{{end}}{{if $d.MonthEnd}} monthend{{end}}" data-day="{{$d.Date}}">{{hours $d.Total}}</td>
+          <td class="num center{{if $d.IsHoliday}} holiday{{end}}{{if not $d.InYear}} day outyear{{end}}{{if $d.Past}} past{{end}}{{if eq $i 0}} weekstart{{end}}{{if $d.MonthEnd}} monthend{{end}}" data-day="{{$d.Date}}">{{hours $d.Total}}</td>
         {{end}}
         <td class="num strong sumcol weeksum" data-week="{{$b.Week}}">{{hours $b.Total}}</td>
       {{end}}
@@ -190,10 +190,13 @@
       var week = inp.getAttribute('data-week');
       var date = inp.getAttribute('data-date');
       var v = num(inp.value);
+      day[date] = (day[date] || 0) + v;
+      // A day outside the fiscal year still shows and stores its hours, but they
+      // belong to the neighbouring FY and must not land in this year's sums.
+      if (inp.hasAttribute('data-outyear')) return;
       var key = pid + '|' + week;
       pw[key] = (pw[key] || 0) + v;
       pg[pid] = (pg[pid] || 0) + v;
-      day[date] = (day[date] || 0) + v;
       wk[week] = (wk[week] || 0) + v;
       grand += v;
     });
