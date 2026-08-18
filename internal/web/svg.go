@@ -217,14 +217,6 @@ func progressSVG(labels []string, booked, projected []float64, target, todayPos 
 			return arr[i-1]
 		}
 	}
-	interpolate := func(arr []float64, pos float64) float64 {
-		lo := int(math.Floor(pos))
-		f := pos - float64(lo)
-		if f == 0 {
-			return valueAt(arr, lo)
-		}
-		return valueAt(arr, lo) + (valueAt(arr, lo+1)-valueAt(arr, lo))*f
-	}
 
 	const (
 		colDone      = "#16a34a"
@@ -303,9 +295,14 @@ func progressSVG(labels []string, booked, projected []float64, target, todayPos 
 	}
 
 	// The junction carries the booked total at today; the projection continues
-	// from exactly this point, so both halves form one line.
-	junction := interpolate(booked, todayPos)
+	// from exactly this point, so both halves form one line. Booked hours only
+	// exist on past days, so the sub-period today falls into already holds its
+	// final booked value - interpolating it would understate the curve.
 	lastDone := int(math.Floor(todayPos))
+	junction := 0.0
+	if todayPos > 0 {
+		junction = valueAt(booked, lastDone+1)
+	}
 
 	if todayPos > 0 {
 		var area, line strings.Builder

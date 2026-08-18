@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -369,5 +371,42 @@ func TestProgressChartPercentAxis(t *testing.T) {
 	// Private mode masks the percentages like every other figure.
 	if got := string(progressSVG(labels, booked, projected, 200, 1, false, true)); strings.Contains(got, " %<") {
 		t.Error("private mode leaks percentages on the axis")
+	}
+}
+
+// Booked hours only exist on past days, so the sub-period today falls into
+// already carries its final booked value. The green curve must therefore end on
+// the full booked total and not on a value interpolated across that sub-period,
+// otherwise a target that is already met still looks unreached.
+func TestProgressChartBookedEndsAtTotal(t *testing.T) {
+	labels := []string{"Jul", "Aug", "Sep"}
+	booked := []float64{250, 360, 360}    // cumulative, nothing booked in Sep yet
+	projected := []float64{250, 400, 646} // cumulative incl. forecast
+	const target, todayPos = 359, 1.548   // mid-August
+
+	got := string(progressSVG(labels, booked, projected, target, todayPos, false, false))
+
+	green := regexp.MustCompile(`<polyline fill="none" stroke="#16a34a" stroke-width="2.5" points="([^"]+)"`).FindStringSubmatch(got)
+	if green == nil {
+		t.Fatal("booked curve is missing")
+	}
+	pts := strings.Fields(green[1])
+	endY, err := strconv.ParseFloat(strings.SplitN(pts[len(pts)-1], ",", 2)[1], 64)
+	if err != nil {
+		t.Fatalf("parsing the curve end %q: %v", pts[len(pts)-1], err)
+	}
+
+	tgt := regexp.MustCompile(`<line x1="[\d.]+" y1="([\d.]+)" x2="[\d.]+" y2="[\d.]+" stroke="#dc2626" stroke-width="2"/>`).FindStringSubmatch(got)
+	if tgt == nil {
+		t.Fatal("target line is missing")
+	}
+	targetY, err := strconv.ParseFloat(tgt[1], 64)
+	if err != nil {
+		t.Fatalf("parsing the target line: %v", err)
+	}
+
+	// Smaller y means higher up: 360 h booked must sit above the 359 h target.
+	if endY >= targetY {
+		t.Errorf("booked curve ends at y=%g, want above the target line at y=%g", endY, targetY)
 	}
 }

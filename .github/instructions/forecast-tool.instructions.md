@@ -542,7 +542,11 @@ collects every requirement stated so far as the binding reference.
   draws the burn-up of a period as **one continuous curve that starts at zero**:
   green `#16a34a` (booked, with a filled area) up to `todayPos`, orange `#ea580c`
   dashed (projection incl. forecast) from there to the end. Both halves meet in
-  the same interpolated point, because everything before today is booked. Do
+  the same junction point, whose value is the cumulative **booked** total of the
+  sub-period `todayPos` falls into – booked hours only exist on past days, so
+  that sub-period already carries its final booked value. Do **not** interpolate
+  the junction across the running sub-period: that understates the curve and
+  makes an already reached target look unreached. Do
   **not** draw two independent curves and do **not** split by "completed
   sub-periods" – that hides the hours already booked in the running month.
   `todayPos` is a **fractional** sub-period index (0 = period start, `len` =
