@@ -235,3 +235,76 @@ func TestVacationStaysOutOfTheRollUps(t *testing.T) {
 		t.Errorf("capacity = %v, want 760", c.RemainingHours)
 	}
 }
+
+// "Budget gesamt" on the dashboard is TotalAvailable, which must be exactly
+// what the user can still work with: booked + forecast + not yet planned. The
+// scenario mixes everything that shifts it - a carry-over from the previous
+// fiscal year, an inactive project releasing its unplanned rest, an overbooked
+// project with a negative rest and the vacation project, which stays out.
+func TestTotalAvailableIsBookedPlusForecastPlusUnplanned(t *testing.T) {
+	year := 2027
+	d := models.Data{
+		Settings: models.Settings{Year: year, FederalState: "BY", WeeklyTargetHours: 40, FiscalYearStartMonth: 7},
+		FiscalYears: map[int]models.FiscalYearSettings{
+			year: {VacationDays: 30},
+		},
+		Projects: []models.Project{
+			// Continued assignment: 100 h were already burned in FY 2026.
+			{ID: "carry-old", AssignmentID: "100", Name: "Carry", BudgetHours: 400, Active: true, FiscalYear: 2026},
+			{ID: "carry-new", AssignmentID: "100", Name: "Carry", BudgetHours: 400, Active: true, FiscalYear: year},
+			// Finished project: only 30 of 200 h were ever planned.
+			{ID: "done", AssignmentID: "200", Name: "Abgeschlossen", BudgetHours: 200, Active: false, FiscalYear: year},
+			// Overbooked project: 90 h planned against a 50 h budget.
+			{ID: "over", AssignmentID: "300", Name: "Überbucht", BudgetHours: 50, Active: true, FiscalYear: year},
+			{
+				ID: models.VacationProjectID(year), Name: "Urlaub", BudgetHours: 240,
+				Color: models.VacationColor, Active: true, FiscalYear: year, System: models.VacationSystem,
+			},
+		},
+		Entries: []models.Entry{
+			{Date: "2026-03-02", ProjectID: "carry-old", Hours: 100}, // FY 2026 -> carry-over
+			{Date: "2026-09-01", ProjectID: "carry-new", Hours: 60},  // booked (past)
+			{Date: "2027-05-03", ProjectID: "carry-new", Hours: 40},  // forecast (future)
+			{Date: "2026-09-02", ProjectID: "done", Hours: 30},       // booked
+			{Date: "2026-09-03", ProjectID: "over", Hours: 50},       // booked
+			{Date: "2027-05-04", ProjectID: "over", Hours: 40},       // forecast
+			{Date: "2026-09-04", ProjectID: models.VacationProjectID(year), Hours: 8},
+		},
+	}
+	ys := BuildYearSummary(d, holidays.New(year, "BY"))
+
+	// 400 + 200 + 50 = 650 budget, 100 carried over, 170 released by "done".
+	if ys.TotalBudget != 650 {
+		t.Errorf("TotalBudget = %v, want 650 (vacation excluded)", ys.TotalBudget)
+	}
+	if ys.TotalCarryOver != 100 {
+		t.Errorf("TotalCarryOver = %v, want 100", ys.TotalCarryOver)
+	}
+	if ys.TotalReleased != 170 {
+		t.Errorf("TotalReleased = %v, want 170", ys.TotalReleased)
+	}
+	if ys.TotalAvailable != 380 {
+		t.Errorf("TotalAvailable = %v, want 380 (650 - 100 - 170)", ys.TotalAvailable)
+	}
+
+	// The KPI must be reproducible from the columns of the budget table.
+	var booked, forecast, rest float64
+	for _, ps := range ys.Projects {
+		if ps.Project.IsVacation() {
+			continue
+		}
+		booked += ps.Actual
+		forecast += ps.Forecast
+		rest += ps.Remaining // negative for the overbooked project
+	}
+	if booked != ys.TotalActual || forecast != ys.TotalForecast {
+		t.Errorf("column sums %v/%v != roll-up %v/%v", booked, forecast, ys.TotalActual, ys.TotalForecast)
+	}
+	if rest != ys.TotalRemaining {
+		t.Errorf("sum of the Rest column = %v, but TotalRemaining = %v", rest, ys.TotalRemaining)
+	}
+	if got := booked + forecast + rest; got != ys.TotalAvailable {
+		t.Errorf("booked %v + forecast %v + unplanned %v = %v, want the KPI %v",
+			booked, forecast, rest, got, ys.TotalAvailable)
+	}
+}
