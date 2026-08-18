@@ -318,6 +318,10 @@ func (s *Server) handleWeekSave(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err := s.store.Update(func(data *models.Data) error {
+		known := make(map[string]bool, len(data.Projects))
+		for _, p := range data.Projects {
+			known[p.ID] = true
+		}
 		// Drop existing entries for this week, then re-add the non-zero values.
 		kept := data.Entries[:0]
 		for _, e := range data.Entries {
@@ -338,7 +342,9 @@ func (s *Server) handleWeekSave(w http.ResponseWriter, r *http.Request) {
 			return keys[i].project < keys[j].project
 		})
 		for _, k := range keys {
-			if newHours[k] > 0 {
+			// A field naming a project that no longer exists would make the whole
+			// document fail validation on the next write.
+			if newHours[k] > 0 && known[k.project] {
 				data.Entries = append(data.Entries, models.Entry{
 					Date: k.date, ProjectID: k.project, Hours: newHours[k],
 				})
@@ -497,6 +503,9 @@ func (s *Server) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 	startDate := validISODate(r.FormValue("startDate"))
 	endDate := validISODate(r.FormValue("endDate"))
 	_ = s.store.Update(func(d *models.Data) error {
+		if assignmentTaken(d.Projects, assignmentID, d.Settings.Year, "") {
+			return errAssignmentTaken
+		}
 		used := make([]string, 0, len(d.Projects))
 		for _, p := range d.Projects {
 			used = append(used, p.Color)
@@ -542,6 +551,9 @@ func (s *Server) handleProjectUpdate(w http.ResponseWriter, r *http.Request) {
 					d.Projects[i].Name = name
 				}
 				if assignmentID != "" {
+					if assignmentTaken(d.Projects, assignmentID, d.Projects[i].FiscalYear, id) {
+						return errAssignmentTaken
+					}
 					d.Projects[i].AssignmentID = assignmentID
 				}
 				// The vacation project's budget is derived from the vacation days

@@ -169,6 +169,17 @@ func vacationSet(ps []models.Project) map[string]bool {
 	return set
 }
 
+// knownProjects returns the set of existing project IDs. Entries pointing at a
+// project that no longer exists are ignored by every roll-up, so the goal, the
+// year summary and the grids always count the same hours.
+func knownProjects(ps []models.Project) map[string]bool {
+	set := make(map[string]bool, len(ps))
+	for _, p := range ps {
+		set[p.ID] = true
+	}
+	return set
+}
+
 // BuildWeek assembles the Mon-Fri view for one fiscal-year week.
 func BuildWeek(d models.Data, cal *holidays.Calendar, week int) WeekView {
 	return buildWeek(d, cal, week, hoursIndex(d.Entries), todayISO())
@@ -631,24 +642,26 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 		}
 		past := dateStr < todayStr
 
-		if p, ok := projByID[pid]; ok {
-			g := groupKey(p)
-			byYear := groupYear[g]
-			if byYear == nil {
-				byYear = map[int]float64{}
-				groupYear[g] = byYear
+		p, ok := projByID[pid]
+		if !ok {
+			continue // the project was deleted; the grids ignore those hours too
+		}
+		g := groupKey(p)
+		byYear := groupYear[g]
+		if byYear == nil {
+			byYear = map[int]float64{}
+			groupYear[g] = byYear
+		}
+		entryFY := FiscalYearOf(t, startMonth)
+		byYear[entryFY] += v
+		if entryFY == year {
+			if past {
+				actualByGroup[g] += v // past days are booked
+			} else {
+				forecastByGroup[g] += v // today and future are forecast
 			}
-			entryFY := FiscalYearOf(t, startMonth)
-			byYear[entryFY] += v
-			if entryFY == year {
-				if past {
-					actualByGroup[g] += v // past days are booked
-				} else {
-					forecastByGroup[g] += v // today and future are forecast
-				}
-				if !p.Bookable(dateStr) {
-					outByP[pid] += v
-				}
+			if !p.Bookable(dateStr) {
+				outByP[pid] += v
 			}
 		}
 
@@ -664,6 +677,11 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 	}
 
 	ys := YearSummary{}
+	// Hours are pooled per assignment, so every row of the same assignment
+	// reports the same figures. A document that (invalidly) carries several rows
+	// for one assignment in the same fiscal year must therefore still contribute
+	// those hours to the roll-ups exactly once.
+	rolledUp := map[string]bool{}
 	for _, p := range models.ProjectsForFY(d.Projects, year) {
 		g := groupKey(p)
 		byYear := groupYear[g]
@@ -781,7 +799,8 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 		// The roll-ups describe the assignment work of the fiscal year; the
 		// vacation project has its own derived budget and never counts towards
 		// the goal, so it stays out of them.
-		if !p.IsVacation() {
+		if !p.IsVacation() && !rolledUp[g] {
+			rolledUp[g] = true
 			ys.TotalHours += c
 			ys.TotalBudget += p.BudgetHours
 			ys.TotalCarryOver += over
@@ -912,8 +931,9 @@ func BuildWeekToDate(d models.Data, cal *holidays.Calendar) WeekToDate {
 	fromISO := fyStart.Format("2006-01-02")
 	todayISO := now.Format("2006-01-02")
 	vac := vacationSet(d.Projects)
+	known := knownProjects(d.Projects)
 	for _, e := range d.Entries {
-		if e.Date < fromISO || e.Date >= todayISO || vac[e.ProjectID] {
+		if e.Date < fromISO || e.Date >= todayISO || vac[e.ProjectID] || !known[e.ProjectID] {
 			continue
 		}
 		wtd.Hours += e.Hours
@@ -944,7 +964,9 @@ type BurnPoint struct {
 // effective booking window, padded by one month before the start and one month
 // after the end. Only hours dated inside the window count: the window is
 // clamped to the fiscal year, and hours outside it belong to another fiscal
-// year (they are already deducted from the budget as a carry-over).
+// year (they are already deducted from the budget as a carry-over). Hours are
+// pooled per assignment, so a continued assignment whose hours were booked on
+// the previous year's row still burns down the same budget the table shows.
 func BuildBurndown(d models.Data, projectID, startISO, endISO string, budget float64) []BurnPoint {
 	start, errS := time.Parse("2006-01-02", startISO)
 	end, errE := time.Parse("2006-01-02", endISO)
@@ -954,6 +976,23 @@ func BuildBurndown(d models.Data, projectID, startISO, endISO string, budget flo
 	}
 	fromISO := start.Format("2006-01-02")
 	toISO := end.Format("2006-01-02")
+
+	// Every project row of the same assignment feeds this curve.
+	group := ""
+	for _, p := range d.Projects {
+		if p.ID == projectID {
+			group = groupKey(p)
+			break
+		}
+	}
+	inGroup := map[string]bool{projectID: true}
+	if group != "" {
+		for _, p := range d.Projects {
+			if groupKey(p) == group {
+				inGroup[p.ID] = true
+			}
+		}
+	}
 
 	// Pad the window by one month on each side and align to whole weeks.
 	winStart := mondayOf(start.AddDate(0, -1, 0))
@@ -969,7 +1008,7 @@ func BuildBurndown(d models.Data, projectID, startISO, endISO string, budget flo
 	// arithmetically instead of by scanning the whole window per week.
 	perWeek := make([]float64, weeks)
 	for _, e := range d.Entries {
-		if e.ProjectID != projectID || e.Date < fromISO || e.Date > toISO {
+		if !inGroup[e.ProjectID] || e.Date < fromISO || e.Date > toISO {
 			continue
 		}
 		t, err := time.Parse("2006-01-02", e.Date)
@@ -1141,9 +1180,10 @@ func BuildGoalSummary(d models.Data, cal *holidays.Calendar) GoalSummary {
 
 	hByDate := map[string]float64{}
 	vac := vacationSet(d.Projects)
+	known := knownProjects(d.Projects)
 	for _, e := range d.Entries {
-		if vac[e.ProjectID] {
-			continue // vacation is informational, not counted towards the goal
+		if vac[e.ProjectID] || !known[e.ProjectID] {
+			continue // vacation is informational; orphan entries belong to no project
 		}
 		hByDate[e.Date] += e.Hours
 	}

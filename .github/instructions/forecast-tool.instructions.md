@@ -235,6 +235,20 @@ collects every requirement stated so far as the binding reference.
   `UtilizationPct` (= `(CarryOver + Consumed) / BudgetHours`, the whole
   assignment across all fiscal years) and `CarryOverPct` (= `CarryOver /
   BudgetHours`).
+- **An assignment ID may appear at most ONCE per fiscal year.** Because the
+  hours are pooled per assignment, a second row of the same FY would report the
+  same figures again. `models.Validate` rejects it, `handleProjectCreate` and
+  `handleProjectUpdate` refuse the write, and the FY roll-ups
+  (`TotalHours`/`TotalBudget`/…) count each assignment once even when an older
+  document still carries a duplicate. The same assignment in **different**
+  fiscal years is the normal continuation and stays allowed.
+- **Entries whose project no longer exists are ignored everywhere** —
+  `BuildGoalSummary`, `BuildYearSummary` (incl. its weekly totals),
+  `BuildGoalFlow` and `BuildWeekToDate` all skip them, exactly like the grids,
+  which iterate `d.Projects`. Otherwise the goal page and the dashboard would
+  report different totals. The write paths must not create such entries either:
+  `models.Validate` rejects them, so a single orphan would make every later
+  `store.Mutate` fail.
 - **An inactive project releases its unplanned budget.** Setting `active` to
   false means the project is done: every booked and forecast hour stays exactly
   as it is, but the part of the budget that was never planned is assumed to never
@@ -270,7 +284,9 @@ collects every requirement stated so far as the binding reference.
   so a continued assignment does not get its already-burned hours back. The same
   applies to the burn-down chart on the projects page, which also ignores hours
   dated outside the (FY-clamped) booking window — they belong to another fiscal
-  year and are already deducted as a carry-over.
+  year and are already deducted as a carry-over. `BuildBurndown` pools the hours
+  of **every project row of the same assignment**, so a curve started on the
+  previous year's row still ends on the `Remaining` the table shows.
 - The **default active fiscal year** on first start (and for a legacy document
   with `year: 0`) is the FY that contains today, via
   `forecast.FiscalYearOf(time.Now().UTC(), startMonth)` in `storage` — not the
@@ -544,9 +560,11 @@ collects every requirement stated so far as the binding reference.
   dashed (projection incl. forecast) from there to the end. Both halves meet in
   the same junction point, whose value is the cumulative **booked** total of the
   sub-period `todayPos` falls into – booked hours only exist on past days, so
-  that sub-period already carries its final booked value. Do **not** interpolate
-  the junction across the running sub-period: that understates the curve and
-  makes an already reached target look unreached. Do
+  that sub-period already carries its final booked value. Right **on** a
+  boundary (`todayPos` is a whole number) nothing has elapsed in the next
+  sub-period yet, so the previous one is the last that counts. Do **not**
+  interpolate the junction across the running sub-period: that understates the
+  curve and makes an already reached target look unreached. Do
   **not** draw two independent curves and do **not** split by "completed
   sub-periods" – that hides the hours already booked in the running month.
   `todayPos` is a **fractional** sub-period index (0 = period start, `len` =

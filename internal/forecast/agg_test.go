@@ -451,6 +451,9 @@ func TestGoalSummaryTotals(t *testing.T) {
 		FiscalYears: map[int]models.FiscalYearSettings{
 			2026: {WeekdayHours: 1000, HolidayDays: intPtr(0)},
 		},
+		Projects: []models.Project{
+			{ID: "p1", AssignmentID: "1", Name: "Alpha", BudgetHours: 100, Active: true, FiscalYear: 2026},
+		},
 		Entries: []models.Entry{
 			{Date: "2026-01-12", ProjectID: "p1", Hours: 8},
 			{Date: "2026-12-21", ProjectID: "p1", Hours: 5},

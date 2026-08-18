@@ -296,13 +296,16 @@ func progressSVG(labels []string, booked, projected []float64, target, todayPos 
 
 	// The junction carries the booked total at today; the projection continues
 	// from exactly this point, so both halves form one line. Booked hours only
-	// exist on past days, so the sub-period today falls into already holds its
-	// final booked value - interpolating it would understate the curve.
+	// exist on past days, so the sub-period today falls INTO already holds its
+	// final booked value - interpolating it would understate the curve. Right on
+	// a boundary no time has elapsed in the next sub-period yet, so the previous
+	// one is the last that counts.
 	lastDone := int(math.Floor(todayPos))
-	junction := 0.0
-	if todayPos > 0 {
-		junction = valueAt(booked, lastDone+1)
+	bookedThrough := lastDone
+	if todayPos > float64(lastDone) {
+		bookedThrough = lastDone + 1
 	}
+	junction := valueAt(booked, bookedThrough)
 
 	if todayPos > 0 {
 		var area, line strings.Builder

@@ -394,6 +394,9 @@ func Validate(d Data) error {
 	}
 
 	ids := make(map[string]bool, len(d.Projects))
+	// An assignment is pooled across fiscal years, so it must appear at most
+	// once per fiscal year - otherwise its hours and budget would count twice.
+	assignments := make(map[string]string, len(d.Projects))
 	for i, p := range d.Projects {
 		if strings.TrimSpace(p.ID) == "" {
 			return fmt.Errorf("projects[%d]: id darf nicht leer sein", i)
@@ -402,6 +405,14 @@ func Validate(d Data) error {
 			return fmt.Errorf("projects[%d]: doppelte id %q", i, p.ID)
 		}
 		ids[p.ID] = true
+		if a := strings.ToLower(strings.TrimSpace(p.AssignmentID)); a != "" {
+			key := fmt.Sprintf("%d|%s", p.FiscalYear, a)
+			if first, dup := assignments[key]; dup {
+				return fmt.Errorf("projects[%d] (%s): assignmentId %q ist im Fiskaljahr %d bereits von %q belegt",
+					i, p.Name, p.AssignmentID, p.FiscalYear, first)
+			}
+			assignments[key] = p.Name
+		}
 		if strings.TrimSpace(p.Name) == "" {
 			return fmt.Errorf("projects[%d] (%s): name darf nicht leer sein", i, p.ID)
 		}
