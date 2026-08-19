@@ -650,7 +650,10 @@ collects every requirement stated so far as the binding reference.
   control row, `.burnbanner` shows the combined burn rate
   (`{{.Burn.PerWeek}}` h/week · `{{.Burn.PerWorkday}}` h/day) plus per-project
   chips for all **active** projects whose booking window overlaps the visible
-  range. Source: `forecast.BuildSpanBurn(ys.Projects, spanStart, spanEnd)` in
+  range. **Vacation is excluded** — the banner measures billable work, so time
+  off must not raise the rate the grid is judged against (its own row on the
+  projects page still shows a burn rate). Source:
+  `forecast.BuildSpanBurn(ys.Projects, spanStart, spanEnd)` in
   `handleWeek` (`ys` = `BuildYearSummary(d, cal)`).
 - **Forecast control row & auto-save (`/week`):** above the table sits a
   **centred** control row (`.week-controls`): the "visible weeks" switch is

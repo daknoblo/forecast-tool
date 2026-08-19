@@ -383,10 +383,12 @@ type SpanBurnItem struct {
 // BuildSpanBurn sums the per-project burn rates (from a year summary) of the
 // active projects whose booking window overlaps the inclusive [spanStart,
 // spanEnd] date range (ISO YYYY-MM-DD). ISO strings compare lexicographically.
+// Vacation is left out: it is time off, not billable work, so it must not raise
+// the rate the grid is measured against.
 func BuildSpanBurn(ps []ProjectSummary, spanStart, spanEnd string) SpanBurn {
 	var sb SpanBurn
 	for _, p := range ps {
-		if !p.Project.Active {
+		if !p.Project.Active || p.Project.IsVacation() {
 			continue
 		}
 		// no overlap if the window ends before the span or starts after it

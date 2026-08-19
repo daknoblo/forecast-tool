@@ -234,6 +234,28 @@ func TestVacationStaysOutOfTheRollUps(t *testing.T) {
 	if c := BuildFYCapacity(d, cal, year); c.RemainingHours != 1000-240 {
 		t.Errorf("capacity = %v, want 760", c.RemainingHours)
 	}
+
+	// The burn-rate banner above the forecast grid measures billable work, so
+	// vacation must not raise it either.
+	ys2 := BuildYearSummary(d, cal)
+	burn := BuildSpanBurn(ys2.Projects, "2026-07-01", "2027-06-30")
+	for _, it := range burn.Items {
+		if it.Name == "Urlaub" {
+			t.Error("the burn-rate banner lists the vacation project")
+		}
+	}
+	var want float64
+	for _, ps := range ys2.Projects {
+		if !ps.Project.IsVacation() {
+			want += ps.BurnPerWeek
+		}
+	}
+	if !eq(burn.PerWeek, want, 0.2) {
+		t.Errorf("burn rate = %v h/week, want %v (without vacation)", burn.PerWeek, want)
+	}
+	if burn.PerWeek <= 0 {
+		t.Error("the burn rate collapsed to zero")
+	}
 }
 
 // "Budget gesamt" on the dashboard is TotalAvailable, which must be exactly
