@@ -92,8 +92,9 @@ only renders the docs and the demo snapshot.
   the hours actually booked against the FY goal spread evenly over the year's
   weeks. Working 40 h where the even split only asks for 27.7 h shows as ~147 %
   (today is excluded while it is still running, vacation does not count)
-- **Private mode**: a header toggle that masks all project names and figures —
-  useful when sharing a screen
+- **Private mode**: a header toggle that swaps the real document for a complete
+  set of sample data — every chart, bar and indicator stays alive, nothing real
+  is on screen. Useful when sharing a screen
 - **Chat with your data**: ask questions about the fiscal year in plain language
   against a configurable, Azure OpenAI-compatible endpoint (e.g. an Azure AI
   Foundry model router); only a compact summary is sent, never the raw file

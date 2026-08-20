@@ -79,7 +79,7 @@ func DemoShots(week int) []Shot {
 		{
 			File: "private.png", Path: "/", FullPage: true, Private: true,
 			Title:       "Privater Modus",
-			Description: "Ein Klick maskiert alle Projektnamen und Zahlen – auch in den Diagrammen, deren Spalten dann gleich hoch sind.",
+			Description: "Ein Klick ersetzt die echten Daten durch ein vollständiges Beispiel-Fiskaljahr – alle Diagramme und Indikatoren bleiben lebendig, nur die Zahlen sind erfunden.",
 		},
 	}
 }

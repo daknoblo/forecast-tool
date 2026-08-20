@@ -61,7 +61,7 @@ func TestProgressChartHalvesMeetInOnePoint(t *testing.T) {
 	projected := []float64{100, 200, 280, 340}
 
 	for _, todayPos := range []float64{0, 0.01, 0.5, 1, 1.3, 1.999, 2, 3.5, 4} {
-		svg := string(progressSVG(labels, booked, projected, 300, todayPos, false, false))
+		svg := string(progressSVG(labels, booked, projected, 300, todayPos, false))
 		green, orange := curves(t, svg)
 		if todayPos > 0 && len(green) == 0 {
 			t.Fatalf("todayPos=%v: no booked curve", todayPos)
@@ -101,7 +101,7 @@ func TestProgressChartStaysInsideThePlot(t *testing.T) {
 	const padT, plotBottom = 30.0, 30.0 + 162.0
 	for _, c := range cases {
 		for _, todayPos := range []float64{0, 1.5, 3} {
-			svg := string(progressSVG([]string{"a", "b", "c"}, c.booked, c.projected, c.target, todayPos, false, false))
+			svg := string(progressSVG([]string{"a", "b", "c"}, c.booked, c.projected, c.target, todayPos, false))
 			green, orange := curves(t, svg)
 			for _, pts := range [][][2]float64{green, orange} {
 				for _, p := range pts {
@@ -122,7 +122,7 @@ func TestProgressChartPillsMatchTheData(t *testing.T) {
 	booked := []float64{100, 180, 180}
 	projected := []float64{100, 200, 340}
 
-	svg := string(progressSVG(labels, booked, projected, 300, 1.5, false, false))
+	svg := string(progressSVG(labels, booked, projected, 300, 1.5, false))
 	got := pillRe.FindAllStringSubmatch(svg, -1)
 	want := []string{"Gebucht 180 h", "Forecast 160 h", "Hochrechnung 340 h", "Ziel 300 h"}
 	if len(got) != len(want) {
@@ -136,7 +136,7 @@ func TestProgressChartPillsMatchTheData(t *testing.T) {
 
 	// A projection below the booked total (data entered backwards) must not
 	// produce a negative forecast pill.
-	svg = string(progressSVG(labels, []float64{100, 400, 400}, projected, 300, 3, false, false))
+	svg = string(progressSVG(labels, []float64{100, 400, 400}, projected, 300, 3, false))
 	for _, m := range pillRe.FindAllStringSubmatch(svg, -1) {
 		if strings.Contains(m[1], "-") {
 			t.Errorf("pill %q shows a negative value", m[1])
@@ -207,7 +207,7 @@ func TestGoalChartsMatchTheGoalSummary(t *testing.T) {
 		labels[i], proj[i], act[i] = m.Label, m.Projected, m.Actual
 	}
 	pos := forecast.FYMonthProgress(year, snap.Settings.FiscalYearStartMonth)
-	svg := string(progressSVG(labels, cumulative(act), cumulative(proj), gs.TargetHours, pos, true, false))
+	svg := string(progressSVG(labels, cumulative(act), cumulative(proj), gs.TargetHours, pos, true))
 
 	pills := pillRe.FindAllStringSubmatch(svg, -1)
 	if len(pills) != 4 {

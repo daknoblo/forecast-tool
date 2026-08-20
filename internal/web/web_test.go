@@ -119,19 +119,85 @@ func TestStaticAssetsAreVersionedAndCacheable(t *testing.T) {
 	}
 }
 
-func TestPrivateModeMasksFigures(t *testing.T) {
-	h := newTestHandler(t)
+// The private mode replaces the real document with sample data instead of
+// blanking the figures out, so the page keeps its bars and charts while nothing
+// real is on screen.
+func TestPrivateModeShowsSampleDataInsteadOfTheRealOne(t *testing.T) {
+	store, err := storage.New(filepath.Join(t.TempDir(), "data.json"))
+	if err != nil {
+		t.Fatalf("storage.New: %v", err)
+	}
+	if err := store.Mutate(func(d *models.Data) error {
+		d.Projects = append(d.Projects, models.Project{
+			ID: "p1", AssignmentID: "9998887", Name: "Geheimprojekt", BudgetHours: 120,
+			Color: "#2563eb", Active: true, FiscalYear: d.Settings.Year,
+		})
+		return nil
+	}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	srv, err := NewServer(store, nil)
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	h := srv.Handler()
 
+	for _, path := range []string{"/", "/projects", "/goal", "/week"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.AddCookie(&http.Cookie{Name: privateCookie, Value: "1"})
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK && rec.Code != http.StatusFound {
+			t.Fatalf("GET %s = %d, want 200/302", path, rec.Code)
+		}
+		body := rec.Body.String()
+		if strings.Contains(body, "Geheimprojekt") || strings.Contains(body, "9998887") {
+			t.Errorf("GET %s leaks the real project", path)
+		}
+	}
+
+	// The dashboard has to show real figures again - just fictional ones.
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.AddCookie(&http.Cookie{Name: privateCookie, Value: "1"})
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200", rec.Code)
+	if !strings.Contains(rec.Body.String(), "Cloud-Migration") {
+		t.Error("private dashboard does not show the sample projects")
 	}
-	if !strings.Contains(rec.Body.String(), maskedValue) {
-		t.Error("private dashboard does not contain any masked value")
+	if strings.Contains(rec.Body.String(), `<span style="width:0%"`) {
+		t.Error("private dashboard still collapses its bars")
+	}
+}
+
+// The private mode is read-only: it must not be a way to change or export the
+// document it is hiding.
+func TestPrivateModeBlocksExportAndYearSwitch(t *testing.T) {
+	store, err := storage.New(filepath.Join(t.TempDir(), "data.json"))
+	if err != nil {
+		t.Fatalf("storage.New: %v", err)
+	}
+	srv, err := NewServer(store, nil)
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	h := srv.Handler()
+	year := store.Snapshot().Settings.Year
+
+	req := httptest.NewRequest(http.MethodGet, "/export", nil)
+	req.AddCookie(&http.Cookie{Name: privateCookie, Value: "1"})
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("private export = %d, want 403", rec.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/fy", strings.NewReader("year="+strconv.Itoa(year+1)))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(&http.Cookie{Name: privateCookie, Value: "1"})
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if got := store.Snapshot().Settings.Year; got != year {
+		t.Errorf("private mode switched the fiscal year to %d, want %d", got, year)
 	}
 }
 
@@ -356,7 +422,7 @@ func TestProgressChartPercentAxis(t *testing.T) {
 	booked := []float64{50, 100}
 	projected := []float64{50, 150}
 
-	got := string(progressSVG(labels, booked, projected, 200, 1, false, false))
+	got := string(progressSVG(labels, booked, projected, 200, 1, false))
 	for _, want := range []string{">0 %<", ">100 %<"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("percentage axis is missing %q", want)
@@ -364,13 +430,8 @@ func TestProgressChartPercentAxis(t *testing.T) {
 	}
 
 	// Without a target a percentage has no basis.
-	if got := string(progressSVG(labels, booked, projected, 0, 1, false, false)); strings.Contains(got, " %<") {
+	if got := string(progressSVG(labels, booked, projected, 0, 1, false)); strings.Contains(got, " %<") {
 		t.Error("chart without a target must not draw a percentage axis")
-	}
-
-	// Private mode masks the percentages like every other figure.
-	if got := string(progressSVG(labels, booked, projected, 200, 1, false, true)); strings.Contains(got, " %<") {
-		t.Error("private mode leaks percentages on the axis")
 	}
 }
 
@@ -384,7 +445,7 @@ func TestProgressChartBookedEndsAtTotal(t *testing.T) {
 	projected := []float64{250, 400, 646} // cumulative incl. forecast
 	const target, todayPos = 359, 1.548   // mid-August
 
-	got := string(progressSVG(labels, booked, projected, target, todayPos, false, false))
+	got := string(progressSVG(labels, booked, projected, target, todayPos, false))
 
 	green := regexp.MustCompile(`<polyline fill="none" stroke="#16a34a" stroke-width="2.5" points="([^"]+)"`).FindStringSubmatch(got)
 	if green == nil {

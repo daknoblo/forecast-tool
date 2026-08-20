@@ -60,6 +60,7 @@ internal/api/api_test.go            # API tests (httptest)
 internal/web/handlers.go            # HTTP handlers + routing
 internal/web/middleware.go          # security headers, same-origin guard, static asset versioning
 internal/web/private.go             # private ("presentation") mode
+internal/sample/sample.go           # the sample document the private mode renders
 internal/web/svg.go                 # burn-down, progress, sankey and free-capacity SVG generators
 internal/web/util.go                # formatting/validation helpers
 internal/web/web_test.go            # handler/middleware tests
@@ -103,9 +104,12 @@ go.mod
   (`section=ai`; endpoint, deployment, API version — the key comes from the
   environment) and an API-token status card. The data-file overview (path/size)
   sits at the very bottom.
-- **Private mode**: a header toggle that masks every project name and figure,
-  disables the project forms, the forecast inputs, the export and the data chat.
-  It is a per-browser display preference stored in a cookie, not in `data.json`.
+- **Private mode**: a header toggle that replaces the real document with a
+  fictional sample one (7 projects, carry-over, vacation, a planned half-year),
+  so a shared screen shows a complete, lively page without any real figure. It
+  also disables the project forms, the forecast inputs, the fiscal-year switch,
+  the export and the data chat. It is a per-browser display preference stored in
+  a cookie, not in `data.json`.
 - **Layout**: central app name via `web.AppName`/`{{appName}}` (title, header
   brand, footer). Navigation: Dashboard – Projekte – Forecast (`/week`) – Ziele
   (`/goal`) – Einstellungen. Footer with a link to the GitHub profile.

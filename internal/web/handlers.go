@@ -42,12 +42,7 @@ type Server struct {
 	store  *storage.Store
 	logger *slog.Logger
 
-	// Two fully parsed template sets: the public one and the private
-	// ("presentation") one whose figure-formatting functions mask every value.
-	// They are cloned once at startup instead of per request, because cloning a
-	// template set is far more expensive than rendering a page.
-	tpl        *template.Template
-	tplPrivate *template.Template
+	tpl *template.Template
 
 	staticFS http.Handler
 }
@@ -60,7 +55,9 @@ func NewServer(store *storage.Store, logger *slog.Logger) (*Server, error) {
 		logger = slog.Default()
 	}
 	funcs := template.FuncMap{
-		"hours":    formatHours,
+		"hours": formatHours,
+		// hoursRaw marks a figure that goes into a form field rather than onto the
+		// page; same formatting, different intent.
 		"hoursRaw": formatHours,
 		"appName":  func() string { return AppName },
 		"version":  func() string { return Version },
@@ -81,13 +78,7 @@ func NewServer(store *storage.Store, logger *slog.Logger) (*Server, error) {
 		"add":      func(a, b int) int { return a + b },
 		"barWidth": barWidth,
 	}
-	base, err := template.New("").Funcs(funcs).ParseFS(templateFS, "templates/*.html")
-	if err != nil {
-		return nil, err
-	}
-	// Clone before either set is executed; a template set can no longer be
-	// cloned once it has run.
-	priv, err := base.Clone()
+	tpl, err := template.New("").Funcs(funcs).ParseFS(templateFS, "templates/*.html")
 	if err != nil {
 		return nil, err
 	}
@@ -96,11 +87,10 @@ func NewServer(store *storage.Store, logger *slog.Logger) (*Server, error) {
 		return nil, err
 	}
 	return &Server{
-		store:      store,
-		logger:     logger,
-		tpl:        base.Funcs(privacyFuncs(false)),
-		tplPrivate: priv.Funcs(privacyFuncs(true)),
-		staticFS:   http.StripPrefix("/static/", cacheForever(http.FileServer(http.FS(sub)))),
+		store:    store,
+		logger:   logger,
+		tpl:      tpl,
+		staticFS: http.StripPrefix("/static/", cacheForever(http.FileServer(http.FS(sub)))),
 	}, nil
 }
 
@@ -149,20 +139,15 @@ func (s *Server) calendar(d models.Data) *holidays.Calendar {
 	return holidays.Get(d.Settings.Year, d.Settings.FederalState)
 }
 
-// render executes a template with the request's private-mode settings applied.
-// It picks one of the two template sets prepared at startup and renders into a
-// buffer first, so a template error cannot leave a half-written page behind.
+// render executes a template with the request's private-mode flag applied. It
+// renders into a buffer first, so a template error cannot leave a half-written
+// page behind.
 func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, data any) {
-	private := isPrivate(r)
 	if m, ok := data.(map[string]any); ok {
-		m["Private"] = private
-	}
-	tpl := s.tpl
-	if private {
-		tpl = s.tplPrivate
+		m["Private"] = isPrivate(r)
 	}
 	var buf bytes.Buffer
-	if err := tpl.ExecuteTemplate(&buf, name, data); err != nil {
+	if err := s.tpl.ExecuteTemplate(&buf, name, data); err != nil {
 		s.logger.Error("template render failed", "template", name, "error", err)
 		http.Error(w, "render error", http.StatusInternalServerError)
 		return
@@ -175,8 +160,7 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, dat
 // --- Dashboard ---
 
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
-	private := isPrivate(r)
-	d := maskIfPrivate(s.store.Snapshot(), r)
+	d := s.viewData(r)
 	cal := s.calendar(d)
 	// BuildYearSummary needs every fiscal year's projects to resolve the
 	// per-assignment carry-over; it scopes the summary to the active FY itself.
@@ -212,8 +196,8 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		"FYEnd":          fyEnd.Format("02.01.2006"),
 		"Sankey":         sankey,
 		"SankeyRanges":   forecast.SankeyRanges,
-		"SankeySVG":      sankeySVG(sankey, private),
-		"FreeTimeSVG":    freeTimeSVG(sankey, private),
+		"SankeySVG":      sankeySVG(sankey),
+		"FreeTimeSVG":    freeTimeSVG(sankey),
 	})
 }
 
@@ -225,7 +209,7 @@ func (s *Server) handleWeekRedirect(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleWeek(w http.ResponseWriter, r *http.Request) {
-	d := maskIfPrivate(s.store.Snapshot(), r)
+	d := s.viewData(r)
 	cal := s.calendar(d)
 	// Built before narrowing the projects: the summary resolves the
 	// per-assignment carry-over across fiscal years itself.
@@ -243,12 +227,6 @@ func (s *Server) handleWeek(w http.ResponseWriter, r *http.Request) {
 	burn := forecast.BuildSpanBurn(ys.Projects, spanStart, spanEnd)
 	budgetLeft := map[string]float64{}
 	for _, p := range ys.Projects {
-		// The remaining budget is fed into the live JS totals; in private mode it
-		// must not leak the real figure through the data attribute.
-		if isPrivate(r) {
-			budgetLeft[p.Project.ID] = 0
-			continue
-		}
 		budgetLeft[p.Project.ID] = round1(p.Remaining)
 	}
 	s.render(w, r, "week.html", map[string]any{
@@ -454,8 +432,7 @@ func writeJSONError(w http.ResponseWriter, status int, msg string) {
 // --- Projects ---
 
 func (s *Server) handleProjects(w http.ResponseWriter, r *http.Request) {
-	private := isPrivate(r)
-	d := maskIfPrivate(s.store.Snapshot(), r)
+	d := s.viewData(r)
 	// Pass every fiscal year's projects so the per-assignment carry-over is
 	// resolved; the summary is scoped to the active FY inside.
 	ys := forecast.BuildYearSummary(d, s.calendar(d))
@@ -470,7 +447,7 @@ func (s *Server) handleProjects(w http.ResponseWriter, r *http.Request) {
 		pts := forecast.BuildBurndown(d, ps.Project.ID, ps.StartDate, ps.EndDate, ps.AvailableBudget)
 		views = append(views, projView{
 			Summary:  ps,
-			Burndown: burndownSVG(pts, ps.AvailableBudget, ps.Project.Color, private),
+			Burndown: burndownSVG(pts, ps.AvailableBudget, ps.Project.Color),
 		})
 	}
 	sort.Slice(views, func(i, j int) bool {
@@ -632,8 +609,7 @@ func (s *Server) handleProjectDelete(w http.ResponseWriter, r *http.Request) {
 // --- Goal (fiscal year target) ---
 
 func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
-	private := isPrivate(r)
-	d := maskIfPrivate(s.store.Snapshot(), r)
+	d := s.viewData(r)
 	cal := s.calendar(d)
 	gs := forecast.BuildGoalSummary(d, cal)
 	ys := forecast.BuildYearSummary(d, cal)
@@ -663,15 +639,15 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 			}
 			return v
 		}
-		fyChart = progressSVG(labels, cumulative(act), cumulative(proj), gs.TargetHours, pos, true, private)
+		fyChart = progressSVG(labels, cumulative(act), cumulative(proj), gs.TargetHours, pos, true)
 		h1Chart = progressSVG(labels[:6], cumulative(act[:6]), cumulative(proj[:6]),
-			round1(gs.TargetHours/2), clamp(pos, 6), false, private)
+			round1(gs.TargetHours/2), clamp(pos, 6), false)
 		h2Chart = progressSVG(labels[6:], cumulative(act[6:]), cumulative(proj[6:]),
-			round1(gs.TargetHours/2), clamp(pos-6, 6), false, private)
+			round1(gs.TargetHours/2), clamp(pos-6, 6), false)
 		for q := 0; q < 4; q++ {
 			from, to := q*3, q*3+3
 			quarterCharts[q] = progressSVG(labels[from:to], cumulative(act[from:to]), cumulative(proj[from:to]),
-				round1(gs.TargetHours/4), clamp(pos-float64(from), 3), false, private)
+				round1(gs.TargetHours/4), clamp(pos-float64(from), 3), false)
 		}
 	}
 
@@ -697,7 +673,7 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 		"H1Chart":         h1Chart,
 		"H2Chart":         h2Chart,
 		"QuarterCharts":   quarterCharts,
-		"FlowSVG":         goalFlowSVG(forecast.BuildGoalFlow(d, cal), private),
+		"FlowSVG":         goalFlowSVG(forecast.BuildGoalFlow(d, cal)),
 		"ChatPresets":     chatPresets,
 		"ChatPromptsJSON": template.JS(promptsJSON), // #nosec G203 -- JSON-encoded constants, no user input
 		"AIConfigured":    aiConfigured(effectiveAI(d.Settings.AI)),
@@ -708,7 +684,9 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 // --- Settings ---
 
 // handleSettings always edits the fiscal year selected in the header - there is
-// deliberately no second year picker on this page.
+// deliberately no second year picker on this page. It reads the real document
+// even in private mode: the page holds no project data, and the form has to
+// write back exactly what it shows.
 func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 	d := s.store.Snapshot()
 	year := d.Settings.Year
@@ -859,6 +837,12 @@ func (s *Server) settingsSaved(w http.ResponseWriter, r *http.Request) {
 // handleExport streams the current data document as a JSON file download so the
 // user can back up or move their data out of the application.
 func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
+	// The private mode shows sample data; exporting would hand out the real
+	// document behind it.
+	if isPrivate(r) {
+		http.Error(w, "im privaten Modus deaktiviert", http.StatusForbidden)
+		return
+	}
 	b, err := s.store.Marshal()
 	if err != nil {
 		http.Error(w, "export failed", http.StatusInternalServerError)
@@ -896,7 +880,9 @@ func (s *Server) handleSetActiveFY(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad form", http.StatusBadRequest)
 		return
 	}
-	if year, err := strconv.Atoi(trim(r.FormValue("year"))); err == nil && models.ValidYear(year) {
+	// The private mode is a read-only view on sample data; switching the year
+	// would write to the real document.
+	if year, err := strconv.Atoi(trim(r.FormValue("year"))); err == nil && models.ValidYear(year) && !isPrivate(r) {
 		_ = s.store.Update(func(d *models.Data) error {
 			d.Settings.Year = year
 			// Make sure the vacation project exists for the newly active FY.

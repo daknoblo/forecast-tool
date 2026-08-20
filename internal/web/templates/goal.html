@@ -206,7 +206,7 @@
 <section class="card" id="chat">
   <h2>Chat with your data</h2>
   {{if .Private}}
-  <p class="hint">Im <strong>privaten Modus</strong> ist die Auswertung deaktiviert – die Zusammenfassung würde Projektnamen und Stunden im Klartext an den KI-Endpoint senden.</p>
+  <p class="hint">Im <strong>privaten Modus</strong> ist die Auswertung deaktiviert – sie würde deine echten Projektnamen und Stunden im Klartext an den KI-Endpoint senden, nicht die angezeigten Beispieldaten.</p>
   {{else if not .AIConfigured}}
   <p class="hint">Es ist noch kein KI-Endpoint konfiguriert. Hinterlege Endpoint, Deployment und API-Version in den <a href="/settings">Einstellungen</a> und setze den API-Key über die Umgebungsvariable <code>{{.AIKeyEnv}}</code>.</p>
   {{else}}

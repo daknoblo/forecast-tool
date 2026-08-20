@@ -368,15 +368,13 @@ collects every requirement stated so far as the binding reference.
   Assignments · Aktuelle FY-Woche. The count tile is called **Assignments**, not
   "Projekte": several assignments can belong to the same customer project.
   **Every tile shows only its value and label**; the details live in a
-  multi-line `title` tooltip on the card (`&#10;` for the line breaks). All
-  figures go through `hours`/`pct`, so private mode masks the tooltips too.
+  multi-line `title` tooltip on the card (`&#10;` for the line breaks).
 - **Tile figures are never coloured.** `.kpi-value` always keeps the normal text
   colour — no red for a negative value, no orange for a rate below plan, and the
   week link inherits it too (only its hover underline marks it as clickable).
   The single exception is `.kpi-value.muted` for the `–` placeholder, which is
-  not a figure. Do not reintroduce status colours here: they used to leak the
-  sign of a masked figure in private mode, and the surrounding cards carry the
-  same information already.
+  not a figure. Do not reintroduce status colours here: the surrounding cards
+  carry the same information already.
 - **The `YearSummary.Total*` roll-ups describe the ASSIGNMENT work of the fiscal
   year and exclude the vacation project** (its budget is derived from the
   vacation days and its hours never count towards the goal, so it would inflate
@@ -475,7 +473,7 @@ collects every requirement stated so far as the binding reference.
   hours (`Alpha⏎KW31: 24 h → KW32: 25 h`) – the JavaScript-free way to a hover
   tooltip. CSS highlights the hovered band
   (`.sankey .ribbon:hover { fill-opacity: 0.65 }`, `.sankey .node:hover` gets an
-  outline). The hours go through `chartHours`, so private mode masks them too.
+  outline). The hours go through `chartHours`.
 - **Bar width scales with the bucket count** (`web.nodeWidth(n, plotW)`, stored
   as `sankeyGeom.nodeW`): `plotW/n * 0.32` clamped to 12–96 px, and for a single
   bucket (1-week view, where there are no ribbons at all) `plotW * 0.45`. A fixed
@@ -499,28 +497,33 @@ collects every requirement stated so far as the binding reference.
   SameSite=Lax, `Secure` when the request arrives over HTTPS) and returns via
   `refererPath(r)` to the originating page. It is a **per-browser display
   preference** and therefore deliberately **not** part of `data.json`.
-- Implementation: `NewServer` prepares **two template sets** once at startup –
-  `s.tpl` with `privacyFuncs(false)` and `s.tplPrivate` with
-  `privacyFuncs(true)`; `web.render` picks one per request. This masks **every**
-  figure in **every** template as `•••` via `hours`/`pct` and makes `barWidth`
-  return `0`, without touching a single call site. Clone the base set **before**
-  either is executed (a template set can no longer be cloned afterwards). Form
-  fields use `hoursRaw` (never masked) so the settings stay editable.
-- Project names: `maskIfPrivate(d, r)` replaces them with stable placeholders
-  ("Projekt A/B/…", ordered by project ID) and clears the `assignmentId`. It is
-  applied in `handleDashboard`/`handleProjects`/`handleWeek`/`handleGoal` **on
-  the snapshot** – write paths keep using `store.Update`/`Mutate`, so a masked
-  name can never be persisted.
-- Charts must not leak anything through **heights** either: `sankeySVG`
-  normalizes every column to the same height (only the project mix stays
-  visible) and hides the Y axis; `freeTimeSVG` shows only the direction
-  (free/overbooked) at a fixed height; `burndownSVG`/`progressSVG` mask their
-  axis and target labels. `body.private .bar span { display: none }`
-  additionally neutralizes all HTML bars.
-- Locked while the mode is on: the **export link**, the **data chat** (both show
-  only a hint), the **project forms** (create/edit/delete) and the **forecast
-  grid** (cells `readonly`, no "clear" buttons; the live-total and auto-save
-  JavaScript bails out early on `table[data-private]`).
+- The mode **replaces the data, it does not mask it**: `Server.viewData(r)`
+  returns `sample.Data(time.Now(), s.store.Snapshot())` instead of the real
+  document, so every bar, chart, tooltip and indicator stays alive and the page
+  still reads like the real thing. Masking (`•••`, zero-width bars, normalized
+  Sankey columns) was removed – there is only **one** template set again and the
+  chart helpers take no `private` flag.
+- `handleDashboard`/`handleProjects`/`handleWeek`/`handleGoal` read through
+  `viewData`; **every write keeps going through `store.Update`/`Mutate` on the
+  real snapshot**, so a sample project can never be persisted. `handleSettings`
+  deliberately stays on the real document: it holds no project data and its form
+  has to write back exactly what it shows.
+- `internal/sample` builds that document: settings and per-FY configuration are
+  inherited from the real one (same fiscal year, federal state, capacity,
+  traffic-light thresholds), only projects and entries are invented. It is
+  deterministic per day, so reloading never reshuffles the demo. See the package
+  doc for the shape (7 projects, 5 active / 2 inactive, 4 with a carry-over from
+  the previous FY, the current half-year planned week by week, budgets derived
+  from the planned hours so some projects stay over and others under).
+- A yellow banner (`.privnote`, rendered by the `header` partial) states that
+  everything on screen is sample data – without it the demo is indistinguishable
+  from real figures.
+- Locked while the mode is on: the **export** (link hidden *and* `GET /export`
+  answers 403), the **fiscal-year switch** (`POST /fy` is a no-op, the select is
+  `disabled`), the **data chat** (it would send the *real* figures), the
+  **project forms** (create/edit/delete) and the **forecast grid** (cells
+  `readonly`, no "clear" buttons; the live-total and auto-save JavaScript bails
+  out early on `table[data-private]`).
 - The JSON API (`/api/v1`) is deliberately **not** affected (machine interface).
 
 ## More UI requirements
@@ -563,9 +566,8 @@ collects every requirement stated so far as the binding reference.
   `X h geplant · Y h gebucht` plus `Soll Z h · P % erreicht` for the periods. The
   labels inside the stripes need a **white halo**
   (`stroke="#ffffff" paint-order="stroke"`), because the translucent base offers
-  no reliable contrast. Private mode masks every figure but keeps the shape,
-  exactly like the dashboard Sankey.
-- **`web.progressSVG(labels, booked, projected, target, todayPos, wide, private)`**
+  no reliable contrast.
+- **`web.progressSVG(labels, booked, projected, target, todayPos, wide)`**
   draws the burn-up of a period as **one continuous curve that starts at zero**:
   green `#16a34a` (booked, with a filled area) up to `todayPos`, orange `#ea580c`
   dashed (projection incl. forecast) from there to the end. Both halves meet in
@@ -743,8 +745,8 @@ collects every requirement stated so far as the binding reference.
 
 - The current JSON must be exportable/downloadable from within the application.
 - Download route `GET /export` (Content-Disposition attachment, file name with
-  the date). The button lives in the settings page under "Konfigurationsdatei"
-  and is hidden in private mode.
+  the date). The button lives in the settings page under "Konfigurationsdatei";
+  in private mode the link is hidden and the route answers 403.
 
 ## Chat with your data (`POST /goal/chat`)
 
@@ -853,6 +855,10 @@ collects every requirement stated so far as the binding reference.
   `math/rand`. It covers every feature that has to be visible in a screenshot –
   several assignments, the automatic vacation project, a carry-over from the
   previous fiscal year, booked days in the past and forecast days ahead.
+- `internal/docsite/demo.go` and `internal/sample` are **separate on purpose**:
+  the doc site needs a small, screenshot-friendly year, the private mode a full
+  one that exercises every indicator. Both are deterministic; do not merge them
+  or the screenshots change with every tweak to the private-mode demo.
 - **The snapshot must stay inert.** `rewrite` points every internal link at its
   local file, copies the stylesheet and injects a script that swallows form
   submits and `fetch` – there is no server behind the published copy, and

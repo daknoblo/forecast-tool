@@ -72,16 +72,15 @@ h2 { font-size: 1.1rem; margin: 1.5rem 0 0.75rem; }
 @media (max-width: 1400px) { .kpi-row { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 760px) { .kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
-/* private ("presentation") mode: hide every proportional bar as well, so no
-   figure can be read off a bar width */
+/* private ("presentation") mode: the toggle plus the banner that keeps the
+   sample data from being mistaken for the real thing */
 .privswitch { display: inline-flex; }
 .privbtn { display: inline-flex; align-items: center; gap: 0.3rem; background: var(--panel); color: var(--muted);
   border: 1px solid var(--line); border-radius: 999px; padding: 0.2rem 0.6rem; font-size: 0.85rem; cursor: pointer; }
 .privbtn:hover { border-color: var(--accent); color: var(--text); }
 .privbtn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
-body.private .bar { background: repeating-linear-gradient(45deg, #e2e8f0, #e2e8f0 4px, #f1f5f9 4px, #f1f5f9 8px); }
-body.private .bar span { display: none; }
-body.private .goalbar span { display: none; }
+.privnote { background: #fef3c7; border-bottom: 1px solid #fcd34d; color: #78350f;
+  padding: 0.45rem 1.2rem; font-size: 0.85rem; }
 
 table.grid { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
 table.grid th, table.grid td { padding: 0.55rem 0.75rem; border-bottom: 1px solid var(--line); text-align: left; }
