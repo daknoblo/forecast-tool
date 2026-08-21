@@ -228,9 +228,20 @@ func workloadTitle(s forecast.Workload) string {
 		out += fmt.Sprintf("&#10;Puffer bis %s h: %s h", chartHours(s.MaxHours), chartHours(s.Headroom))
 	}
 	if s.LongDays > 0 {
-		out += fmt.Sprintf("&#10;%d Tage über %s h", s.LongDays, chartHours(forecast.LongDayHours))
+		out += fmt.Sprintf("&#10;%d %s über %s h", s.LongDays, plural(s.LongDays, "Tag", "Tage"), chartHours(forecast.LongDayHours))
+	}
+	if s.Skipped > 0 {
+		out += fmt.Sprintf("&#10;%d %s ohne Planung bleiben außen vor", s.Skipped, plural(s.Skipped, "Monat", "Monate"))
 	}
 	return out
+}
+
+// plural picks the German singular or plural form for a count.
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
 }
 
 // niceStep returns a rounded axis step (1/2/2.5/5 x 10^k) that splits max into

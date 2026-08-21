@@ -95,10 +95,11 @@ only renders the docs and the demo snapshot.
 - **Working time per Werktag (§3 ArbZG)**: a dashboard tile with the rolling
   6-month average — the balancing period the law names — and two charts on the
   goal page comparing the last **and the next** 12, 6, 3 and 1 months against the
-  8 h average and the 10 h single-day cap. The forward view runs on the forecast,
-  so an overloaded plan shows up before the time is worked. Werktage are Monday
-  to Saturday without public holidays; vacation is left out entirely so it
-  neither lifts nor lowers the average
+  8 h average and the 10 h single-day cap. The forward view runs on the forecast
+  and stops at the planning horizon (months without a plan are left out instead
+  of diluting the average), so an overloaded plan shows up before the time is
+  worked. Werktage are Monday to Saturday without public holidays; vacation is
+  left out entirely so it neither lifts nor lowers the average
 - **Private mode**: a header toggle that swaps the real document for a complete
   set of sample data — every chart, bar and indicator stays alive, nothing real
   is on screen. Useful when sharing a screen

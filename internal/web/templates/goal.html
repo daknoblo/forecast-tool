@@ -212,7 +212,7 @@
 
 <section class="card" id="arbeitszeit-plan">
   <h2>Arbeitszeit je Werktag – Ausblick (Forecast)</h2>
-  <p class="hint">Dieselbe Rechnung nach vorn: die ab heute <strong>geplanten</strong> Stunden über die kommenden Zeiträume. So siehst du vorab, ob der Plan im grünen Bereich bleibt. Achte auf die Spalte „davon belegt“ – Werktage ohne Planung drücken den Schnitt, ein niedriger Wert kann also auch bedeuten, dass schlicht noch wenig verplant ist.</p>
+  <p class="hint">Dieselbe Rechnung nach vorn: die ab heute <strong>geplanten</strong> Stunden. Gerechnet wird nur bis zum Planungshorizont &ndash; Monate, in denen noch gar nichts geplant ist, bleiben außen vor und ziehen den Schnitt nicht künstlich nach unten. Die Spalte „von &ndash; bis“ zeigt daher den tatsächlich bewerteten Zeitraum, der kürzer sein kann als der Titel verspricht; reicht die Planung nicht weit genug, liefern mehrere Zeiträume denselben Wert.</p>
   <div class="mini-chart">{{.WorkloadPlanSVG}}</div>
   {{template "workloadtable" .WorkloadPlan}}
   <p class="hint">§3 ArbZG erlaubt werktäglich {{hours .WorkloadLimit}} h. Ein einzelner Werktag darf auf bis zu {{hours .WorkloadDayMax}} h verlängert werden, solange der Schnitt <strong>innerhalb von 6 Kalendermonaten bzw. 24 Wochen</strong> wieder bei {{hours .WorkloadLimit}} h liegt – das ist die Spalte „zulässig“. Weil der Samstag Werktag ist, sind rechnerisch bis zu 48 h pro Woche möglich (mit Verlängerung bis 60 h). Vertraglich vereinbart sind 40 h pro Woche. Ab mehr als 6 h Arbeitszeit sind 30 Minuten Pause vorgeschrieben, ab mehr als 9 h 45 Minuten; Pausen zählen nicht als Arbeitszeit.</p>

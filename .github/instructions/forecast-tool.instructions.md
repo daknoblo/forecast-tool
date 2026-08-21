@@ -554,10 +554,15 @@ collects every requirement stated so far as the binding reference.
   (12/6/3/1 months) plus the shared `workloadtable` partial. The chart always
   scales to at least 10 h so both reference lines stay visible; column colour
   comes from `web.workloadColor` (green / orange from 90 % / red once over).
-- `Workload.Filled` ("davon belegt") counts the Werktage that carry hours. It is
-  what keeps the forward view honest: a window reaching past the planning horizon
-  averages towards zero, and without that column a barely planned year would look
-  like a comfortably green one.
+- `Workload.Filled` ("davon belegt") counts the Werktage that carry hours.
+- **The forward window stops at the planning horizon**: calendar months without a
+  single planned hour are skipped entirely (`Workload.Skipped` counts them), and
+  `StartLabel`/`EndLabel` describe the period actually measured, not the requested
+  one. Without that, a 12-month window would average an overloaded plan back into
+  the green simply because nobody has planned the second half-year yet. Several
+  windows therefore collapse onto the same figure once the plan runs out — that
+  is the intended signal, not a bug. The **backward** window never skips a month:
+  not having worked is a fact, not a gap in the plan.
 
 ## More UI requirements
 

@@ -991,19 +991,24 @@ const WorkloadTileMonths = 6
 // Vacation is not working time: its hours are left out, and a day that carries
 // nothing but vacation drops out of the Werktage as well. Counting it as an
 // empty Werktag would quietly understate the load of the days actually worked.
+//
+// A forward window additionally stops at the planning horizon: calendar months
+// without a single planned hour are skipped, so an unplanned second half-year
+// cannot make an overloaded plan look harmless.
 type Workload struct {
-	Months     int    // window length in calendar months
+	Months     int    // requested window length in calendar months
 	Label      string // "6 Monate"
 	Ahead      bool   // the window looks forward: planned instead of booked hours
 	HasData    bool
-	StartLabel string // DD.MM.YYYY
-	EndLabel   string // DD.MM.YYYY
+	StartLabel string // first counted day, DD.MM.YYYY
+	EndLabel   string // last counted day, DD.MM.YYYY
+	Skipped    int    // calendar months left out because nothing is planned in them
 
 	Hours    float64 // hours in the window, vacation excluded
-	Days     int     // Werktage (Mon-Sat) in the window, holidays and vacation excluded
+	Days     int     // Werktage (Mon-Sat) counted, holidays and vacation excluded
 	Filled   int     // Werktage that actually carry hours
 	PerDay   float64 // Hours / Days - the figure §3 ArbZG caps at 8 h
-	MaxHours float64 // Days * WorkdayLimitHours: what the window legally allows
+	MaxHours float64 // Days * WorkdayLimitHours: what the counted period legally allows
 	Headroom float64 // MaxHours - Hours (negative = over the limit)
 	PctLimit float64 // PerDay / WorkdayLimitHours * 100
 	Over     bool    // the average exceeds the limit
@@ -1022,7 +1027,7 @@ func BuildWorkload(d models.Data, months int) Workload {
 
 // BuildWorkloadPlan is BuildWorkload over the NEXT `months` months: it measures
 // the forecast instead of the booked hours, so the plan can be checked against
-// the same limits before the time is worked.
+// the same limits before the time is worked. Months without a plan are skipped.
 func BuildWorkloadPlan(d models.Data, months int) Workload {
 	return buildWorkload(d, months, time.Now().UTC().Truncate(24*time.Hour), true)
 }
@@ -1060,8 +1065,6 @@ func buildWorkload(d models.Data, months int, now time.Time, ahead bool) Workloa
 	if end.Before(start) {
 		return w
 	}
-	w.StartLabel = start.Format("02.01.2006")
-	w.EndLabel = end.Format("02.01.2006")
 
 	// The window is anchored on today, not on the reviewed fiscal year, so it
 	// needs its own calendar: the one built for a future fiscal year does not
@@ -1084,8 +1087,29 @@ func buildWorkload(d models.Data, months int, now time.Time, ahead bool) Workloa
 		work[e.Date] += e.Hours
 	}
 
+	// A forward window regularly reaches past the planning horizon. A month with
+	// nothing planned is not a month without work, it is a month nobody has got
+	// to yet, so it is left out instead of dragging the average towards zero. In
+	// the past the opposite holds: a month without bookings is a fact and counts.
+	planned := map[string]bool{}
+	if ahead {
+		for iso := range work {
+			planned[iso[:7]] = true
+		}
+	}
+	skipped := map[string]bool{}
+
+	var first, last time.Time
 	for day := start; !day.After(end); day = day.AddDate(0, 0, 1) {
 		iso := day.Format("2006-01-02")
+		if ahead && !planned[iso[:7]] {
+			skipped[iso[:7]] = true
+			continue
+		}
+		if first.IsZero() {
+			first = day
+		}
+		last = day
 		hours := work[iso]
 		w.Hours += hours
 		if hours > w.PeakHours {
@@ -1108,6 +1132,11 @@ func buildWorkload(d models.Data, months int, now time.Time, ahead bool) Workloa
 	if w.Days == 0 || w.Hours <= 0 {
 		return w
 	}
+	// The labels describe the period the figure is actually built from, which is
+	// shorter than the requested window once months have been left out.
+	w.StartLabel = first.Format("02.01.2006")
+	w.EndLabel = last.Format("02.01.2006")
+	w.Skipped = len(skipped)
 
 	w.HasData = true
 	w.Hours = round1(w.Hours)

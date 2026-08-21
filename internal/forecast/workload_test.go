@@ -216,3 +216,47 @@ func TestWorkloadAheadMeasuresThePlan(t *testing.T) {
 		t.Errorf("backward window sees %v h, want only yesterday's 4 h", back.Hours)
 	}
 }
+
+// A forward window that reaches past the planning horizon must stop there:
+// months nobody has planned yet are not months without work, and counting them
+// would average an overloaded plan back into the green.
+func TestWorkloadAheadSkipsUnplannedMonths(t *testing.T) {
+	now := time.Date(2026, 3, 2, 0, 0, 0, 0, time.UTC)
+	d := workloadDoc(t, now)
+	// March is planned to the brim, April to August are untouched.
+	for day := now; day.Month() == time.March; day = day.AddDate(0, 0, 1) {
+		if wd := day.Weekday(); wd == time.Saturday || wd == time.Sunday {
+			continue
+		}
+		d.Entries = append(d.Entries, models.Entry{
+			Date: day.Format("2006-01-02"), ProjectID: "p1", Hours: 11,
+		})
+	}
+
+	month := buildWorkload(d, 1, now, true)
+	half := buildWorkload(d, 6, now, true)
+	if !month.HasData || !half.HasData {
+		t.Fatal("planned month is not reported")
+	}
+	// The window runs from 02.03. to 01.09., so it touches seven calendar
+	// months; the six after March carry nothing.
+	if half.Skipped != 6 {
+		t.Errorf("Skipped = %d, want the 6 unplanned months", half.Skipped)
+	}
+	if half.Days != month.Days || half.PerDay != month.PerDay {
+		t.Errorf("6-month window = %v h on %d days, want the same as the 1-month one (%v h on %d)",
+			half.PerDay, half.Days, month.PerDay, month.Days)
+	}
+	if !half.Over {
+		t.Errorf("PerDay = %v; an 11 h plan has to show up as over the limit", half.PerDay)
+	}
+	if half.EndLabel != "31.03.2026" {
+		t.Errorf("EndLabel = %q, want the last planned day", half.EndLabel)
+	}
+
+	// The backward window keeps every month: not having worked is a fact, not a
+	// gap in the plan.
+	if back := buildWorkload(d, 6, now, false); back.Skipped != 0 {
+		t.Errorf("backward window skipped %d months, want 0", back.Skipped)
+	}
+}
