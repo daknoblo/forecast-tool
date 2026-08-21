@@ -64,6 +64,13 @@ h2 { font-size: 1.1rem; margin: 1.5rem 0 0.75rem; }
 .kpi-value { font-size: 1.8rem; font-weight: 700; }
 .kpi-value a { color: inherit; }
 .kpi-value.muted { color: var(--muted); }
+/* split tile: two figures of the same measure side by side, each with its own
+   caption underneath, separated by a rule */
+.kpi-split { display: flex; align-items: stretch; justify-content: center; }
+.kpi-split > a { display: flex; flex-direction: column; align-items: center; padding: 0 0.65rem; white-space: nowrap; }
+.kpi-split > a + a { border-left: 1px solid var(--line); }
+.kpi-split .kpi-part { font-size: 1.35rem; line-height: 1.15; }
+.kpi-split small { font-size: 0.62rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
 .kpi-label { color: var(--muted); font-size: 0.85rem; }
 /* secondary KPI line, e.g. the cross-fiscal-year carry-over */
 .kpi-sub { color: var(--muted); font-size: 0.76rem; margin-top: 0.2rem; }
@@ -359,7 +366,7 @@ table.week tfoot td.center { text-align: center; }
 .flow-legend i.sw.split { background: linear-gradient(to top, #1d4ed8 0 55%, rgba(29, 78, 216, 0.45) 55% 100%); }
 .progress-chart { display: block; width: 100%; max-width: 560px; height: auto; margin: 0 auto; }
 .progress-chart.wide { max-width: none; }
-.workload { display: block; width: 100%; max-width: 720px; height: auto; margin: 0 auto; }
+.workload { display: block; width: 100%; max-width: 760px; height: auto; margin: 0 auto; }
 
 /* dashboard utilization Sankey */
 .sankey-card { padding: 1rem 1.25rem; }

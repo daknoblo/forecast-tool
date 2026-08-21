@@ -171,6 +171,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	// Built before the projects are narrowed to the active FY: the rolling window
 	// is anchored on today and may reach into another fiscal year.
 	workload := forecast.BuildWorkload(d, forecast.WorkloadTileMonths)
+	workloadPlan := forecast.BuildWorkloadPlan(d, forecast.WorkloadTileMonths)
 	d.Projects = models.ProjectsForFY(d.Projects, d.Settings.Year)
 	projects := forecast.SortedProjects(d.Projects)
 	fyStart, fyEnd := forecast.FiscalYear(d.Settings.Year, d.Settings.FiscalYearStartMonth)
@@ -190,6 +191,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		"Summary":        ys,
 		"Goal":           goal,
 		"Workload":       workload,
+		"WorkloadPlan":   workloadPlan,
 		"WorkloadLimit":  forecast.WorkdayLimitHours,
 		"WeekToDate":     forecast.BuildWeekToDate(d, cal),
 		"Projects":       projects,
@@ -681,10 +683,8 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 		"H2Chart":         h2Chart,
 		"QuarterCharts":   quarterCharts,
 		"FlowSVG":         goalFlowSVG(forecast.BuildGoalFlow(d, cal)),
-		"Workload":        workload,
-		"WorkloadSVG":     workloadSVG(workload),
-		"WorkloadPlan":    workloadPlan,
-		"WorkloadPlanSVG": workloadSVG(workloadPlan),
+		"WorkloadSVG":     workloadSVG(workload, workloadPlan),
+		"WorkloadHorizon": planHorizon(workloadPlan),
 		"WorkloadLimit":   forecast.WorkdayLimitHours,
 		"WorkloadDayMax":  forecast.LongDayHours,
 		"ChatPresets":     chatPresets,

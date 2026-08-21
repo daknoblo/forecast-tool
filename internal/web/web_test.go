@@ -210,20 +210,25 @@ func TestWorkloadReachesDashboardAndGoal(t *testing.T) {
 		t.Fatalf("storage.New: %v", err)
 	}
 	// Twelve hours on every day of the last four weeks: well over the 8 h the
-	// law averages out to, so the page has to say so.
+	// law averages out to, so the page has to say so. The next two weeks are
+	// planned at a sane pace, which is what the second half of the chart shows.
 	now := time.Now().UTC().Truncate(24 * time.Hour)
 	if err := store.Mutate(func(d *models.Data) error {
 		d.Projects = append(d.Projects, models.Project{
 			ID: "p1", AssignmentID: "1", Name: "Alpha", BudgetHours: 1000,
 			Color: "#2563eb", Active: true, FiscalYear: d.Settings.Year,
 		})
-		for i := 1; i <= 28; i++ {
-			day := now.AddDate(0, 0, -i)
+		for i := -28; i < 14; i++ {
+			day := now.AddDate(0, 0, i)
 			if wd := day.Weekday(); wd == time.Saturday || wd == time.Sunday {
 				continue
 			}
+			hours := 12.0
+			if i >= 0 {
+				hours = 6
+			}
 			d.Entries = append(d.Entries, models.Entry{
-				Date: day.Format("2006-01-02"), ProjectID: "p1", Hours: 12,
+				Date: day.Format("2006-01-02"), ProjectID: "p1", Hours: hours,
 			})
 		}
 		return nil
@@ -246,23 +251,29 @@ func TestWorkloadReachesDashboardAndGoal(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "Ø/Werktag") {
 		t.Error("dashboard has no working-time tile")
 	}
+	// The tile is split: booked on the left, planned on the right.
+	if !strings.Contains(rec.Body.String(), "kpi-split") {
+		t.Error("dashboard tile does not show both directions")
+	}
 
 	rec = httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/goal", nil))
 	body := rec.Body.String()
-	for _, id := range []string{`id="arbeitszeit"`, `id="arbeitszeit-plan"`} {
-		if !strings.Contains(body, id) {
-			t.Fatalf("goal page has no %s section", id)
-		}
+	if !strings.Contains(body, `id="arbeitszeit"`) {
+		t.Fatal("goal page has no working-time section")
 	}
 	for _, w := range forecast.WorkloadWindows {
 		if label := forecast.BuildWorkload(store.Snapshot(), w).Label; !strings.Contains(body, label) {
 			t.Errorf("goal page is missing the %q window", label)
 		}
 	}
-	// A window over the limit has to be drawn in the warning colour.
-	if !strings.Contains(body, `fill="#dc2626"><title>1 Monat`) {
+	// One chart carries both directions: the overloaded month in the warning
+	// colour, the plan translucent next to it.
+	if !strings.Contains(body, `fill="#dc2626"><title>Rückblick · 1 Monat`) {
 		t.Error("the overloaded window is not marked in the chart")
+	}
+	if !strings.Contains(body, `<title>Ausblick ·`) {
+		t.Error("the chart carries no forward-looking column")
 	}
 }
 

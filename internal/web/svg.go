@@ -115,6 +115,17 @@ func burndownSVG(points []forecast.BurnPoint, budget float64, color string) temp
 	return template.HTML(b.String()) // #nosec G203 -- numeric values only, no user input
 }
 
+// planHorizon returns the last day the forecast reaches, taken from the longest
+// window that still carries a plan (WorkloadWindows is ordered longest first).
+func planHorizon(plan []forecast.Workload) string {
+	for _, w := range plan {
+		if w.HasData {
+			return w.EndLabel
+		}
+	}
+	return ""
+}
+
 // workloadColor picks the column colour by how close a window sits to the 8 h
 // limit: green with room left, orange from 90 % on, red once it is exceeded.
 func workloadColor(w forecast.Workload) string {
@@ -129,45 +140,69 @@ func workloadColor(w forecast.Workload) string {
 }
 
 // workloadSVG draws the average working time per Werktag of each rolling window
-// as a column, against the 8 h average and the 10 h single-day limit of §3
-// ArbZG. Inputs are numeric plus controlled window labels, so the inline SVG
-// carries no untrusted markup.
-func workloadSVG(series []forecast.Workload) template.HTML {
+// as a pair of columns - what is already booked next to what is planned ahead -
+// against the 8 h average and the 10 h single-day limit of §3 ArbZG. The plan
+// keeps the colour of its status but is drawn translucent and dashed, the same
+// way the burn-up chart separates booked hours from the projection. Inputs are
+// numeric plus controlled window labels, so the inline SVG carries no untrusted
+// markup.
+func workloadSVG(past, plan []forecast.Workload) template.HTML {
 	const (
-		w        = 720.0
-		h        = 260.0
+		w        = 760.0
+		h        = 286.0
 		padL     = 42.0
 		padR     = 78.0 // room for the limit labels on the right
-		padT     = 22.0
-		padB     = 52.0
+		padT     = 38.0 // room for the legend above the plot
+		padB     = 44.0
 		colLimit = "#dc2626"
 		colLong  = "#94a3b8"
 	)
 	plotW := w - padL - padR
 	plotH := h - padT - padB
-	n := len(series)
+	n := len(past)
+	if len(plan) > n {
+		n = len(plan)
+	}
 	if n == 0 {
 		return template.HTML(fmt.Sprintf( // #nosec G203 -- constant SVG shell, numeric values only
 			`<svg viewBox="0 0 %g %g" class="workload" role="img" aria-label="Arbeitszeit je Werktag"></svg>`, w, h))
+	}
+	at := func(s []forecast.Workload, i int) forecast.Workload {
+		if i < len(s) {
+			return s[i]
+		}
+		return forecast.Workload{}
 	}
 
 	// The scale always reaches the 10 h day limit, so both reference lines are
 	// visible even in a quiet half-year.
 	peak := forecast.LongDayHours
-	for _, s := range series {
-		if s.PerDay > peak {
-			peak = s.PerDay
+	for i := 0; i < n; i++ {
+		for _, s := range []forecast.Workload{at(past, i), at(plan, i)} {
+			if s.PerDay > peak {
+				peak = s.PerDay
+			}
 		}
 	}
 	step := niceStep(peak*1.1, 5)
 	yMax := math.Ceil(peak*1.1/step) * step
 
 	y := func(v float64) float64 { return padT + plotH*(1-v/yMax) }
-	centerX := func(i int) float64 { return padL + plotW*(float64(i)+0.5)/float64(n) }
-	barW := plotW / float64(n) * 0.42
+	groupW := plotW / float64(n)
+	centerX := func(i int) float64 { return padL + groupW*(float64(i)+0.5) }
+	barW := groupW * 0.3
+	gap := groupW * 0.06
 
 	var b strings.Builder
 	fmt.Fprintf(&b, `<svg viewBox="0 0 %g %g" class="workload" role="img" aria-label="Arbeitszeit je Werktag">`, w, h)
+
+	// legend: solid = already booked, translucent and dashed = planned
+	lx := padL
+	fmt.Fprintf(&b, `<rect x="%g" y="6" width="10" height="10" rx="2" fill="#334155"/>`, lx)
+	fmt.Fprintf(&b, `<text x="%g" y="15" font-size="11" fill="#475569">Rückblick · gebucht</text>`, lx+14)
+	lx += 28 + estTextWidth("Rückblick · gebucht", 11)
+	fmt.Fprintf(&b, `<rect x="%g" y="6" width="10" height="10" rx="2" fill="#334155" fill-opacity="0.4" stroke="#334155" stroke-dasharray="3 2"/>`, lx)
+	fmt.Fprintf(&b, `<text x="%g" y="15" font-size="11" fill="#475569">Ausblick · geplant</text>`, lx+14)
 
 	for v := 0.0; v <= yMax+step/2; v += step {
 		yy := y(v)
@@ -189,38 +224,52 @@ func workloadSVG(series []forecast.Workload) template.HTML {
 	fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" font-weight="600" fill="%s" text-anchor="start">%s h Ø</text>`,
 		padL+plotW+7, y(forecast.WorkdayLimitHours)+4, colLimit, chartHours(forecast.WorkdayLimitHours))
 
-	for i, s := range series {
+	for i := 0; i < n; i++ {
 		cx := centerX(i)
-		if s.HasData {
-			top := y(s.PerDay)
-			fmt.Fprintf(&b, `<rect x="%g" y="%g" width="%g" height="%g" rx="2" fill="%s"><title>%s</title></rect>`,
-				cx-barW/2, top, barW, padT+plotH-top, workloadColor(s), workloadTitle(s))
-			fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" font-weight="600" fill="#334155" text-anchor="middle">%s h</text>`,
-				cx, top-6, chartHours(s.PerDay))
-		} else {
-			fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" fill="#94a3b8" text-anchor="middle">keine Daten</text>`,
-				cx, padT+plotH-8)
+		workloadBar(&b, at(past, i), cx-gap/2-barW, barW, padT+plotH, y)
+		workloadBar(&b, at(plan, i), cx+gap/2, barW, padT+plotH, y)
+
+		label := at(past, i).Label
+		if label == "" {
+			label = at(plan, i).Label
 		}
 		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" font-weight="600" fill="#334155" text-anchor="middle">%s</text>`,
-			cx, padT+plotH+18, template.HTMLEscapeString(s.Label))
-		if s.HasData {
-			fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="10" fill="#64748b" text-anchor="middle">%d Werktage</text>`,
-				cx, padT+plotH+32, s.Days)
-		}
+			cx, padT+plotH+19, template.HTMLEscapeString(label))
 	}
 
 	b.WriteString(`</svg>`)
 	return template.HTML(b.String()) // #nosec G203 -- numeric values + controlled window labels only
 }
 
-// workloadTitle builds the escaped, multi-line tooltip of one column.
-func workloadTitle(s forecast.Workload) string {
-	kind := "gebucht"
-	if s.Ahead {
-		kind = "geplant"
+// workloadBar draws one column of the workload chart, or a muted dash when the
+// window carries nothing.
+func workloadBar(b *strings.Builder, s forecast.Workload, x, barW, baseY float64, y func(float64) float64) {
+	if !s.HasData {
+		fmt.Fprintf(b, `<text x="%g" y="%g" font-size="11" fill="#cbd5e1" text-anchor="middle">–</text>`,
+			x+barW/2, baseY-6)
+		return
 	}
-	out := fmt.Sprintf("%s · %s – %s&#10;Ø %s h je Werktag (%s %% des Limits)&#10;%s h %s auf %d Werktage, davon %d mit Stunden",
-		template.HTMLEscapeString(s.Label), s.StartLabel, s.EndLabel,
+	top := y(s.PerDay)
+	col := workloadColor(s)
+	style := ""
+	if s.Ahead {
+		style = fmt.Sprintf(` fill-opacity="0.4" stroke="%s" stroke-dasharray="3 2"`, col)
+	}
+	fmt.Fprintf(b, `<rect x="%g" y="%g" width="%g" height="%g" rx="2" fill="%s"%s><title>%s</title></rect>`,
+		x, top, barW, baseY-top, col, style, workloadTitle(s))
+	fmt.Fprintf(b, `<text x="%g" y="%g" font-size="11" font-weight="600" fill="#334155" text-anchor="middle">%s h</text>`,
+		x+barW/2, top-6, chartHours(s.PerDay))
+}
+
+// workloadTitle builds the escaped, multi-line tooltip of one column. It is the
+// only place the details live now that the chart carries both directions.
+func workloadTitle(s forecast.Workload) string {
+	head, kind := "Rückblick", "gebucht"
+	if s.Ahead {
+		head, kind = "Ausblick", "geplant"
+	}
+	out := fmt.Sprintf("%s · %s · %s – %s&#10;Ø %s h je Werktag (%s %% des Limits)&#10;%s h %s auf %d Werktage, davon %d mit Stunden",
+		head, template.HTMLEscapeString(s.Label), s.StartLabel, s.EndLabel,
 		chartHours(s.PerDay), chartHours(s.PctLimit), chartHours(s.Hours), kind, s.Days, s.Filled)
 	if s.Over {
 		out += fmt.Sprintf("&#10;%s h über dem zulässigen Rahmen von %s h", chartHours(-s.Headroom), chartHours(s.MaxHours))

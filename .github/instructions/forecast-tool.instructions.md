@@ -367,7 +367,8 @@ collects every requirement stated so far as the binding reference.
   width):** Week-to-date · Ø/Werktag · 6 Monate · Budget gesamt · Forecast gesamt ·
   Offen bis Ziel · Assignments · Aktuelle FY-Woche. The count tile is called
   **Assignments**, not "Projekte": several assignments can belong to the same
-  customer project.
+  customer project. The working-time tile is the only **split** one
+  (`.kpi-split`): two figures of the same measure, booked and planned.
   **Every tile shows only its value and label**; the details live in a
   multi-line `title` tooltip on the card (`&#10;` for the line breaks).
 - **Tile figures are never coloured.** `.kpi-value` always keeps the normal text
@@ -548,12 +549,16 @@ collects every requirement stated so far as the binding reference.
 - Limits: `WorkdayLimitHours = 8` (average over the balancing period of six
   months / 24 weeks) and `LongDayHours = 10` (cap for a single Werktag; `LongDays`
   counts the days **above** it — exactly 10 h is still allowed).
-- Dashboard: one tile for `WorkloadTileMonths` (6). Goal page: **two** cards at
-  the end, `#arbeitszeit` (Rückblick, booked) and `#arbeitszeit-plan` (Ausblick,
-  forecast), each with `web.workloadSVG` over `forecast.WorkloadWindows`
-  (12/6/3/1 months) plus the shared `workloadtable` partial. The chart always
-  scales to at least 10 h so both reference lines stay visible; column colour
-  comes from `web.workloadColor` (green / orange from 90 % / red once over).
+- Dashboard: one **split tile** (`.kpi-split`) for `WorkloadTileMonths` (6) — the
+  booked average on the left, the planned one on the right, each with its own
+  caption under the figure. Goal page: **one** card `#arbeitszeit` with a single
+  `web.workloadSVG(past, plan)` and no tables underneath; the chart pairs the two
+  directions per window (booked solid, planned translucent with a dashed outline,
+  the same way the burn-up chart separates booked hours from the projection). It
+  always scales to at least 10 h so both reference lines stay visible; column
+  colour comes from `web.workloadColor` (green / orange from 90 % / red once
+  over). The `<title>` of a column is the **only** place the details live now, so
+  it has to stay complete.
 - `Workload.Filled` ("davon belegt") counts the Werktage that carry hours.
 - **The forward window stops at the planning horizon**: calendar months without a
   single planned hour are skipped entirely (`Workload.Skipped` counts them), and
@@ -579,8 +584,8 @@ collects every requirement stated so far as the binding reference.
   progress chart) → **hours flow** → FY capacity, remaining pace, target pace →
   **half-years H1 & H2** (`GoalSummary.Halves`) → **quarters**
   (`GoalSummary.Quarters`) → month overview → weekly utilization → **working time
-  per Werktag** (`#arbeitszeit` backward, `#arbeitszeit-plan` forward — the only
-  calendar-based sections, so they sit at the end). Half-years and
+  per Werktag** (`#arbeitszeit` — the only calendar-based section and the only
+  one looking beyond the fiscal year, so it sits at the end). Half-years and
   quarters share the same card markup (`.periods > .period` with `.period-kpis`,
   a utilization bar and a `web.progressSVG` chart); `.periods.quarters` is a 2×2
   grid. The charts exist for FY, both halves and all four quarters (`handleGoal`
