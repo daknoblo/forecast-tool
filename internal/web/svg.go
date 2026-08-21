@@ -215,9 +215,13 @@ func workloadSVG(series []forecast.Workload) template.HTML {
 
 // workloadTitle builds the escaped, multi-line tooltip of one column.
 func workloadTitle(s forecast.Workload) string {
-	out := fmt.Sprintf("%s · %s – %s&#10;Ø %s h je Werktag (%s %% des Limits)&#10;%s h auf %d Werktage",
+	kind := "gebucht"
+	if s.Ahead {
+		kind = "geplant"
+	}
+	out := fmt.Sprintf("%s · %s – %s&#10;Ø %s h je Werktag (%s %% des Limits)&#10;%s h %s auf %d Werktage, davon %d mit Stunden",
 		template.HTMLEscapeString(s.Label), s.StartLabel, s.EndLabel,
-		chartHours(s.PerDay), chartHours(s.PctLimit), chartHours(s.Hours), s.Days)
+		chartHours(s.PerDay), chartHours(s.PctLimit), chartHours(s.Hours), kind, s.Days, s.Filled)
 	if s.Over {
 		out += fmt.Sprintf("&#10;%s h über dem zulässigen Rahmen von %s h", chartHours(-s.Headroom), chartHours(s.MaxHours))
 	} else {

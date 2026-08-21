@@ -531,7 +531,9 @@ collects every requirement stated so far as the binding reference.
 
 - `forecast.BuildWorkload(d, months)` measures the **average working time per
   Werktag** over a rolling window that ends **yesterday** (today is still running
-  and would only dilute the average). The window is anchored on **today**, not on
+  and would only dilute the average); `BuildWorkloadPlan` is the same window
+  running **forward from today** over the forecast, so the plan can be checked
+  before the time is worked. The window is anchored on **today**, not on
   the reviewed fiscal year, so it may span several fiscal years — it therefore
   reads **all** entries and builds **its own holiday calendar** anchored on
   `now.Year()`; the page's `cal` (built for the FY) does not reach far enough back
@@ -546,11 +548,16 @@ collects every requirement stated so far as the binding reference.
 - Limits: `WorkdayLimitHours = 8` (average over the balancing period of six
   months / 24 weeks) and `LongDayHours = 10` (cap for a single Werktag; `LongDays`
   counts the days **above** it — exactly 10 h is still allowed).
-- Dashboard: one tile for `WorkloadTileMonths` (6). Goal page: section
-  `#arbeitszeit` with `web.workloadSVG` over `forecast.WorkloadWindows`
-  (12/6/3/1 months) plus the detail table. The chart always scales to at least
-  10 h so both reference lines stay visible; column colour comes from
-  `web.workloadColor` (green / orange from 90 % / red once over).
+- Dashboard: one tile for `WorkloadTileMonths` (6). Goal page: **two** cards at
+  the end, `#arbeitszeit` (Rückblick, booked) and `#arbeitszeit-plan` (Ausblick,
+  forecast), each with `web.workloadSVG` over `forecast.WorkloadWindows`
+  (12/6/3/1 months) plus the shared `workloadtable` partial. The chart always
+  scales to at least 10 h so both reference lines stay visible; column colour
+  comes from `web.workloadColor` (green / orange from 90 % / red once over).
+- `Workload.Filled` ("davon belegt") counts the Werktage that carry hours. It is
+  what keeps the forward view honest: a window reaching past the planning horizon
+  averages towards zero, and without that column a barely planned year would look
+  like a comfortably green one.
 
 ## More UI requirements
 
@@ -567,8 +574,8 @@ collects every requirement stated so far as the binding reference.
   progress chart) → **hours flow** → FY capacity, remaining pace, target pace →
   **half-years H1 & H2** (`GoalSummary.Halves`) → **quarters**
   (`GoalSummary.Quarters`) → month overview → weekly utilization → **working time
-  per Werktag** (`#arbeitszeit`, the only backward-looking, calendar-based
-  section, so it sits at the end). Half-years and
+  per Werktag** (`#arbeitszeit` backward, `#arbeitszeit-plan` forward — the only
+  calendar-based sections, so they sit at the end). Half-years and
   quarters share the same card markup (`.periods > .period` with `.period-kpis`,
   a utilization bar and a `web.progressSVG` chart); `.periods.quarters` is a 2×2
   grid. The charts exist for FY, both halves and all four quarters (`handleGoal`

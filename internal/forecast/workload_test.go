@@ -37,7 +37,7 @@ func TestWorkloadAveragesOverWerktage(t *testing.T) {
 		})
 	}
 
-	w := buildWorkload(d, 1, now)
+	w := buildWorkload(d, 1, now, false)
 	if !w.HasData {
 		t.Fatal("window has no data")
 	}
@@ -71,12 +71,12 @@ func TestWorkloadCountsSaturdayAsWerktag(t *testing.T) {
 			Date: day.Format("2006-01-02"), ProjectID: "p1", Hours: 8,
 		})
 	}
-	plain := buildWorkload(base, 1, now)
+	plain := buildWorkload(base, 1, now, false)
 
 	withSat := base
 	withSat.Entries = append(append([]models.Entry(nil), base.Entries...),
 		models.Entry{Date: now.AddDate(0, 0, -2).Format("2006-01-02"), ProjectID: "p1", Hours: 6})
-	sat := buildWorkload(withSat, 1, now)
+	sat := buildWorkload(withSat, 1, now, false)
 
 	if sat.Days != plain.Days {
 		t.Errorf("Werktage = %d with Saturday hours, want %d - Saturdays always count", sat.Days, plain.Days)
@@ -108,7 +108,7 @@ func TestWorkloadNeutralisesVacation(t *testing.T) {
 		})
 	}
 
-	w := buildWorkload(d, 1, now)
+	w := buildWorkload(d, 1, now, false)
 	if w.Hours != 135 { // 15 worked days x 9 h
 		t.Errorf("Hours = %v, want 135 - vacation hours must not count", w.Hours)
 	}
@@ -130,7 +130,7 @@ func TestWorkloadReportsLongDaysAndPeak(t *testing.T) {
 		models.Entry{Date: now.AddDate(0, 0, -5).Format("2006-01-02"), ProjectID: "p1", Hours: 12.5},
 	)
 
-	w := buildWorkload(d, 1, now)
+	w := buildWorkload(d, 1, now, false)
 	if w.LongDays != 2 {
 		t.Errorf("LongDays = %d, want 2 - exactly %v h is still allowed", w.LongDays, LongDayHours)
 	}
@@ -154,7 +154,7 @@ func TestWorkloadSkipsTodayAndUnknownProjects(t *testing.T) {
 		models.Entry{Date: yesterday, ProjectID: "gone", Hours: 99},
 	)
 
-	if w := buildWorkload(d, 1, now); w.Hours != 7 {
+	if w := buildWorkload(d, 1, now, false); w.Hours != 7 {
 		t.Errorf("Hours = %v, want 7", w.Hours)
 	}
 }
@@ -163,10 +163,56 @@ func TestWorkloadSkipsTodayAndUnknownProjects(t *testing.T) {
 // placeholder instead of a meaningless 0 h average.
 func TestWorkloadWithoutHoursHasNoData(t *testing.T) {
 	now := time.Date(2026, 3, 2, 0, 0, 0, 0, time.UTC)
-	if w := buildWorkload(workloadDoc(t, now), 6, now); w.HasData {
+	if w := buildWorkload(workloadDoc(t, now), 6, now, false); w.HasData {
 		t.Errorf("empty window reports data: %+v", w)
 	}
-	if w := buildWorkload(workloadDoc(t, now), 0, now); w.HasData {
+	if w := buildWorkload(workloadDoc(t, now), 0, now, false); w.HasData {
 		t.Error("a zero-month window reports data")
+	}
+}
+
+// The forward window starts today - hours from today on are forecast - and must
+// see the plan while the backward window sees none of it.
+func TestWorkloadAheadMeasuresThePlan(t *testing.T) {
+	now := time.Date(2026, 3, 2, 0, 0, 0, 0, time.UTC)
+	d := workloadDoc(t, now)
+	for i := 0; i < 14; i++ {
+		day := now.AddDate(0, 0, i)
+		if wd := day.Weekday(); wd == time.Saturday || wd == time.Sunday {
+			continue
+		}
+		d.Entries = append(d.Entries, models.Entry{
+			Date: day.Format("2006-01-02"), ProjectID: "p1", Hours: 9,
+		})
+	}
+	// Yesterday is booked, so only the backward window may see it.
+	d.Entries = append(d.Entries, models.Entry{
+		Date: now.AddDate(0, 0, -1).Format("2006-01-02"), ProjectID: "p1", Hours: 4,
+	})
+
+	ahead := buildWorkload(d, 1, now, true)
+	if !ahead.Ahead {
+		t.Error("forward window is not flagged as such")
+	}
+	if ahead.Hours != 90 { // 10 planned weekdays x 9 h
+		t.Errorf("planned hours = %v, want 90", ahead.Hours)
+	}
+	if ahead.StartLabel != now.Format("02.01.2006") {
+		t.Errorf("forward window starts on %s, want today", ahead.StartLabel)
+	}
+	if ahead.Filled != 10 {
+		t.Errorf("Filled = %d, want 10 - only the planned Werktage carry hours", ahead.Filled)
+	}
+	if ahead.Filled >= ahead.Days {
+		t.Errorf("Filled = %d of %d Werktage; the rest of the month must stay unplanned", ahead.Filled, ahead.Days)
+	}
+	// Two intense weeks spread over a month still average out below the limit -
+	// which is exactly what the forward view is there to show.
+	if ahead.Over {
+		t.Errorf("PerDay = %v is reported as over the limit", ahead.PerDay)
+	}
+
+	if back := buildWorkload(d, 1, now, false); back.Hours != 4 {
+		t.Errorf("backward window sees %v h, want only yesterday's 4 h", back.Hours)
 	}
 }

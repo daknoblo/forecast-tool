@@ -250,8 +250,10 @@ func TestWorkloadReachesDashboardAndGoal(t *testing.T) {
 	rec = httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/goal", nil))
 	body := rec.Body.String()
-	if !strings.Contains(body, `id="arbeitszeit"`) {
-		t.Fatal("goal page has no working-time section")
+	for _, id := range []string{`id="arbeitszeit"`, `id="arbeitszeit-plan"`} {
+		if !strings.Contains(body, id) {
+			t.Fatalf("goal page has no %s section", id)
+		}
 	}
 	for _, w := range forecast.WorkloadWindows {
 		if label := forecast.BuildWorkload(store.Snapshot(), w).Label; !strings.Contains(body, label) {

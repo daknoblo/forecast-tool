@@ -204,32 +204,17 @@
 </section>
 
 <section class="card" id="arbeitszeit">
-  <h2>Arbeitszeit je Werktag (ArbZG)</h2>
-  <p class="hint">Rollierender Blick zurück: gebuchte Stunden geteilt durch die <strong>Werktage</strong> des Zeitraums. Werktage sind Montag bis Samstag ohne gesetzliche Feiertage – reine Urlaubstage und Urlaubsstunden bleiben außen vor, damit Urlaub den Schnitt weder hebt noch senkt. Der heutige Tag zählt noch nicht mit.</p>
+  <h2>Arbeitszeit je Werktag – Rückblick</h2>
+  <p class="hint">Gebuchte Stunden geteilt durch die <strong>Werktage</strong> des Zeitraums. Werktage sind Montag bis Samstag ohne gesetzliche Feiertage – reine Urlaubstage und Urlaubsstunden bleiben außen vor, damit Urlaub den Schnitt weder hebt noch senkt. Der heutige Tag zählt noch nicht mit.</p>
   <div class="mini-chart">{{.WorkloadSVG}}</div>
-  <table class="grid compact">
-    <thead>
-      <tr><th>Zeitraum</th><th>von – bis</th><th class="num">Stunden</th><th class="num">Werktage</th><th class="num">Ø je Werktag</th><th class="num">zulässig</th><th class="num">Puffer</th><th class="num">Tage &gt; {{hours .WorkloadDayMax}} h</th></tr>
-    </thead>
-    <tbody>
-    {{range .Workload}}
-      <tr>
-        <td>{{.Label}}</td>
-        {{if .HasData}}
-        <td>{{.StartLabel}} – {{.EndLabel}}</td>
-        <td class="num">{{hours .Hours}} h</td>
-        <td class="num">{{.Days}}</td>
-        <td class="num strong{{if .Over}} negative{{end}}">{{hours .PerDay}} h</td>
-        <td class="num">{{hours .MaxHours}} h</td>
-        <td class="num{{if .Over}} negative{{end}}">{{hours .Headroom}} h</td>
-        <td class="num{{if gt .LongDays 0}} negative{{end}}">{{.LongDays}}</td>
-        {{else}}
-        <td colspan="7" class="muted">keine gebuchten Stunden in diesem Zeitraum</td>
-        {{end}}
-      </tr>
-    {{end}}
-    </tbody>
-  </table>
+  {{template "workloadtable" .Workload}}
+</section>
+
+<section class="card" id="arbeitszeit-plan">
+  <h2>Arbeitszeit je Werktag – Ausblick (Forecast)</h2>
+  <p class="hint">Dieselbe Rechnung nach vorn: die ab heute <strong>geplanten</strong> Stunden über die kommenden Zeiträume. So siehst du vorab, ob der Plan im grünen Bereich bleibt. Achte auf die Spalte „davon belegt“ – Werktage ohne Planung drücken den Schnitt, ein niedriger Wert kann also auch bedeuten, dass schlicht noch wenig verplant ist.</p>
+  <div class="mini-chart">{{.WorkloadPlanSVG}}</div>
+  {{template "workloadtable" .WorkloadPlan}}
   <p class="hint">§3 ArbZG erlaubt werktäglich {{hours .WorkloadLimit}} h. Ein einzelner Werktag darf auf bis zu {{hours .WorkloadDayMax}} h verlängert werden, solange der Schnitt <strong>innerhalb von 6 Kalendermonaten bzw. 24 Wochen</strong> wieder bei {{hours .WorkloadLimit}} h liegt – das ist die Spalte „zulässig“. Weil der Samstag Werktag ist, sind rechnerisch bis zu 48 h pro Woche möglich (mit Verlängerung bis 60 h). Vertraglich vereinbart sind 40 h pro Woche. Ab mehr als 6 h Arbeitszeit sind 30 Minuten Pause vorgeschrieben, ab mehr als 9 h 45 Minuten; Pausen zählen nicht als Arbeitszeit.</p>
 </section>
 

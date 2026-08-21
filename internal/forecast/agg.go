@@ -974,16 +974,19 @@ const (
 	LongDayHours      = 10.0 // hard cap for a single Werktag
 )
 
-// WorkloadWindows are the rolling look-back windows (in calendar months) the
-// goal page charts, longest first. The 6-month window is the balancing period
-// §3 ArbZG names, so it is the one the dashboard tile shows.
+// WorkloadWindows are the rolling windows (in calendar months) the goal page
+// charts, longest first - once looking back over the booked hours and once
+// forward over the plan. The 6-month window is the balancing period §3 ArbZG
+// names, so it is the one the dashboard tile shows.
 var WorkloadWindows = []int{12, 6, 3, 1}
 
 // WorkloadTileMonths is the window behind the dashboard tile.
 const WorkloadTileMonths = 6
 
-// Workload is the average working time per Werktag over a rolling window ending
-// yesterday - today is still running and would only dilute the average.
+// Workload is the average working time per Werktag over a rolling window. It
+// looks either back from yesterday over the hours already booked - today is
+// still running and would only dilute the average - or forward from today over
+// the hours planned.
 //
 // Vacation is not working time: its hours are left out, and a day that carries
 // nothing but vacation drops out of the Werktage as well. Counting it as an
@@ -991,12 +994,14 @@ const WorkloadTileMonths = 6
 type Workload struct {
 	Months     int    // window length in calendar months
 	Label      string // "6 Monate"
+	Ahead      bool   // the window looks forward: planned instead of booked hours
 	HasData    bool
 	StartLabel string // DD.MM.YYYY
 	EndLabel   string // DD.MM.YYYY
 
-	Hours    float64 // hours booked in the window, vacation excluded
+	Hours    float64 // hours in the window, vacation excluded
 	Days     int     // Werktage (Mon-Sat) in the window, holidays and vacation excluded
+	Filled   int     // Werktage that actually carry hours
 	PerDay   float64 // Hours / Days - the figure §3 ArbZG caps at 8 h
 	MaxHours float64 // Days * WorkdayLimitHours: what the window legally allows
 	Headroom float64 // MaxHours - Hours (negative = over the limit)
@@ -1012,25 +1017,46 @@ type Workload struct {
 // `months` calendar months. The window is anchored on today and can therefore
 // span several fiscal years, so every entry counts, not just the reviewed year's.
 func BuildWorkload(d models.Data, months int) Workload {
-	return buildWorkload(d, months, time.Now().UTC().Truncate(24*time.Hour))
+	return buildWorkload(d, months, time.Now().UTC().Truncate(24*time.Hour), false)
+}
+
+// BuildWorkloadPlan is BuildWorkload over the NEXT `months` months: it measures
+// the forecast instead of the booked hours, so the plan can be checked against
+// the same limits before the time is worked.
+func BuildWorkloadPlan(d models.Data, months int) Workload {
+	return buildWorkload(d, months, time.Now().UTC().Truncate(24*time.Hour), true)
 }
 
 // BuildWorkloadSeries measures every window of WorkloadWindows at once.
 func BuildWorkloadSeries(d models.Data) []Workload {
+	return workloadSeries(d, false)
+}
+
+// BuildWorkloadPlanSeries is BuildWorkloadSeries looking forward.
+func BuildWorkloadPlanSeries(d models.Data) []Workload {
+	return workloadSeries(d, true)
+}
+
+func workloadSeries(d models.Data, ahead bool) []Workload {
+	now := time.Now().UTC().Truncate(24 * time.Hour)
 	out := make([]Workload, 0, len(WorkloadWindows))
 	for _, m := range WorkloadWindows {
-		out = append(out, BuildWorkload(d, m))
+		out = append(out, buildWorkload(d, m, now, ahead))
 	}
 	return out
 }
 
-func buildWorkload(d models.Data, months int, now time.Time) Workload {
-	w := Workload{Months: months, Label: monthsLabel(months)}
+func buildWorkload(d models.Data, months int, now time.Time, ahead bool) Workload {
+	w := Workload{Months: months, Label: monthsLabel(months), Ahead: ahead}
 	if months < 1 {
 		return w
 	}
-	start := now.AddDate(0, -months, 0)
-	end := now.AddDate(0, 0, -1)
+	// Hours from today on are forecast, so a forward window starts today while a
+	// backward one stops before it.
+	start, end := now.AddDate(0, -months, 0), now.AddDate(0, 0, -1)
+	if ahead {
+		start, end = now, now.AddDate(0, months, 0).AddDate(0, 0, -1)
+	}
 	if end.Before(start) {
 		return w
 	}
@@ -1075,6 +1101,9 @@ func buildWorkload(d models.Data, months int, now time.Time) Workload {
 			continue
 		}
 		w.Days++
+		if hours > 0 {
+			w.Filled++
+		}
 	}
 	if w.Days == 0 || w.Hours <= 0 {
 		return w

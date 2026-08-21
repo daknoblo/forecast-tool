@@ -619,6 +619,7 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 	gs := forecast.BuildGoalSummary(d, cal)
 	ys := forecast.BuildYearSummary(d, cal)
 	workload := forecast.BuildWorkloadSeries(d)
+	workloadPlan := forecast.BuildWorkloadPlanSeries(d)
 
 	// Cumulative booked and projected hours per month drive the progress charts
 	// for the whole FY, each half-year and each quarter.
@@ -682,6 +683,8 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 		"FlowSVG":         goalFlowSVG(forecast.BuildGoalFlow(d, cal)),
 		"Workload":        workload,
 		"WorkloadSVG":     workloadSVG(workload),
+		"WorkloadPlan":    workloadPlan,
+		"WorkloadPlanSVG": workloadSVG(workloadPlan),
 		"WorkloadLimit":   forecast.WorkdayLimitHours,
 		"WorkloadDayMax":  forecast.LongDayHours,
 		"ChatPresets":     chatPresets,
