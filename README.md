@@ -97,9 +97,11 @@ only renders the docs and the demo snapshot.
   planned side by side, plus a timeline on the goal page centred on today: six
   months of history to the left, the forecast to the right for as far as it
   reaches (at most eight months), against the 8 h average and the 10 h
-  single-day cap. So an overloaded plan shows up before the time is worked.
-  Werktage are Monday to Saturday without public holidays; vacation is left out
-  entirely so it neither lifts nor lowers the average
+  single-day cap. The columns are single months, the line on top is the rolling
+  six-month average — the figure that actually has to stay under the limit — and
+  it continues into the forecast, so you can see whether the plan brings the
+  balance back. Werktage are Monday to Saturday without public holidays;
+  vacation is left out entirely so it neither lifts nor lowers the average
 - **Private mode**: a header toggle that swaps the real document for a complete
   set of sample data — every chart, bar and indicator stays alive, nothing real
   is on screen. Useful when sharing a screen

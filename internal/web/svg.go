@@ -145,6 +145,10 @@ func workloadTimelineSVG(t forecast.WorkloadTimeline) template.HTML {
 		colLimit = "#dc2626"
 		colLong  = "#94a3b8"
 		colToday = "#1d4ed8"
+		// The rolling average is the figure the law caps, so it gets the one
+		// neutral, high-contrast colour: crossing the red limit line is the
+		// statement the chart is there to make.
+		colRolling = "#0f172a"
 	)
 	plotW := w - padL - padR
 	plotH := h - padT - padB
@@ -161,6 +165,9 @@ func workloadTimelineSVG(t forecast.WorkloadTimeline) template.HTML {
 	for _, m := range t.Months {
 		if m.PerDay > peak {
 			peak = m.PerDay
+		}
+		if m.Rolling > peak {
+			peak = m.Rolling
 		}
 	}
 	step := niceStep(peak*1.1, 5)
@@ -182,6 +189,10 @@ func workloadTimelineSVG(t forecast.WorkloadTimeline) template.HTML {
 	lx += 28 + estTextWidth("gebucht", 11)
 	fmt.Fprintf(&b, `<rect x="%g" y="6" width="10" height="10" rx="2" fill="#334155" fill-opacity="0.4" stroke="#334155" stroke-dasharray="3 2"/>`, lx)
 	fmt.Fprintf(&b, `<text x="%g" y="15" font-size="11" fill="#475569">Forecast</text>`, lx+14)
+	lx += 28 + estTextWidth("Forecast", 11)
+	fmt.Fprintf(&b, `<line x1="%g" y1="11" x2="%g" y2="11" stroke="%s" stroke-width="2.5"/>`, lx, lx+14, colRolling)
+	fmt.Fprintf(&b, `<circle cx="%g" cy="11" r="2.8" fill="%s"/>`, lx+7, colRolling)
+	fmt.Fprintf(&b, `<text x="%g" y="15" font-size="11" fill="#475569">Ø %d Monate (gleitend)</text>`, lx+18, t.Rolling)
 
 	for v := 0.0; v <= yMax+step/2; v += step {
 		yy := y(v)
@@ -237,8 +248,51 @@ func workloadTimelineSVG(t forecast.WorkloadTimeline) template.HTML {
 		}
 	}
 
+	// The rolling average on top of the columns: solid over what is booked,
+	// dashed once it starts to rest on the forecast.
+	var booked, planned strings.Builder
+	for i, m := range t.Months {
+		if !m.HasRolling {
+			continue
+		}
+		point := fmt.Sprintf("%g,%g ", centerX(i), y(m.Rolling))
+		if m.Ahead {
+			planned.WriteString(point)
+			continue
+		}
+		booked.WriteString(point)
+		if m.Current {
+			planned.WriteString(point) // the two halves have to meet
+		}
+	}
+	if pts := strings.TrimSpace(booked.String()); pts != "" {
+		fmt.Fprintf(&b, `<polyline fill="none" stroke="%s" stroke-width="2.5" points="%s"/>`, colRolling, pts)
+	}
+	if pts := strings.TrimSpace(planned.String()); pts != "" {
+		fmt.Fprintf(&b, `<polyline fill="none" stroke="%s" stroke-width="2.5" stroke-dasharray="5 3" points="%s"/>`, colRolling, pts)
+	}
+	for i, m := range t.Months {
+		if !m.HasRolling {
+			continue
+		}
+		fmt.Fprintf(&b, `<circle cx="%g" cy="%g" r="3.2" fill="%s"><title>%s</title></circle>`,
+			centerX(i), y(m.Rolling), colRolling, workloadRollingTitle(m, t.Rolling))
+	}
+
 	b.WriteString(`</svg>`)
 	return template.HTML(b.String()) // #nosec G203 -- numeric values + controlled month labels only
+}
+
+// workloadRollingTitle builds the escaped tooltip of one point of the rolling
+// average - the balancing period the law measures.
+func workloadRollingTitle(m forecast.WorkloadMonth, months int) string {
+	out := fmt.Sprintf("Ø %d Monate bis %s %d&#10;%s h je Werktag (%s %% des Limits)&#10;Zeitraum ab %s",
+		months, template.HTMLEscapeString(m.Label), m.Year,
+		chartHours(m.Rolling), chartHours(round1(m.Rolling/forecast.WorkdayLimitHours*100)), m.RollingFrom)
+	if m.RollingOver {
+		out += "&#10;Der Ausgleichszeitraum liegt über dem Limit."
+	}
+	return out
 }
 
 // workloadMonthTitle builds the escaped, multi-line tooltip of one month. The

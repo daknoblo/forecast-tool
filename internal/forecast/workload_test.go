@@ -312,6 +312,60 @@ func TestWorkloadTimelineSpansTodayAndStopsAtTheHorizon(t *testing.T) {
 	}
 }
 
+// The columns are single months, the line on top is the balancing period the
+// law actually caps. A burst of overtime therefore shows up in full height in
+// its own month and only diluted in the rolling average.
+func TestWorkloadTimelineRollingAverageSpansSixMonths(t *testing.T) {
+	now := time.Date(2026, 8, 21, 0, 0, 0, 0, time.UTC)
+	d := workloadDoc(t, now)
+	// One heavy month (July), nothing else.
+	for day := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC); day.Month() == time.July; day = day.AddDate(0, 0, 1) {
+		if wd := day.Weekday(); wd == time.Saturday || wd == time.Sunday {
+			continue
+		}
+		d.Entries = append(d.Entries, models.Entry{
+			Date: day.Format("2006-01-02"), ProjectID: "p1", Hours: 12,
+		})
+	}
+
+	tl := buildWorkloadTimeline(d, now)
+	var july, august WorkloadMonth
+	for _, m := range tl.Months {
+		switch {
+		case m.Label == "Jul" && m.Year == 2026:
+			july = m
+		case m.Label == "Aug" && m.Year == 2026:
+			august = m
+		}
+	}
+	if !july.HasData || !july.Over {
+		t.Fatalf("July = %+v, want an overloaded month", july)
+	}
+	if !july.HasRolling || july.Rolling >= july.PerDay {
+		t.Errorf("rolling = %v, want it diluted below the month's own %v", july.Rolling, july.PerDay)
+	}
+	if july.RollingOver {
+		t.Errorf("rolling = %v; one heavy month must not tip the balancing period", july.Rolling)
+	}
+	if july.RollingFrom != "01.02.2026" {
+		t.Errorf("RollingFrom = %q, want the window to reach six months back", july.RollingFrom)
+	}
+	// August has no hours of its own but still carries the balancing period.
+	if august.HasData {
+		t.Errorf("August = %+v, want no hours", august)
+	}
+	if !august.HasRolling {
+		t.Error("August drops the rolling average although July is inside its window")
+	}
+
+	// The line and the dashboard tile measure the same thing, so the month that
+	// today falls into has to match BuildWorkload's six-month window closely.
+	tile := buildWorkload(d, WorkloadTileMonths, now, false)
+	if diff := math.Abs(august.Rolling - tile.PerDay); diff > 0.6 {
+		t.Errorf("rolling %v and tile %v disagree by %v", august.Rolling, tile.PerDay, diff)
+	}
+}
+
 // Without any plan the timeline stops at the end of the current month; an empty
 // year to the right would only stretch the axis.
 func TestWorkloadTimelineWithoutPlanEndsWithTheCurrentMonth(t *testing.T) {

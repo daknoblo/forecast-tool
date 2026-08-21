@@ -1001,6 +1001,14 @@ type WorkloadMonth struct {
 	Current bool    // the month contains today, so it mixes booked and planned
 	Over    bool    // above WorkdayLimitHours
 	HasData bool
+
+	// The balancing period §3 ArbZG actually caps: the average per Werktag over
+	// the WorkloadTileMonths months ending with this one. A single month may
+	// exceed the limit as long as this one does not.
+	Rolling     float64
+	RollingFrom string // first day of that window, DD.MM.YYYY
+	RollingOver bool
+	HasRolling  bool
 }
 
 // WorkloadTimeline is the working-time chart of the goal page: the average per
@@ -1011,6 +1019,7 @@ type WorkloadTimeline struct {
 	Months       []WorkloadMonth
 	MonthsBack   int     // history shown, in months
 	MonthsAhead  int     // maximum future shown, in months
+	Rolling      int     // length of the rolling average, in months
 	TodayPos     float64 // today as a fractional month index, for the marker
 	HasData      bool
 	StartLabel   string // DD.MM.YYYY
@@ -1024,11 +1033,19 @@ func BuildWorkloadTimeline(d models.Data) WorkloadTimeline {
 }
 
 func buildWorkloadTimeline(d models.Data, now time.Time) WorkloadTimeline {
-	t := WorkloadTimeline{MonthsBack: WorkloadBackMonths, MonthsAhead: WorkloadAheadMonths}
+	t := WorkloadTimeline{
+		MonthsBack:  WorkloadBackMonths,
+		MonthsAhead: WorkloadAheadMonths,
+		Rolling:     WorkloadTileMonths,
+	}
 	first := monthStart(now.AddDate(0, -WorkloadBackMonths, 0))
 	limit := monthEnd(now.AddDate(0, WorkloadAheadMonths, 0))
+	// The rolling average of the very first charted month reaches further back
+	// than the chart does, so the day index has to start there.
+	lead := WorkloadTileMonths - 1
+	from := first.AddDate(0, -lead, 0)
 
-	work, vacation := workloadDays(d, first.Format(isoDate), limit.Format(isoDate))
+	work, vacation := workloadDays(d, from.Format(isoDate), limit.Format(isoDate))
 
 	// The right half stops at the planning horizon; without it the chart would
 	// trail off into months nobody has planned yet.
@@ -1051,7 +1068,15 @@ func buildWorkloadTimeline(d models.Data, now time.Time) WorkloadTimeline {
 	}
 
 	cal := holidays.Get(now.Year(), d.Settings.FederalState)
-	for m := first; !m.After(last); m = m.AddDate(0, 1, 0) {
+	// Raw sums of every month from the lead-in on, so the rolling window can be
+	// summed over hours and Werktage instead of averaging monthly averages -
+	// months differ in length, so the mean of the means would be wrong.
+	type sums struct {
+		hours float64
+		days  int
+	}
+	var raw []sums
+	for m := from; !m.After(last); m = m.AddDate(0, 1, 0) {
 		to := monthEnd(m)
 		if to.After(last) {
 			to = last
@@ -1060,15 +1085,6 @@ func buildWorkloadTimeline(d models.Data, now time.Time) WorkloadTimeline {
 			Label: monthShort[int(m.Month())-1],
 			Year:  m.Year(),
 			Range: m.Format("02.01.2006") + " – " + to.Format("02.01.2006"),
-		}
-		switch {
-		case m.After(now):
-			p.Ahead = true
-		case !to.Before(now):
-			p.Current = true
-			// Today's offset inside its column, so the marker sits on the date.
-			t.TodayPos = float64(len(t.Months)) +
-				float64(now.Day()-1)/float64(monthEnd(m).Day())
 		}
 		for day := m; !day.After(to); day = day.AddDate(0, 0, 1) {
 			iso := day.Format(isoDate)
@@ -1085,12 +1101,39 @@ func buildWorkloadTimeline(d models.Data, now time.Time) WorkloadTimeline {
 				p.Filled++
 			}
 		}
+		raw = append(raw, sums{p.Hours, p.Days})
+		if m.Before(first) {
+			continue // lead-in month: it only feeds the rolling average
+		}
+
+		switch {
+		case m.After(now):
+			p.Ahead = true
+		case !to.Before(now):
+			p.Current = true
+			// Today's offset inside its column, so the marker sits on the date.
+			t.TodayPos = float64(len(t.Months)) +
+				float64(now.Day()-1)/float64(monthEnd(m).Day())
+		}
 		if p.Days > 0 && p.Hours > 0 {
 			p.HasData = true
 			p.Hours = round1(p.Hours)
 			p.PerDay = round1(p.Hours / float64(p.Days))
 			p.Over = p.PerDay > WorkdayLimitHours
 			t.HasData = true
+		}
+
+		var rh float64
+		var rd int
+		for j := len(raw) - 1; j >= 0 && j >= len(raw)-WorkloadTileMonths; j-- {
+			rh += raw[j].hours
+			rd += raw[j].days
+		}
+		if rd > 0 && rh > 0 {
+			p.HasRolling = true
+			p.Rolling = round1(rh / float64(rd))
+			p.RollingOver = p.Rolling > WorkdayLimitHours
+			p.RollingFrom = m.AddDate(0, -lead, 0).Format("02.01.2006")
 		}
 		t.Months = append(t.Months, p)
 	}

@@ -564,8 +564,16 @@ collects every requirement stated so far as the binding reference.
   only place the detail lives, so it has to stay complete.
 - The chart always scales to at least 10 h so both reference lines stay visible;
   column colour comes from `web.workloadColor` (green / orange from 90 % / red
-  once over). A single red month is **not** a breach — the text under the chart
-  names the 6-month average, which is the figure the law actually caps.
+  once over).
+- **Columns are single months, the dark line on top is the rolling average.**
+  `WorkloadMonth.Rolling` is the average over the `WorkloadTileMonths` months
+  ending with that one — summed over hours and Werktage, never the mean of the
+  monthly means, because months differ in length. That line is the figure §3
+  ArbZG actually caps, so a single red column is **not** a breach; the text under
+  the chart says so. It is solid over booked months and dashed from the current
+  month on, where it starts to rest on the forecast. The timeline therefore reads
+  five months further back than it draws (`lead`), so the leftmost point has a
+  full window.
 - `Workload.Filled` ("davon belegt") counts the Werktage that carry hours.
 - **Anything forward-looking stops at the planning horizon.** `BuildWorkload`
   with `ahead` skips calendar months without a single planned hour
