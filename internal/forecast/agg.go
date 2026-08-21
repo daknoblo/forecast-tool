@@ -964,6 +964,140 @@ func BuildWeekToDate(d models.Data, cal *holidays.Calendar) WeekToDate {
 	return wtd
 }
 
+// Working-time limits of the German Arbeitszeitgesetz (§3 ArbZG). The law
+// measures working time per *Werktag* - Monday to Saturday, Sunday excluded -
+// so a regular 40 h week already sits well below the limit. A single Werktag may
+// go up to LongDayHours, but the average over the balancing period must stay at
+// or below WorkdayLimitHours.
+const (
+	WorkdayLimitHours = 8.0  // average per Werktag over the balancing period
+	LongDayHours      = 10.0 // hard cap for a single Werktag
+)
+
+// WorkloadWindows are the rolling look-back windows (in calendar months) the
+// goal page charts, longest first. The 6-month window is the balancing period
+// §3 ArbZG names, so it is the one the dashboard tile shows.
+var WorkloadWindows = []int{12, 6, 3, 1}
+
+// WorkloadTileMonths is the window behind the dashboard tile.
+const WorkloadTileMonths = 6
+
+// Workload is the average working time per Werktag over a rolling window ending
+// yesterday - today is still running and would only dilute the average.
+//
+// Vacation is not working time: its hours are left out, and a day that carries
+// nothing but vacation drops out of the Werktage as well. Counting it as an
+// empty Werktag would quietly understate the load of the days actually worked.
+type Workload struct {
+	Months     int    // window length in calendar months
+	Label      string // "6 Monate"
+	HasData    bool
+	StartLabel string // DD.MM.YYYY
+	EndLabel   string // DD.MM.YYYY
+
+	Hours    float64 // hours booked in the window, vacation excluded
+	Days     int     // Werktage (Mon-Sat) in the window, holidays and vacation excluded
+	PerDay   float64 // Hours / Days - the figure §3 ArbZG caps at 8 h
+	MaxHours float64 // Days * WorkdayLimitHours: what the window legally allows
+	Headroom float64 // MaxHours - Hours (negative = over the limit)
+	PctLimit float64 // PerDay / WorkdayLimitHours * 100
+	Over     bool    // the average exceeds the limit
+
+	LongDays  int     // Werktage above LongDayHours
+	PeakHours float64 // hours on the busiest single day
+	PeakLabel string  // date of that day, DD.MM.YYYY
+}
+
+// BuildWorkload measures the average working time per Werktag over the last
+// `months` calendar months. The window is anchored on today and can therefore
+// span several fiscal years, so every entry counts, not just the reviewed year's.
+func BuildWorkload(d models.Data, months int) Workload {
+	return buildWorkload(d, months, time.Now().UTC().Truncate(24*time.Hour))
+}
+
+// BuildWorkloadSeries measures every window of WorkloadWindows at once.
+func BuildWorkloadSeries(d models.Data) []Workload {
+	out := make([]Workload, 0, len(WorkloadWindows))
+	for _, m := range WorkloadWindows {
+		out = append(out, BuildWorkload(d, m))
+	}
+	return out
+}
+
+func buildWorkload(d models.Data, months int, now time.Time) Workload {
+	w := Workload{Months: months, Label: monthsLabel(months)}
+	if months < 1 {
+		return w
+	}
+	start := now.AddDate(0, -months, 0)
+	end := now.AddDate(0, 0, -1)
+	if end.Before(start) {
+		return w
+	}
+	w.StartLabel = start.Format("02.01.2006")
+	w.EndLabel = end.Format("02.01.2006")
+
+	// The window is anchored on today, not on the reviewed fiscal year, so it
+	// needs its own calendar: the one built for a future fiscal year does not
+	// reach far enough back for a 12-month look-back.
+	cal := holidays.Get(now.Year(), d.Settings.FederalState)
+
+	vacationProjects := vacationSet(d.Projects)
+	known := knownProjects(d.Projects)
+	fromISO, toISO := start.Format("2006-01-02"), end.Format("2006-01-02")
+	work := map[string]float64{}
+	vacation := map[string]bool{}
+	for _, e := range d.Entries {
+		if e.Date < fromISO || e.Date > toISO || !known[e.ProjectID] || e.Hours <= 0 {
+			continue
+		}
+		if vacationProjects[e.ProjectID] {
+			vacation[e.Date] = true
+			continue
+		}
+		work[e.Date] += e.Hours
+	}
+
+	for day := start; !day.After(end); day = day.AddDate(0, 0, 1) {
+		iso := day.Format("2006-01-02")
+		hours := work[iso]
+		w.Hours += hours
+		if hours > w.PeakHours {
+			w.PeakHours, w.PeakLabel = hours, day.Format("02.01.2006")
+		}
+		if hours > LongDayHours {
+			w.LongDays++
+		}
+		if day.Weekday() == time.Sunday || cal.IsHoliday(iso) {
+			continue
+		}
+		if vacation[iso] && hours == 0 {
+			continue
+		}
+		w.Days++
+	}
+	if w.Days == 0 || w.Hours <= 0 {
+		return w
+	}
+
+	w.HasData = true
+	w.Hours = round1(w.Hours)
+	w.PeakHours = round1(w.PeakHours)
+	w.PerDay = round1(w.Hours / float64(w.Days))
+	w.MaxHours = round1(float64(w.Days) * WorkdayLimitHours)
+	w.Headroom = round1(w.MaxHours - w.Hours)
+	w.PctLimit = round1(w.PerDay / WorkdayLimitHours * 100)
+	w.Over = w.PerDay > WorkdayLimitHours
+	return w
+}
+
+func monthsLabel(months int) string {
+	if months == 1 {
+		return "1 Monat"
+	}
+	return fmt.Sprintf("%d Monate", months)
+}
+
 // BurnPoint is a single data point of a project burn-down curve.
 type BurnPoint struct {
 	ISOWeek   int // ISO calendar week of the point's Monday

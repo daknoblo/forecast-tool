@@ -363,10 +363,11 @@ collects every requirement stated so far as the binding reference.
   the horizon switches (`forecast.SankeyRanges`: 1 week/2 weeks/4 weeks/2 months/
   3 months/half-year/fiscal year) as `.chip` links (`GET /?sankey=<key>`, default
   `4w`, unknown → default via `NormalizeSankeyRange`).
-- **KPI tiles (`.cards.kpi-row`, six columns, always evenly spread across the
-  width):** Week-to-date · Budget gesamt · Forecast gesamt · Offen bis Ziel ·
-  Assignments · Aktuelle FY-Woche. The count tile is called **Assignments**, not
-  "Projekte": several assignments can belong to the same customer project.
+- **KPI tiles (`.cards.kpi-row`, seven columns, always evenly spread across the
+  width):** Week-to-date · Ø/Werktag · 6 Monate · Budget gesamt · Forecast gesamt ·
+  Offen bis Ziel · Assignments · Aktuelle FY-Woche. The count tile is called
+  **Assignments**, not "Projekte": several assignments can belong to the same
+  customer project.
   **Every tile shows only its value and label**; the details live in a
   multi-line `title` tooltip on the card (`&#10;` for the line breaks).
 - **Tile figures are never coloured.** `.kpi-value` always keeps the normal text
@@ -526,6 +527,31 @@ collects every requirement stated so far as the binding reference.
   out early on `table[data-private]`).
 - The JSON API (`/api/v1`) is deliberately **not** affected (machine interface).
 
+## Working time per Werktag (§3 ArbZG)
+
+- `forecast.BuildWorkload(d, months)` measures the **average working time per
+  Werktag** over a rolling window that ends **yesterday** (today is still running
+  and would only dilute the average). The window is anchored on **today**, not on
+  the reviewed fiscal year, so it may span several fiscal years — it therefore
+  reads **all** entries and builds **its own holiday calendar** anchored on
+  `now.Year()`; the page's `cal` (built for the FY) does not reach far enough back
+  for a 12-month look-back.
+- **Werktage are Monday to Saturday** minus public holidays — that is what makes
+  a regular 40 h week land at ~6.7 h/Werktag, comfortably below the limit. Do not
+  "fix" this to Mon–Fri: the 48 h and 60 h weekly ceilings of the law only follow
+  from six Werktage.
+- **Vacation is neutralised**, not counted: its hours never enter the numerator,
+  and a day that carries *nothing but* vacation drops out of the Werktage. A day
+  with real work stays in, so a half day is not swallowed.
+- Limits: `WorkdayLimitHours = 8` (average over the balancing period of six
+  months / 24 weeks) and `LongDayHours = 10` (cap for a single Werktag; `LongDays`
+  counts the days **above** it — exactly 10 h is still allowed).
+- Dashboard: one tile for `WorkloadTileMonths` (6). Goal page: section
+  `#arbeitszeit` with `web.workloadSVG` over `forecast.WorkloadWindows`
+  (12/6/3/1 months) plus the detail table. The chart always scales to at least
+  10 h so both reference lines stay visible; column colour comes from
+  `web.workloadColor` (green / orange from 90 % / red once over).
+
 ## More UI requirements
 
 - On the goal page the **quarter and month overviews are always visible** (not
@@ -540,7 +566,9 @@ collects every requirement stated so far as the binding reference.
 - **Goal page order (chronological):** whole FY (KPIs, status including the
   progress chart) → **hours flow** → FY capacity, remaining pace, target pace →
   **half-years H1 & H2** (`GoalSummary.Halves`) → **quarters**
-  (`GoalSummary.Quarters`) → month overview → weekly utilization. Half-years and
+  (`GoalSummary.Quarters`) → month overview → weekly utilization → **working time
+  per Werktag** (`#arbeitszeit`, the only backward-looking, calendar-based
+  section, so it sits at the end). Half-years and
   quarters share the same card markup (`.periods > .period` with `.period-kpis`,
   a utilization bar and a `web.progressSVG` chart); `.periods.quarters` is a 2×2
   grid. The charts exist for FY, both halves and all four quarters (`handleGoal`

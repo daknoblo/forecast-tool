@@ -68,8 +68,9 @@ h2 { font-size: 1.1rem; margin: 1.5rem 0 0.75rem; }
 /* secondary KPI line, e.g. the cross-fiscal-year carry-over */
 .kpi-sub { color: var(--muted); font-size: 0.76rem; margin-top: 0.2rem; }
 /* dashboard KPI row: always split evenly across the full width */
-.kpi-row { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-@media (max-width: 1400px) { .kpi-row { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.kpi-row { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+@media (max-width: 1600px) { .kpi-row { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 1100px) { .kpi-row { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 760px) { .kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 /* private ("presentation") mode: the toggle plus the banner that keeps the
@@ -358,6 +359,7 @@ table.week tfoot td.center { text-align: center; }
 .flow-legend i.sw.split { background: linear-gradient(to top, #1d4ed8 0 55%, rgba(29, 78, 216, 0.45) 55% 100%); }
 .progress-chart { display: block; width: 100%; max-width: 560px; height: auto; margin: 0 auto; }
 .progress-chart.wide { max-width: none; }
+.workload { display: block; width: 100%; max-width: 720px; height: auto; margin: 0 auto; }
 
 /* dashboard utilization Sankey */
 .sankey-card { padding: 1rem 1.25rem; }

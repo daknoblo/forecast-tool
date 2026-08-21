@@ -168,6 +168,9 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	// The "open until goal" tile measures against the fiscal year's hour goal,
 	// not against the summed project budgets.
 	goal := forecast.BuildGoalSummary(d, cal)
+	// Built before the projects are narrowed to the active FY: the rolling window
+	// is anchored on today and may reach into another fiscal year.
+	workload := forecast.BuildWorkload(d, forecast.WorkloadTileMonths)
 	d.Projects = models.ProjectsForFY(d.Projects, d.Settings.Year)
 	projects := forecast.SortedProjects(d.Projects)
 	fyStart, fyEnd := forecast.FiscalYear(d.Settings.Year, d.Settings.FiscalYearStartMonth)
@@ -186,6 +189,8 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		"FYYears":        fyYears(d),
 		"Summary":        ys,
 		"Goal":           goal,
+		"Workload":       workload,
+		"WorkloadLimit":  forecast.WorkdayLimitHours,
 		"WeekToDate":     forecast.BuildWeekToDate(d, cal),
 		"Projects":       projects,
 		"ActiveProjects": len(activeProjects(projects)),
@@ -613,6 +618,7 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 	cal := s.calendar(d)
 	gs := forecast.BuildGoalSummary(d, cal)
 	ys := forecast.BuildYearSummary(d, cal)
+	workload := forecast.BuildWorkloadSeries(d)
 
 	// Cumulative booked and projected hours per month drive the progress charts
 	// for the whole FY, each half-year and each quarter.
@@ -674,6 +680,10 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 		"H2Chart":         h2Chart,
 		"QuarterCharts":   quarterCharts,
 		"FlowSVG":         goalFlowSVG(forecast.BuildGoalFlow(d, cal)),
+		"Workload":        workload,
+		"WorkloadSVG":     workloadSVG(workload),
+		"WorkloadLimit":   forecast.WorkdayLimitHours,
+		"WorkloadDayMax":  forecast.LongDayHours,
 		"ChatPresets":     chatPresets,
 		"ChatPromptsJSON": template.JS(promptsJSON), // #nosec G203 -- JSON-encoded constants, no user input
 		"AIConfigured":    aiConfigured(effectiveAI(d.Settings.AI)),

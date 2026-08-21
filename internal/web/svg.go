@@ -115,6 +115,120 @@ func burndownSVG(points []forecast.BurnPoint, budget float64, color string) temp
 	return template.HTML(b.String()) // #nosec G203 -- numeric values only, no user input
 }
 
+// workloadColor picks the column colour by how close a window sits to the 8 h
+// limit: green with room left, orange from 90 % on, red once it is exceeded.
+func workloadColor(w forecast.Workload) string {
+	switch {
+	case w.Over:
+		return "#dc2626"
+	case w.PctLimit >= 90:
+		return "#ea580c"
+	default:
+		return "#16a34a"
+	}
+}
+
+// workloadSVG draws the average working time per Werktag of each rolling window
+// as a column, against the 8 h average and the 10 h single-day limit of §3
+// ArbZG. Inputs are numeric plus controlled window labels, so the inline SVG
+// carries no untrusted markup.
+func workloadSVG(series []forecast.Workload) template.HTML {
+	const (
+		w        = 720.0
+		h        = 260.0
+		padL     = 42.0
+		padR     = 78.0 // room for the limit labels on the right
+		padT     = 22.0
+		padB     = 52.0
+		colLimit = "#dc2626"
+		colLong  = "#94a3b8"
+	)
+	plotW := w - padL - padR
+	plotH := h - padT - padB
+	n := len(series)
+	if n == 0 {
+		return template.HTML(fmt.Sprintf( // #nosec G203 -- constant SVG shell, numeric values only
+			`<svg viewBox="0 0 %g %g" class="workload" role="img" aria-label="Arbeitszeit je Werktag"></svg>`, w, h))
+	}
+
+	// The scale always reaches the 10 h day limit, so both reference lines are
+	// visible even in a quiet half-year.
+	peak := forecast.LongDayHours
+	for _, s := range series {
+		if s.PerDay > peak {
+			peak = s.PerDay
+		}
+	}
+	step := niceStep(peak*1.1, 5)
+	yMax := math.Ceil(peak*1.1/step) * step
+
+	y := func(v float64) float64 { return padT + plotH*(1-v/yMax) }
+	centerX := func(i int) float64 { return padL + plotW*(float64(i)+0.5)/float64(n) }
+	barW := plotW / float64(n) * 0.42
+
+	var b strings.Builder
+	fmt.Fprintf(&b, `<svg viewBox="0 0 %g %g" class="workload" role="img" aria-label="Arbeitszeit je Werktag">`, w, h)
+
+	for v := 0.0; v <= yMax+step/2; v += step {
+		yy := y(v)
+		fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#e2e8f0"/>`, padL, yy, padL+plotW, yy)
+		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" fill="#475569" text-anchor="end">%s</text>`,
+			padL-7, yy+4, chartHours(round1(v)))
+	}
+	fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#94a3b8"/>`, padL, padT, padL, padT+plotH)
+	fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#94a3b8"/>`, padL, padT+plotH, padL+plotW, padT+plotH)
+
+	// The two limits of §3 ArbZG: the average that has to hold over the whole
+	// window (solid) and the cap for a single Werktag (dashed).
+	fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s" stroke-dasharray="5 3"/>`,
+		padL, y(forecast.LongDayHours), padL+plotW, y(forecast.LongDayHours), colLong)
+	fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" fill="%s" text-anchor="start">%s h/Tag</text>`,
+		padL+plotW+7, y(forecast.LongDayHours)+4, colLong, chartHours(forecast.LongDayHours))
+	fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s" stroke-width="2"/>`,
+		padL, y(forecast.WorkdayLimitHours), padL+plotW, y(forecast.WorkdayLimitHours), colLimit)
+	fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" font-weight="600" fill="%s" text-anchor="start">%s h Ø</text>`,
+		padL+plotW+7, y(forecast.WorkdayLimitHours)+4, colLimit, chartHours(forecast.WorkdayLimitHours))
+
+	for i, s := range series {
+		cx := centerX(i)
+		if s.HasData {
+			top := y(s.PerDay)
+			fmt.Fprintf(&b, `<rect x="%g" y="%g" width="%g" height="%g" rx="2" fill="%s"><title>%s</title></rect>`,
+				cx-barW/2, top, barW, padT+plotH-top, workloadColor(s), workloadTitle(s))
+			fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" font-weight="600" fill="#334155" text-anchor="middle">%s h</text>`,
+				cx, top-6, chartHours(s.PerDay))
+		} else {
+			fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" fill="#94a3b8" text-anchor="middle">keine Daten</text>`,
+				cx, padT+plotH-8)
+		}
+		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" font-weight="600" fill="#334155" text-anchor="middle">%s</text>`,
+			cx, padT+plotH+18, template.HTMLEscapeString(s.Label))
+		if s.HasData {
+			fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="10" fill="#64748b" text-anchor="middle">%d Werktage</text>`,
+				cx, padT+plotH+32, s.Days)
+		}
+	}
+
+	b.WriteString(`</svg>`)
+	return template.HTML(b.String()) // #nosec G203 -- numeric values + controlled window labels only
+}
+
+// workloadTitle builds the escaped, multi-line tooltip of one column.
+func workloadTitle(s forecast.Workload) string {
+	out := fmt.Sprintf("%s · %s – %s&#10;Ø %s h je Werktag (%s %% des Limits)&#10;%s h auf %d Werktage",
+		template.HTMLEscapeString(s.Label), s.StartLabel, s.EndLabel,
+		chartHours(s.PerDay), chartHours(s.PctLimit), chartHours(s.Hours), s.Days)
+	if s.Over {
+		out += fmt.Sprintf("&#10;%s h über dem zulässigen Rahmen von %s h", chartHours(-s.Headroom), chartHours(s.MaxHours))
+	} else {
+		out += fmt.Sprintf("&#10;Puffer bis %s h: %s h", chartHours(s.MaxHours), chartHours(s.Headroom))
+	}
+	if s.LongDays > 0 {
+		out += fmt.Sprintf("&#10;%d Tage über %s h", s.LongDays, chartHours(forecast.LongDayHours))
+	}
+	return out
+}
+
 // niceStep returns a rounded axis step (1/2/2.5/5 x 10^k) that splits max into
 // roughly the requested number of gridlines.
 func niceStep(max float64, want int) float64 {

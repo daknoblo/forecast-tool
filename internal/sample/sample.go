@@ -348,28 +348,40 @@ func dayEntries(ps []models.Project, shares map[string]int, iso string, total fl
 // carryOverEntries books the previous fiscal year of every continued assignment
 // in the weeks right before the current fiscal year starts. Hours belong to a
 // fiscal year by their date, which is exactly what the carry-over column shows.
+// The assignments share the days instead of each filling one on its own, so no
+// day ends up with several full-time bookings stacked on top of each other.
 func carryOverEntries(fyStart time.Time) []models.Entry {
+	left := make([]float64, len(projects))
+	total := 0.0
+	for i, p := range projects {
+		left[i] = p.carryOver
+		total += p.carryOver
+	}
 	var out []models.Entry
-	for _, p := range projects {
-		if p.carryOver <= 0 {
+	for day := fyStart.AddDate(0, 0, -1); total > 0; day = day.AddDate(0, 0, -1) {
+		if day.Weekday() == time.Saturday || day.Weekday() == time.Sunday {
 			continue
 		}
-		left := p.carryOver
-		day := fyStart.AddDate(0, 0, -1)
-		for left > 0 {
-			if day.Weekday() != time.Saturday && day.Weekday() != time.Sunday {
-				hours := vacationDayHours
-				if hours > left {
-					hours = left
-				}
-				out = append(out, models.Entry{
-					Date:      day.Format(dateFmt),
-					ProjectID: idPrefix + "prev-" + p.assignmentID,
-					Hours:     hours,
-				})
-				left -= hours
+		free := vacationDayHours
+		for i, p := range projects {
+			if free <= 0 {
+				break
 			}
-			day = day.AddDate(0, 0, -1)
+			hours := left[i]
+			if hours <= 0 {
+				continue
+			}
+			if hours > free {
+				hours = free
+			}
+			out = append(out, models.Entry{
+				Date:      day.Format(dateFmt),
+				ProjectID: idPrefix + "prev-" + p.assignmentID,
+				Hours:     hours,
+			})
+			left[i] -= hours
+			total -= hours
+			free -= hours
 		}
 	}
 	return out

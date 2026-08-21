@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/daknoblo/forecast-tool/internal/forecast"
 	"github.com/daknoblo/forecast-tool/internal/holidays"
@@ -198,6 +199,68 @@ func TestPrivateModeBlocksExportAndYearSwitch(t *testing.T) {
 	h.ServeHTTP(rec, req)
 	if got := store.Snapshot().Settings.Year; got != year {
 		t.Errorf("private mode switched the fiscal year to %d, want %d", got, year)
+	}
+}
+
+// The working-time figure has to reach both pages: the dashboard tile shows the
+// 6-month balancing period, the goal page every window of the chart.
+func TestWorkloadReachesDashboardAndGoal(t *testing.T) {
+	store, err := storage.New(filepath.Join(t.TempDir(), "data.json"))
+	if err != nil {
+		t.Fatalf("storage.New: %v", err)
+	}
+	// Twelve hours on every day of the last four weeks: well over the 8 h the
+	// law averages out to, so the page has to say so.
+	now := time.Now().UTC().Truncate(24 * time.Hour)
+	if err := store.Mutate(func(d *models.Data) error {
+		d.Projects = append(d.Projects, models.Project{
+			ID: "p1", AssignmentID: "1", Name: "Alpha", BudgetHours: 1000,
+			Color: "#2563eb", Active: true, FiscalYear: d.Settings.Year,
+		})
+		for i := 1; i <= 28; i++ {
+			day := now.AddDate(0, 0, -i)
+			if wd := day.Weekday(); wd == time.Saturday || wd == time.Sunday {
+				continue
+			}
+			d.Entries = append(d.Entries, models.Entry{
+				Date: day.Format("2006-01-02"), ProjectID: "p1", Hours: 12,
+			})
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	srv, err := NewServer(store, nil)
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	h := srv.Handler()
+
+	month := forecast.BuildWorkload(store.Snapshot(), 1)
+	if !month.HasData || !month.Over {
+		t.Fatalf("seeded month is not over the limit: %+v", month)
+	}
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if !strings.Contains(rec.Body.String(), "Ø/Werktag") {
+		t.Error("dashboard has no working-time tile")
+	}
+
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/goal", nil))
+	body := rec.Body.String()
+	if !strings.Contains(body, `id="arbeitszeit"`) {
+		t.Fatal("goal page has no working-time section")
+	}
+	for _, w := range forecast.WorkloadWindows {
+		if label := forecast.BuildWorkload(store.Snapshot(), w).Label; !strings.Contains(body, label) {
+			t.Errorf("goal page is missing the %q window", label)
+		}
+	}
+	// A window over the limit has to be drawn in the warning colour.
+	if !strings.Contains(body, `fill="#dc2626"><title>1 Monat`) {
+		t.Error("the overloaded window is not marked in the chart")
 	}
 }
 
