@@ -364,7 +364,7 @@ collects every requirement stated so far as the binding reference.
   3 months/half-year/fiscal year) as `.chip` links (`GET /?sankey=<key>`, default
   `4w`, unknown → default via `NormalizeSankeyRange`).
 - **KPI tiles (`.cards.kpi-row`, seven columns, always evenly spread across the
-  width):** Week-to-date · Durchschnitt 6 Monate · Budget gesamt · Forecast
+  width):** Week-to-date · Ø 6 Monate · Budget gesamt · Forecast
   gesamt · Offen bis Ziel · Assignments · Aktuelle FY-Woche. The count tile is
   called **Assignments**, not "Projekte": several assignments can belong to the
   same customer project. The working-time tile is the only **split** one
@@ -549,7 +549,7 @@ collects every requirement stated so far as the binding reference.
 - Limits: `WorkdayLimitHours = 8` (average over the balancing period of six
   months / 24 weeks) and `LongDayHours = 10` (cap for a single Werktag; `LongDays`
   counts the days **above** it — exactly 10 h is still allowed).
-- Dashboard: one **split tile** (`.kpi-split`, label "Durchschnitt 6 Monate") —
+- Dashboard: one **split tile** (`.kpi-split`, label "Ø 6 Monate") —
   the booked average ("Rückblick") on the left, the planned one ("Forecast") on
   the right, each with its own caption under the figure. It uses
   `BuildWorkload`/`BuildWorkloadPlan` with `WorkloadTileMonths`.

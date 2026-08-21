@@ -248,7 +248,7 @@ func TestWorkloadReachesDashboardAndGoal(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
-	if !strings.Contains(rec.Body.String(), "Durchschnitt 6 Monate") {
+	if !strings.Contains(rec.Body.String(), "Ø 6 Monate") {
 		t.Error("dashboard has no working-time tile")
 	}
 	// The tile is split: booked on the left, planned on the right.
