@@ -364,10 +364,10 @@ collects every requirement stated so far as the binding reference.
   3 months/half-year/fiscal year) as `.chip` links (`GET /?sankey=<key>`, default
   `4w`, unknown → default via `NormalizeSankeyRange`).
 - **KPI tiles (`.cards.kpi-row`, seven columns, always evenly spread across the
-  width):** Week-to-date · Ø/Werktag · 6 Monate · Budget gesamt · Forecast gesamt ·
-  Offen bis Ziel · Assignments · Aktuelle FY-Woche. The count tile is called
-  **Assignments**, not "Projekte": several assignments can belong to the same
-  customer project. The working-time tile is the only **split** one
+  width):** Week-to-date · Durchschnitt 6 Monate · Budget gesamt · Forecast
+  gesamt · Offen bis Ziel · Assignments · Aktuelle FY-Woche. The count tile is
+  called **Assignments**, not "Projekte": several assignments can belong to the
+  same customer project. The working-time tile is the only **split** one
   (`.kpi-split`): two figures of the same measure, booked and planned.
   **Every tile shows only its value and label**; the details live in a
   multi-line `title` tooltip on the card (`&#10;` for the line breaks).
@@ -549,25 +549,30 @@ collects every requirement stated so far as the binding reference.
 - Limits: `WorkdayLimitHours = 8` (average over the balancing period of six
   months / 24 weeks) and `LongDayHours = 10` (cap for a single Werktag; `LongDays`
   counts the days **above** it — exactly 10 h is still allowed).
-- Dashboard: one **split tile** (`.kpi-split`) for `WorkloadTileMonths` (6) — the
-  booked average on the left, the planned one on the right, each with its own
-  caption under the figure. Goal page: **one** card `#arbeitszeit` with a single
-  `web.workloadSVG(past, plan)` and no tables underneath; the chart pairs the two
-  directions per window (booked solid, planned translucent with a dashed outline,
-  the same way the burn-up chart separates booked hours from the projection). It
-  always scales to at least 10 h so both reference lines stay visible; column
-  colour comes from `web.workloadColor` (green / orange from 90 % / red once
-  over). The `<title>` of a column is the **only** place the details live now, so
-  it has to stay complete.
+- Dashboard: one **split tile** (`.kpi-split`, label "Durchschnitt 6 Monate") —
+  the booked average ("Rückblick") on the left, the planned one ("Forecast") on
+  the right, each with its own caption under the figure. It uses
+  `BuildWorkload`/`BuildWorkloadPlan` with `WorkloadTileMonths`.
+- Goal page: one card `#arbeitszeit` with `web.workloadTimelineSVG` over
+  `forecast.BuildWorkloadTimeline` — a **month-by-month timeline centred on
+  today**: `WorkloadBackMonths` (6) of history to the left, to the right only as
+  far as the plan reaches, capped at `WorkloadAheadMonths` (8). Booked months are
+  solid, planned ones translucent and dashed (the same separation the burn-up
+  chart uses), the month containing today is solid and carries the dashed `heute`
+  marker on its exact date position. Months without hours render as a muted dash,
+  never as a zero column. There are no tables: the `<title>` of a column is the
+  only place the detail lives, so it has to stay complete.
+- The chart always scales to at least 10 h so both reference lines stay visible;
+  column colour comes from `web.workloadColor` (green / orange from 90 % / red
+  once over). A single red month is **not** a breach — the text under the chart
+  names the 6-month average, which is the figure the law actually caps.
 - `Workload.Filled` ("davon belegt") counts the Werktage that carry hours.
-- **The forward window stops at the planning horizon**: calendar months without a
-  single planned hour are skipped entirely (`Workload.Skipped` counts them), and
-  `StartLabel`/`EndLabel` describe the period actually measured, not the requested
-  one. Without that, a 12-month window would average an overloaded plan back into
-  the green simply because nobody has planned the second half-year yet. Several
-  windows therefore collapse onto the same figure once the plan runs out — that
-  is the intended signal, not a bug. The **backward** window never skips a month:
-  not having worked is a fact, not a gap in the plan.
+- **Anything forward-looking stops at the planning horizon.** `BuildWorkload`
+  with `ahead` skips calendar months without a single planned hour
+  (`Workload.Skipped` counts them) and `BuildWorkloadTimeline` simply ends there.
+  Without that, an unplanned second half-year would average an overloaded plan
+  back into the green. The **backward** direction never skips a month: not having
+  worked is a fact, not a gap in the plan.
 
 ## More UI requirements
 

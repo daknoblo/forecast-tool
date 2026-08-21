@@ -974,14 +974,140 @@ const (
 	LongDayHours      = 10.0 // hard cap for a single Werktag
 )
 
-// WorkloadWindows are the rolling windows (in calendar months) the goal page
-// charts, longest first - once looking back over the booked hours and once
-// forward over the plan. The 6-month window is the balancing period §3 ArbZG
-// names, so it is the one the dashboard tile shows.
-var WorkloadWindows = []int{12, 6, 3, 1}
-
-// WorkloadTileMonths is the window behind the dashboard tile.
+// WorkloadTileMonths is the window behind the dashboard tile: the balancing
+// period §3 ArbZG names.
 const WorkloadTileMonths = 6
+
+// isoDate is the layout every date in the document is stored in.
+const isoDate = "2006-01-02"
+
+// The working-time chart spans WorkloadBackMonths of history and reaches
+// forward only as far as the plan does, at most WorkloadAheadMonths.
+const (
+	WorkloadBackMonths  = 6
+	WorkloadAheadMonths = 8
+)
+
+// WorkloadMonth is one calendar month of the working-time timeline.
+type WorkloadMonth struct {
+	Label   string // "Aug"
+	Year    int
+	Range   string // the counted part of the month, "01.08.2026 – 31.08.2026"
+	Hours   float64
+	Days    int     // Werktage (Mon-Sat), holidays and vacation excluded
+	Filled  int     // Werktage that carry hours
+	PerDay  float64 // Hours / Days
+	Ahead   bool    // the whole month lies ahead of today
+	Current bool    // the month contains today, so it mixes booked and planned
+	Over    bool    // above WorkdayLimitHours
+	HasData bool
+}
+
+// WorkloadTimeline is the working-time chart of the goal page: the average per
+// Werktag of every calendar month around today. It reaches WorkloadBackMonths
+// into the past and forward only as far as hours are planned, capped at
+// WorkloadAheadMonths - an empty year ahead would only stretch the axis.
+type WorkloadTimeline struct {
+	Months       []WorkloadMonth
+	MonthsBack   int     // history shown, in months
+	MonthsAhead  int     // maximum future shown, in months
+	TodayPos     float64 // today as a fractional month index, for the marker
+	HasData      bool
+	StartLabel   string // DD.MM.YYYY
+	EndLabel     string // DD.MM.YYYY
+	HorizonLabel string // last day carrying a forecast, "" when nothing is planned
+}
+
+// BuildWorkloadTimeline builds the monthly working-time curve around today.
+func BuildWorkloadTimeline(d models.Data) WorkloadTimeline {
+	return buildWorkloadTimeline(d, time.Now().UTC().Truncate(24*time.Hour))
+}
+
+func buildWorkloadTimeline(d models.Data, now time.Time) WorkloadTimeline {
+	t := WorkloadTimeline{MonthsBack: WorkloadBackMonths, MonthsAhead: WorkloadAheadMonths}
+	first := monthStart(now.AddDate(0, -WorkloadBackMonths, 0))
+	limit := monthEnd(now.AddDate(0, WorkloadAheadMonths, 0))
+
+	work, vacation := workloadDays(d, first.Format(isoDate), limit.Format(isoDate))
+
+	// The right half stops at the planning horizon; without it the chart would
+	// trail off into months nobody has planned yet.
+	last := monthEnd(now)
+	todayISO := now.Format(isoDate)
+	for iso, hours := range work {
+		if hours > 0 && iso >= todayISO && iso > t.HorizonLabel {
+			t.HorizonLabel = iso
+		}
+	}
+	if t.HorizonLabel != "" {
+		horizon, _ := time.Parse(isoDate, t.HorizonLabel)
+		if e := monthEnd(horizon); e.After(last) {
+			last = e
+		}
+		t.HorizonLabel = horizon.Format("02.01.2006")
+	}
+	if last.After(limit) {
+		last = limit
+	}
+
+	cal := holidays.Get(now.Year(), d.Settings.FederalState)
+	for m := first; !m.After(last); m = m.AddDate(0, 1, 0) {
+		to := monthEnd(m)
+		if to.After(last) {
+			to = last
+		}
+		p := WorkloadMonth{
+			Label: monthShort[int(m.Month())-1],
+			Year:  m.Year(),
+			Range: m.Format("02.01.2006") + " – " + to.Format("02.01.2006"),
+		}
+		switch {
+		case m.After(now):
+			p.Ahead = true
+		case !to.Before(now):
+			p.Current = true
+			// Today's offset inside its column, so the marker sits on the date.
+			t.TodayPos = float64(len(t.Months)) +
+				float64(now.Day()-1)/float64(monthEnd(m).Day())
+		}
+		for day := m; !day.After(to); day = day.AddDate(0, 0, 1) {
+			iso := day.Format(isoDate)
+			hours := work[iso]
+			p.Hours += hours
+			if day.Weekday() == time.Sunday || cal.IsHoliday(iso) {
+				continue
+			}
+			if vacation[iso] && hours == 0 {
+				continue
+			}
+			p.Days++
+			if hours > 0 {
+				p.Filled++
+			}
+		}
+		if p.Days > 0 && p.Hours > 0 {
+			p.HasData = true
+			p.Hours = round1(p.Hours)
+			p.PerDay = round1(p.Hours / float64(p.Days))
+			p.Over = p.PerDay > WorkdayLimitHours
+			t.HasData = true
+		}
+		t.Months = append(t.Months, p)
+	}
+	if len(t.Months) > 0 {
+		t.StartLabel = first.Format("02.01.2006")
+		t.EndLabel = last.Format("02.01.2006")
+	}
+	return t
+}
+
+func monthStart(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, time.UTC)
+}
+
+func monthEnd(t time.Time) time.Time {
+	return monthStart(t).AddDate(0, 1, 0).AddDate(0, 0, -1)
+}
 
 // Workload is the average working time per Werktag over a rolling window. It
 // looks either back from yesterday over the hours already booked - today is
@@ -1032,23 +1158,24 @@ func BuildWorkloadPlan(d models.Data, months int) Workload {
 	return buildWorkload(d, months, time.Now().UTC().Truncate(24*time.Hour), true)
 }
 
-// BuildWorkloadSeries measures every window of WorkloadWindows at once.
-func BuildWorkloadSeries(d models.Data) []Workload {
-	return workloadSeries(d, false)
-}
-
-// BuildWorkloadPlanSeries is BuildWorkloadSeries looking forward.
-func BuildWorkloadPlanSeries(d models.Data) []Workload {
-	return workloadSeries(d, true)
-}
-
-func workloadSeries(d models.Data, ahead bool) []Workload {
-	now := time.Now().UTC().Truncate(24 * time.Hour)
-	out := make([]Workload, 0, len(WorkloadWindows))
-	for _, m := range WorkloadWindows {
-		out = append(out, buildWorkload(d, m, now, ahead))
+// workloadDays indexes a date range by day: the working hours per day (vacation
+// and unknown projects left out) and the days that carry vacation.
+func workloadDays(d models.Data, fromISO, toISO string) (map[string]float64, map[string]bool) {
+	vacationProjects := vacationSet(d.Projects)
+	known := knownProjects(d.Projects)
+	work := map[string]float64{}
+	vacation := map[string]bool{}
+	for _, e := range d.Entries {
+		if e.Date < fromISO || e.Date > toISO || !known[e.ProjectID] || e.Hours <= 0 {
+			continue
+		}
+		if vacationProjects[e.ProjectID] {
+			vacation[e.Date] = true
+			continue
+		}
+		work[e.Date] += e.Hours
 	}
-	return out
+	return work, vacation
 }
 
 func buildWorkload(d models.Data, months int, now time.Time, ahead bool) Workload {
@@ -1070,22 +1197,7 @@ func buildWorkload(d models.Data, months int, now time.Time, ahead bool) Workloa
 	// needs its own calendar: the one built for a future fiscal year does not
 	// reach far enough back for a 12-month look-back.
 	cal := holidays.Get(now.Year(), d.Settings.FederalState)
-
-	vacationProjects := vacationSet(d.Projects)
-	known := knownProjects(d.Projects)
-	fromISO, toISO := start.Format("2006-01-02"), end.Format("2006-01-02")
-	work := map[string]float64{}
-	vacation := map[string]bool{}
-	for _, e := range d.Entries {
-		if e.Date < fromISO || e.Date > toISO || !known[e.ProjectID] || e.Hours <= 0 {
-			continue
-		}
-		if vacationProjects[e.ProjectID] {
-			vacation[e.Date] = true
-			continue
-		}
-		work[e.Date] += e.Hours
-	}
+	work, vacation := workloadDays(d, start.Format(isoDate), end.Format(isoDate))
 
 	// A forward window regularly reaches past the planning horizon. A month with
 	// nothing planned is not a month without work, it is a month nobody has got
@@ -1137,7 +1249,6 @@ func buildWorkload(d models.Data, months int, now time.Time, ahead bool) Workloa
 	w.StartLabel = first.Format("02.01.2006")
 	w.EndLabel = last.Format("02.01.2006")
 	w.Skipped = len(skipped)
-
 	w.HasData = true
 	w.Hours = round1(w.Hours)
 	w.PeakHours = round1(w.PeakHours)

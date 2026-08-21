@@ -248,7 +248,7 @@ func TestWorkloadReachesDashboardAndGoal(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
-	if !strings.Contains(rec.Body.String(), "Ø/Werktag") {
+	if !strings.Contains(rec.Body.String(), "Durchschnitt 6 Monate") {
 		t.Error("dashboard has no working-time tile")
 	}
 	// The tile is split: booked on the left, planned on the right.
@@ -262,18 +262,16 @@ func TestWorkloadReachesDashboardAndGoal(t *testing.T) {
 	if !strings.Contains(body, `id="arbeitszeit"`) {
 		t.Fatal("goal page has no working-time section")
 	}
-	for _, w := range forecast.WorkloadWindows {
-		if label := forecast.BuildWorkload(store.Snapshot(), w).Label; !strings.Contains(body, label) {
-			t.Errorf("goal page is missing the %q window", label)
-		}
+	// One timeline carries both directions: the overloaded past in the warning
+	// colour, the planned months translucent to the right of the today marker.
+	if !strings.Contains(body, `fill="#dc2626"`) {
+		t.Error("the overloaded months are not marked in the chart")
 	}
-	// One chart carries both directions: the overloaded month in the warning
-	// colour, the plan translucent next to it.
-	if !strings.Contains(body, `fill="#dc2626"><title>Rückblick · 1 Monat`) {
-		t.Error("the overloaded window is not marked in the chart")
+	if !strings.Contains(body, `>heute<`) {
+		t.Error("the chart has no today marker")
 	}
-	if !strings.Contains(body, `<title>Ausblick ·`) {
-		t.Error("the chart carries no forward-looking column")
+	if !strings.Contains(body, `h geplant auf`) {
+		t.Error("the chart carries no forward-looking month")
 	}
 }
 

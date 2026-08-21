@@ -1,6 +1,7 @@
 package forecast
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -258,5 +259,76 @@ func TestWorkloadAheadSkipsUnplannedMonths(t *testing.T) {
 	// gap in the plan.
 	if back := buildWorkload(d, 6, now, false); back.Skipped != 0 {
 		t.Errorf("backward window skipped %d months, want 0", back.Skipped)
+	}
+}
+
+// The timeline puts today in the middle: a fixed history to the left and only
+// as much future as is planned to the right, capped at WorkloadAheadMonths.
+func TestWorkloadTimelineSpansTodayAndStopsAtTheHorizon(t *testing.T) {
+	now := time.Date(2026, 3, 16, 0, 0, 0, 0, time.UTC)
+	d := workloadDoc(t, now)
+	// Two months of history and two months of plan.
+	for i := -60; i < 60; i++ {
+		day := now.AddDate(0, 0, i)
+		if wd := day.Weekday(); wd == time.Saturday || wd == time.Sunday {
+			continue
+		}
+		d.Entries = append(d.Entries, models.Entry{
+			Date: day.Format("2006-01-02"), ProjectID: "p1", Hours: 8,
+		})
+	}
+
+	tl := buildWorkloadTimeline(d, now)
+	if !tl.HasData {
+		t.Fatal("timeline has no data")
+	}
+	// Six months back plus March, then April and May from the plan.
+	if got, want := len(tl.Months), WorkloadBackMonths+3; got != want {
+		t.Errorf("%d months, want %d (%s – %s)", got, want, tl.StartLabel, tl.EndLabel)
+	}
+	if tl.StartLabel != "01.09.2025" || tl.EndLabel != "31.05.2026" {
+		t.Errorf("range = %s – %s, want 01.09.2025 – 31.05.2026", tl.StartLabel, tl.EndLabel)
+	}
+	if tl.HorizonLabel != "14.05.2026" {
+		t.Errorf("HorizonLabel = %q, want the last planned day", tl.HorizonLabel)
+	}
+
+	cur := tl.Months[WorkloadBackMonths]
+	if !cur.Current || cur.Ahead {
+		t.Errorf("March is %+v, want the current month", cur)
+	}
+	if pos := float64(WorkloadBackMonths) + 15.0/31.0; math.Abs(tl.TodayPos-pos) > 0.001 {
+		t.Errorf("TodayPos = %v, want %v", tl.TodayPos, pos)
+	}
+	for i, m := range tl.Months {
+		if want := i > WorkloadBackMonths; m.Ahead != want {
+			t.Errorf("month %d (%s): Ahead = %v, want %v", i, m.Label, m.Ahead, want)
+		}
+	}
+	// A month before the bookings started stays empty instead of reporting a
+	// zero average.
+	if first := tl.Months[0]; first.HasData {
+		t.Errorf("September reports data: %+v", first)
+	}
+}
+
+// Without any plan the timeline stops at the end of the current month; an empty
+// year to the right would only stretch the axis.
+func TestWorkloadTimelineWithoutPlanEndsWithTheCurrentMonth(t *testing.T) {
+	now := time.Date(2026, 3, 16, 0, 0, 0, 0, time.UTC)
+	d := workloadDoc(t, now)
+	d.Entries = append(d.Entries, models.Entry{
+		Date: now.AddDate(0, 0, -1).Format("2006-01-02"), ProjectID: "p1", Hours: 8,
+	})
+
+	tl := buildWorkloadTimeline(d, now)
+	if tl.HorizonLabel != "" {
+		t.Errorf("HorizonLabel = %q, want empty", tl.HorizonLabel)
+	}
+	if got, want := len(tl.Months), WorkloadBackMonths+1; got != want {
+		t.Errorf("%d months, want %d", got, want)
+	}
+	if tl.EndLabel != "31.03.2026" {
+		t.Errorf("EndLabel = %q, want the end of the current month", tl.EndLabel)
 	}
 }

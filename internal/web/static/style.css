@@ -366,7 +366,7 @@ table.week tfoot td.center { text-align: center; }
 .flow-legend i.sw.split { background: linear-gradient(to top, #1d4ed8 0 55%, rgba(29, 78, 216, 0.45) 55% 100%); }
 .progress-chart { display: block; width: 100%; max-width: 560px; height: auto; margin: 0 auto; }
 .progress-chart.wide { max-width: none; }
-.workload { display: block; width: 100%; max-width: 760px; height: auto; margin: 0 auto; }
+.workload { display: block; width: 100%; max-width: 1000px; height: auto; margin: 0 auto; }
 
 /* dashboard utilization Sankey */
 .sankey-card { padding: 1rem 1.25rem; }
