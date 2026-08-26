@@ -1,7 +1,7 @@
 # ---- Build stage ----
 # The Go compiler runs natively on BUILDPLATFORM and cross-compiles for
 # TARGETOS/TARGETARCH. This avoids slow QEMU emulation during the build.
-FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS build
 WORKDIR /src
 
 ARG TARGETOS
