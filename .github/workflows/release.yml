@@ -41,9 +41,12 @@ jobs:
         run: go test -race ./...
 
   release:
-    name: Build, Push, Sign & Scan
+    name: Build, Push & Sign
     needs: verify
     runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.image.outputs.name }}
+      digest: ${{ steps.build.outputs.digest }}
     permissions:
       contents: read
       packages: write
@@ -124,23 +127,74 @@ jobs:
           DIGEST: ${{ steps.build.outputs.digest }}
         run: cosign sign --yes "${IMAGE}@${DIGEST}"
 
+  # The image is published for both architectures, so both get scanned: `trivy
+  # image` resolves a multi-arch digest to the platform it runs on, which would
+  # leave arm64 unexamined. Each platform uploads under its own SARIF category,
+  # otherwise the second upload would replace the first.
+  scan:
+    name: Scan ${{ matrix.platform }}
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux/amd64, linux/arm64]
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Trivy vulnerability scan
         uses: aquasecurity/trivy-action@v0.36.0
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TRIVY_PLATFORM: ${{ matrix.platform }}
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}
+          image-ref: ${{ env.REGISTRY }}/${{ needs.release.outputs.image }}@${{ needs.release.outputs.digest }}
           format: sarif
           output: trivy-results.sarif
           severity: CRITICAL,HIGH
           ignore-unfixed: true
+
+      # A clean scan produces an empty SARIF and therefore no entry anywhere in
+      # the Security tab, which is indistinguishable from a scan that never ran.
+      # The summary states which of the two it was.
+      - name: Summarise scan
+        if: always()
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ needs.release.outputs.image }}@${{ needs.release.outputs.digest }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          {
+            echo "### Trivy · ${PLATFORM}"
+            echo
+            echo "Image: \`${IMAGE}\`"
+            echo "Filter: CRITICAL, HIGH · nur behebbare Funde"
+            echo
+            if [ ! -f trivy-results.sarif ]; then
+              echo "> [!WARNING]"
+              echo "> Trivy hat keinen Report erzeugt – der Scan ist fehlgeschlagen."
+            else
+              n="$(jq '[.runs[].results[]] | length' trivy-results.sarif)"
+              echo "Ergebnis: **${n} Fund(e)**"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload SARIF to Security tab
         if: ${{ always() && hashFiles('trivy-results.sarif') != '' }}
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-results.sarif
+          category: trivy-${{ matrix.platform }}
 
   # A version tag also publishes the GitHub release entry, so tagging is the
   # only manual step of a release.
