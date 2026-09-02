@@ -58,7 +58,7 @@ jobs:
 
       - name: gosec (SARIF, non-blocking)
         continue-on-error: true
-        uses: securego/gosec@v2.28.0
+        uses: securego/gosec@v2.29.0
         with:
           args: "-no-fail -fmt sarif -out gosec.sarif ./..."
 
