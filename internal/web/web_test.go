@@ -3,6 +3,7 @@ package web
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -28,6 +29,82 @@ func newTestHandler(t *testing.T) http.Handler {
 		t.Fatalf("NewServer: %v", err)
 	}
 	return srv.Handler()
+}
+
+func TestDashboardDefaultRange(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "data.json")
+	store, err := storage.New(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv, err := NewServer(store, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := srv.Handler()
+	get := func(path string) string {
+		t.Helper()
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET %s: %d: %s", path, rec.Code, rec.Body.String())
+		}
+		return rec.Body.String()
+	}
+	checkRange := func(path, key string) {
+		t.Helper()
+		if body := get(path); !strings.Contains(body, `class="chip active" href="/?sankey=`+key+`"`) {
+			t.Fatalf("GET %s: expected active range %s", path, key)
+		}
+	}
+	post := func(form string, auto bool, want int) {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodPost, "/settings", strings.NewReader(form))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		if auto {
+			req.Header.Set("X-Requested-With", "fetch")
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != want {
+			t.Fatalf("POST settings: %d, want %d: %s", rec.Code, want, rec.Body.String())
+		}
+	}
+	checkRange("/", "4w")
+	for _, choice := range models.DashboardRanges {
+		t.Run(choice.Key, func(t *testing.T) {
+			post("dashboardRange="+choice.Key, true, http.StatusNoContent)
+			checkRange("/", choice.Key)
+			checkRange("/?sankey=", choice.Key)
+			checkRange("/?sankey=invalid", choice.Key)
+			if body := get("/settings"); !strings.Contains(body, `value="`+choice.Key+`" selected`) {
+				t.Fatal("saved range is not selected in settings")
+			}
+			reopened, err := storage.New(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := reopened.Snapshot().Settings.DashboardRange; got != choice.Key {
+				t.Fatalf("persisted range = %q, want %q", got, choice.Key)
+			}
+		})
+	}
+	post("dashboardRange=3m", false, http.StatusSeeOther)
+	checkRange("/?sankey=1w&soff=-1", "1w")
+	checkRange("/", "3m")
+	post("weekly=42", true, http.StatusNoContent)
+	checkRange("/", "3m")
+	for _, invalid := range []string{"", "invalid"} {
+		post("dashboardRange="+invalid+"&weekly=20", true, http.StatusBadRequest)
+		if got := store.Snapshot().Settings; got.DashboardRange != "3m" || got.WeeklyTargetHours != 42 {
+			t.Fatalf("invalid input changed settings: %+v", got)
+		}
+	}
+	// Blocking the temporary file forces a real persistence error.
+	if err := os.Mkdir(path+".tmp", 0o700); err != nil {
+		t.Fatal(err)
+	}
+	post("dashboardRange=6m", true, http.StatusInternalServerError)
 }
 
 func TestSecurityHeadersArePresent(t *testing.T) {

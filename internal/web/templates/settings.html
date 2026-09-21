@@ -22,8 +22,16 @@
       <label>Wochensollstunden
         <input type="text" inputmode="decimal" name="weekly" value="{{hoursRaw .Settings.WeeklyTargetHours}}" placeholder="40">
       </label>
+      <label>Standardzeitraum im Dashboard
+        <select name="dashboardRange">
+          {{range .DashboardRanges}}
+            <option value="{{.Key}}" {{if eq .Key $.Settings.DashboardRange}}selected{{end}}>{{.Label}}</option>
+          {{end}}
+        </select>
+      </label>
     </div>
     <p class="hint">Gilt für alle Fiskaljahre. FY {{.Settings.Year}}: <strong>{{.FYStart}} – {{.FYEnd}}</strong>. Startmonat Januar = Kalenderjahr.</p>
+    <p class="hint">Der Standardzeitraum wird beim Öffnen des Dashboards verwendet. Dort kannst du den Zeitraum weiterhin vorübergehend wechseln.</p>
 
     <h2>Stundenkonfiguration (FY {{.Settings.Year}})</h2>
     <div class="hours-block">

@@ -2015,26 +2015,15 @@ func BuildGoalFlow(d models.Data, cal *holidays.Calendar) GoalFlow {
 // --- Dashboard utilization Sankey (time flow) ---
 
 // SankeyRange defines one selectable horizon for the dashboard Sankey diagram.
-type SankeyRange struct {
-	Key   string // stable query value (see SankeyRanges)
-	Label string // button label
-}
+type SankeyRange = models.DashboardRange
 
 // SankeyRanges lists the horizons offered by the toggles above the dashboard
 // Sankey, in display order.
-var SankeyRanges = []SankeyRange{
-	{Key: "1w", Label: "1 Woche"},
-	{Key: "2w", Label: "2 Wochen"},
-	{Key: "4w", Label: "4 Wochen"},
-	{Key: "2m", Label: "2 Monate"},
-	{Key: "3m", Label: "3 Monate"},
-	{Key: "6m", Label: "Halbjahr"},
-	{Key: "fy", Label: "Fiskaljahr"},
-}
+var SankeyRanges = models.DashboardRanges
 
 // SankeyDefaultRange is the horizon used when none (or an unknown one) is
 // requested.
-const SankeyDefaultRange = "4w"
+const SankeyDefaultRange = models.DefaultDashboardRange
 
 // SankeyMaxOffset bounds how far the horizon may be shifted into the past or
 // future, so a hand-crafted query parameter cannot cause pointless work.
@@ -2042,10 +2031,8 @@ const SankeyMaxOffset = 260
 
 // NormalizeSankeyRange returns key when it is a known range, else the default.
 func NormalizeSankeyRange(key string) string {
-	for _, r := range SankeyRanges {
-		if r.Key == key {
-			return key
-		}
+	if models.ValidDashboardRange(key) {
+		return key
 	}
 	return SankeyDefaultRange
 }

@@ -31,6 +31,9 @@ func TestNewStoreIsSelfConsistent(t *testing.T) {
 	if d.Settings.WeeklyTargetHours <= 0 || d.Settings.FederalState == "" {
 		t.Errorf("settings not defaulted: %+v", d.Settings)
 	}
+	if d.Settings.DashboardRange != models.DefaultDashboardRange {
+		t.Errorf("dashboard range = %q, want %q", d.Settings.DashboardRange, models.DefaultDashboardRange)
+	}
 	if u := d.Settings.Utilization; u.MinHours == 0 && u.OptimalHours == 0 && u.OverHours == 0 {
 		t.Error("utilization thresholds were left unset")
 	}
@@ -48,6 +51,38 @@ func TestNewStoreIsSelfConsistent(t *testing.T) {
 	}
 	if _, err := os.Stat(path); err != nil {
 		t.Errorf("the store did not persist itself: %v", err)
+	}
+}
+
+func TestLegacyDashboardRangeAndValidation(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "data.json")
+	if err := os.WriteFile(path, []byte(`{"settings":{"year":2027}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s, err := New(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Snapshot().Settings.DashboardRange; got != models.DefaultDashboardRange {
+		t.Fatalf("legacy default = %q", got)
+	}
+	for _, choice := range models.DashboardRanges {
+		if err := s.Mutate(func(d *models.Data) error {
+			d.Settings.DashboardRange = choice.Key
+			return nil
+		}); err != nil {
+			t.Fatalf("valid range %q: %v", choice.Key, err)
+		}
+	}
+	before := s.Snapshot().Settings.DashboardRange
+	if err := s.Mutate(func(d *models.Data) error {
+		d.Settings.DashboardRange = "invalid"
+		return nil
+	}); err == nil {
+		t.Fatal("invalid dashboard range accepted")
+	}
+	if got := s.Snapshot().Settings.DashboardRange; got != before {
+		t.Fatalf("rejected mutation changed range to %q", got)
 	}
 }
 

@@ -176,7 +176,11 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	projects := forecast.SortedProjects(d.Projects)
 	fyStart, fyEnd := forecast.FiscalYear(d.Settings.Year, d.Settings.FiscalYearStartMonth)
 	sankeyOffset, _ := strconv.Atoi(trim(r.URL.Query().Get("soff")))
-	sankey := forecast.BuildSankey(d, cal, r.URL.Query().Get("sankey"), sankeyOffset)
+	rangeKey := r.URL.Query().Get("sankey")
+	if !models.ValidDashboardRange(rangeKey) {
+		rangeKey = d.Settings.DashboardRange
+	}
+	sankey := forecast.BuildSankey(d, cal, rangeKey, sankeyOffset)
 	// Extra context for the KPI tooltips.
 	curWeek := forecast.CurrentFYWeek(d.Settings.Year, d.Settings.FiscalYearStartMonth)
 	curWeekRange := ""
@@ -707,24 +711,25 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 	fyStart, fyEnd := forecast.FiscalYear(year, d.Settings.FiscalYearStartMonth)
 	capacity := forecast.BuildFYCapacity(d, s.calendar(d), year)
 	s.render(w, r, "settings.html", map[string]any{
-		"Active":       "settings",
-		"Settings":     d.Settings,
-		"FYYears":      fyYears(d),
-		"States":       holidays.States,
-		"Months":       monthOptions,
-		"DataPath":     s.store.Path(),
-		"DataSize":     formatBytes(s.store.FileSize()),
-		"FY":           fy,
-		"Capacity":     capacity,
-		"FYStart":      fyStart.Format("02.01.2006"),
-		"FYEnd":        fyEnd.Format("02.01.2006"),
-		"AIKeyEnv":     aiAPIKeyEnv,
-		"AIKeySet":     trim(os.Getenv(aiAPIKeyEnv)) != "",
-		"AIKeyInStore": trim(d.Settings.AI.APIKey) != "",
-		"APIReadEnv":   api.ReadTokenEnv,
-		"APIReadSet":   trim(os.Getenv(api.ReadTokenEnv)) != "",
-		"APIWriteEnv":  api.WriteTokenEnv,
-		"APIWriteSet":  trim(os.Getenv(api.WriteTokenEnv)) != "",
+		"Active":          "settings",
+		"Settings":        d.Settings,
+		"FYYears":         fyYears(d),
+		"States":          holidays.States,
+		"Months":          monthOptions,
+		"DashboardRanges": models.DashboardRanges,
+		"DataPath":        s.store.Path(),
+		"DataSize":        formatBytes(s.store.FileSize()),
+		"FY":              fy,
+		"Capacity":        capacity,
+		"FYStart":         fyStart.Format("02.01.2006"),
+		"FYEnd":           fyEnd.Format("02.01.2006"),
+		"AIKeyEnv":        aiAPIKeyEnv,
+		"AIKeySet":        trim(os.Getenv(aiAPIKeyEnv)) != "",
+		"AIKeyInStore":    trim(d.Settings.AI.APIKey) != "",
+		"APIReadEnv":      api.ReadTokenEnv,
+		"APIReadSet":      trim(os.Getenv(api.ReadTokenEnv)) != "",
+		"APIWriteEnv":     api.WriteTokenEnv,
+		"APIWriteSet":     trim(os.Getenv(api.WriteTokenEnv)) != "",
 	})
 }
 
@@ -791,10 +796,18 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	vacDays, vacErr := strconv.Atoi(trim(r.FormValue("vacationDays")))
 	holDays, holErr := strconv.Atoi(trim(r.FormValue("holidayDays")))
 	stdHours, stdErr := strconv.ParseFloat(normalizeNum(r.FormValue("standardTaskHours")), 64)
-	_ = s.store.Update(func(d *models.Data) error {
+	dashboardRange := trim(r.FormValue("dashboardRange"))
+	if r.PostForm.Has("dashboardRange") && !models.ValidDashboardRange(dashboardRange) {
+		http.Error(w, "Ungültiger Dashboard-Zeitraum", http.StatusBadRequest)
+		return
+	}
+	err := s.store.Update(func(d *models.Data) error {
 		// The hour configuration always belongs to the fiscal year selected in
 		// the header; this page has no year picker of its own.
 		target := d.Settings.Year
+		if r.PostForm.Has("dashboardRange") {
+			d.Settings.DashboardRange = dashboardRange
+		}
 		if state != "" {
 			d.Settings.FederalState = state
 		}
@@ -834,6 +847,11 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 		models.EnsureVacationProject(d, target)
 		return nil
 	})
+	if err != nil {
+		s.logger.Error("settings save failed", "error", err)
+		http.Error(w, "Einstellungen konnten nicht gespeichert werden", http.StatusInternalServerError)
+		return
+	}
 	s.settingsSaved(w, r)
 }
 

@@ -309,9 +309,13 @@ curl -X DELETE https://host/api/v1/projects/abc -H "Authorization: Bearer $WRITE
 ### `PUT /api/v1/settings` — global settings
 
 Partial update. Fields: `year` (active FY), `federalState` (state code, e.g.
-`BY`), `weeklyTargetHours`, `fiscalYearStartMonth` (1–12), `utilization`
+`BY`), `weeklyTargetHours`, `fiscalYearStartMonth` (1–12), `dashboardRange`
+(`1w`, `2w`, `4w`, `2m`, `3m`, `6m`, `fy`; default `4w`), `utilization`
 (traffic-light thresholds/labels) and `ai` (`endpoint`/`deployment`/`apiVersion`
 — **no** key). Invalid values → `400`.
+
+`dashboardRange` controls the dashboard charts when no valid `sankey` query
+parameter is supplied. Explicit horizon links do not change the saved default.
 
 ```bash
 curl -X PUT https://host/api/v1/settings \

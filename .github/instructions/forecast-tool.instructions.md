@@ -56,7 +56,7 @@ collects every requirement stated so far as the binding reference.
   `storage.normalize` via `mergeEntries`: one value per (date, projectId),
   actual wins) and is never written again.
 - `Settings` (global): year (= active fiscal year), federalState,
-  weeklyTargetHours, fiscalYearStartMonth, `ai` (AISettings), `utilization`
+  weeklyTargetHours, fiscalYearStartMonth, dashboardRange, `ai` (AISettings), `utilization`
   (UtilizationSettings).
 - `UtilizationSettings` (global, in `Settings.Utilization`): the utilization
   traffic light. Three thresholds (`minHours` 26, `optimalHours` 40, `overHours`
@@ -362,7 +362,11 @@ collects every requirement stated so far as the binding reference.
   `.span-ctl.sankey-ctl` with
   the horizon switches (`forecast.SankeyRanges`: 1 week/2 weeks/4 weeks/2 months/
   3 months/half-year/fiscal year) as `.chip` links (`GET /?sankey=<key>`, default
-  `4w`, unknown → default via `NormalizeSankeyRange`).
+  `4w`). The global settings dropdown persists `Settings.DashboardRange`.
+  Missing, empty or unknown query values use that preference; explicit valid
+  links override it without saving. Legacy documents default to `4w`.
+  `models.DashboardRanges` is shared by the settings, validation and chart
+  controls; `NormalizeSankeyRange` retains `4w` as its final fallback.
 - **KPI tiles (`.cards.kpi-row`, seven columns, always evenly spread across the
   width):** Week-to-date · Ø 6 Monate · Budget gesamt · Forecast
   gesamt · Offen bis Ziel · Assignments · Aktuelle FY-Woche. The count tile is

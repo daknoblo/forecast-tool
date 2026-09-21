@@ -34,6 +34,7 @@ type Settings struct {
 	FederalState         string  `json:"federalState"` // e.g. "BY", "BW", "BE" ...
 	WeeklyTargetHours    float64 `json:"weeklyTargetHours"`
 	FiscalYearStartMonth int     `json:"fiscalYearStartMonth"` // 1-12; 7 = July (default). 1 == calendar year
+	DashboardRange       string  `json:"dashboardRange"`
 
 	// AI holds the configuration for the remote AI endpoint used to update the
 	// JSON document from a natural-language prompt.
@@ -336,6 +337,7 @@ func DefaultData(year int) Data {
 			FederalState:         "SN",
 			WeeklyTargetHours:    40,
 			FiscalYearStartMonth: DefaultFiscalYearStartMonth,
+			DashboardRange:       DefaultDashboardRange,
 			Utilization:          DefaultUtilization(),
 		},
 		FiscalYears: map[int]FiscalYearSettings{},
@@ -384,6 +386,9 @@ func Validate(d Data) error {
 	}
 	if d.Settings.WeeklyTargetHours < 0 {
 		return fmt.Errorf("settings.weeklyTargetHours darf nicht negativ sein")
+	}
+	if key := d.Settings.DashboardRange; key != "" && !ValidDashboardRange(key) {
+		return fmt.Errorf("settings.dashboardRange ist kein gültiger Dashboard-Zeitraum")
 	}
 	if ep := strings.TrimSpace(d.Settings.AI.Endpoint); ep != "" && !strings.HasPrefix(ep, "http://") && !strings.HasPrefix(ep, "https://") {
 		return fmt.Errorf("settings.ai.endpoint muss mit http:// oder https:// beginnen")

@@ -83,6 +83,9 @@ func normalize(d *models.Data) {
 	if d.Settings.FederalState == "" {
 		d.Settings.FederalState = "SN"
 	}
+	if d.Settings.DashboardRange == "" {
+		d.Settings.DashboardRange = models.DefaultDashboardRange
+	}
 	// Default the utilization traffic-light for documents created before it
 	// existed (all thresholds zero == unset).
 	if d.Settings.Utilization.MinHours == 0 && d.Settings.Utilization.OptimalHours == 0 && d.Settings.Utilization.OverHours == 0 {

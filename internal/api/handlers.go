@@ -573,6 +573,7 @@ type settingsInput struct {
 	FederalState         *string    `json:"federalState"`
 	WeeklyTargetHours    *float64   `json:"weeklyTargetHours"`
 	FiscalYearStartMonth *int       `json:"fiscalYearStartMonth"`
+	DashboardRange       *string    `json:"dashboardRange"`
 	Utilization          *utilInput `json:"utilization"`
 	AI                   *aiInput   `json:"ai"`
 }
@@ -601,6 +602,10 @@ func (s *Server) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusBadRequest, "fiscalYearStartMonth muss zwischen 1 und 12 liegen")
 		return
 	}
+	if in.DashboardRange != nil && !models.ValidDashboardRange(*in.DashboardRange) {
+		s.writeError(w, http.StatusBadRequest, "dashboardRange ist kein gültiger Dashboard-Zeitraum")
+		return
+	}
 
 	err := s.store.Mutate(func(d *models.Data) error {
 		if in.Year != nil {
@@ -614,6 +619,9 @@ func (s *Server) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 		}
 		if in.FiscalYearStartMonth != nil {
 			d.Settings.FiscalYearStartMonth = *in.FiscalYearStartMonth
+		}
+		if in.DashboardRange != nil {
+			d.Settings.DashboardRange = *in.DashboardRange
 		}
 		if u := in.Utilization; u != nil {
 			applyUtilization(&d.Settings.Utilization, u)
