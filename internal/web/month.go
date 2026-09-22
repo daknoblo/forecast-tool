@@ -19,18 +19,9 @@ func (s *Server) handleMonth(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	mode := r.URL.Query().Get("view")
-	if mode != "" && mode != "estimate" && mode != "stored" {
-		http.Error(w, "Ungültige Kalenderansicht.", http.StatusBadRequest)
-		return
-	}
-	estimate := mode != "stored"
-	if estimate {
-		mode = "estimate"
-	}
-	plan := forecast.BuildMonthPlan(d, s.calendar(d), month, now, estimate)
+	plan := forecast.BuildMonthPlan(d, s.calendar(d), month, now)
 	s.render(w, r, "month.html", map[string]any{
 		"Active": "month", "Wide": true, "Settings": d.Settings, "FYYears": fyYears(d),
-		"Plan": plan, "Estimate": estimate, "Mode": mode,
+		"Plan": plan,
 	})
 }

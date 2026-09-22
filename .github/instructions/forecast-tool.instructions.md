@@ -501,15 +501,22 @@ collects every requirement stated so far as the binding reference.
 ## Monthly planning
 
 - **Monthly planning (`/month`)** is a read-only calendar using `viewData`.
-  Stored and estimated views share the same weekly totals (including explicitly
-  unallocated hours). Never persist a suggestion implicitly. Past entries and
+  One combined view shows stored past entries and estimates from today onward;
+  no mode switch. Weekly totals include explicitly unallocated hours.
+  Never persist a suggestion implicitly. Past entries and
   vacation stay fixed; future project hours are distributed within their week/FY,
   respecting holidays, project windows and the existing 8-hour daily capacity.
-  Learn weekday preferences from the last 12 completed weeks by assignment;
-  fewer than three booked dates falls back to an even capacity-weighted split.
+  Learn weekday preferences from the last 12 completed weeks by assignment:
+  four-week recency half-life, normalized weekly shares, holiday/vacation-adjusted
+  exposure. With fewer than four observed weeks, blend towards the personal
+  pattern across projects, then an even pattern when that history is sparse.
+  Allocate narrow windows first, then concentrated weekday patterns.
   Include whole boundary weeks and label adjacent-month/out-of-FY dates.
   Render Monday–Friday only, using the space for wider day columns. Preserve any
   stored weekend hours in weekly totals and note them in the weekly summary.
+  No weekday header row: every day displays its full weekday and date on the
+  left, total/capacity and a yellow overtime badge on the right. Project tiles
+  are one line with a bold name and hours, without booked/estimated wording.
 
 ## Private mode (presentation mode)
 

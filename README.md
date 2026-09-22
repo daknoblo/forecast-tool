@@ -72,13 +72,22 @@ only renders the docs and the demo snapshot.
   (`POST /week/cells`); the page is never reloaded while typing
 - **Monthly planning** (`/month`): a Monday–Friday calendar beside Forecast,
   with public holidays, vacation, project blocks and weekly capacity balances.
-  Switch between stored entries and a **read-only estimated daily distribution**.
-  Existing weekly project totals are distributed from today onward using weekday
-  patterns from the last 12 completed weeks (matched across FYs by assignment ID);
-  fewer than three historical booking days means a capacity-weighted even split.
+  Past days always show stored entries, today and future days a **read-only
+  estimated daily distribution**, without a view switch. Compact project tiles
+  place names and hours on one line; each day header combines weekday/date,
+  hours/capacity and a yellow overtime badge.
+  Existing weekly project totals are distributed using weekday patterns from the
+  last 12 completed weeks (matched across FYs by assignment ID). Newer weeks
+  carry more weight (four-week half-life); normalized weekly shares keep one
+  unusually large booking from dominating. Historical holiday/vacation
+  availability is accounted for. Fewer than four observed project weeks blends
+  the project pattern with the personal pattern across all projects, itself
+  blended with an even split when history is sparse. No history means an even
+  capacity-weighted split.
   Past bookings and vacation never move. Suggestions respect project windows,
   holidays and the existing 8-hour workday capacity, reduced by partial vacation.
-  Narrow project windows are allocated first (ties by project ID); remaining
+  Narrow project windows are allocated first, then concentrated weekday patterns
+  (ties by project ID); remaining
   hours use other available weekdays when historical preferences cannot fit.
   Overflow is listed explicitly as unallocated, never lost or moved to another
   week/FY. Whole boundary weeks include adjacent-month dates within the active FY.

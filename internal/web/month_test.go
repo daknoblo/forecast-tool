@@ -5,9 +5,13 @@ import (
 	"net/http/httptest"
 	"os"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/daknoblo/forecast-tool/internal/forecast"
+	"github.com/daknoblo/forecast-tool/internal/holidays"
 	"github.com/daknoblo/forecast-tool/internal/models"
 )
 
@@ -37,7 +41,7 @@ func TestMonthRouteReadOnlyAndPrivate(t *testing.T) {
 		{"/month?month=2026-07", true, 200, "frei erfundene Beispieldaten"},
 		{"/month?month=2020-01", false, 200, "Juli 2026"},
 		{"/month?month=2026-13", false, 400, "Ungültiger Monat"},
-		{"/month?view=wrong", false, 400, "Ungültige Kalenderansicht"},
+		{"/month?view=wrong", false, 200, "Ab heute: Schätzung"},
 	} {
 		req := httptest.NewRequest("GET", tc.path, nil)
 		if tc.private {
@@ -55,8 +59,8 @@ func TestMonthRouteReadOnlyAndPrivate(t *testing.T) {
 		if tc.status == 200 && !strings.Contains(body, `href="/month" class="active">Monatsplanung</a>`) {
 			t.Fatal("active calendar navigation missing")
 		}
-		if tc.status == 200 && (strings.Count(body, `scope="col"`) != 6 || strings.Contains(body, `<th scope="col">Samstag</th>`) || strings.Contains(body, `<th scope="col">Sonntag</th>`)) {
-			t.Fatal("calendar must have five weekday columns plus the weekly summary")
+		if tc.status == 200 && (strings.Contains(body, "<thead>") || strings.Contains(body, "month-modes") || strings.Contains(body, "&amp;view=")) {
+			t.Fatal("calendar must not have a weekday header or view switch")
 		}
 	}
 	if !reflect.DeepEqual(before, store.Snapshot()) {
@@ -72,6 +76,48 @@ func TestMonthTemplateHasNoWriteInteraction(t *testing.T) {
 	for _, forbidden := range []string{"<form", "<script", "fetch(", "data-autosave"} {
 		if strings.Contains(string(b), forbidden) {
 			t.Fatalf("calendar preview must stay read-only: %s", forbidden)
+		}
+	}
+
+}
+
+func TestMonthCompactHeadersAndAutomaticEstimates(t *testing.T) {
+	_, store := newTestServer(t)
+	srv, err := NewServer(store, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := models.DefaultData(2026)
+	d.Settings.FiscalYearStartMonth = 1
+	d.Projects = []models.Project{{ID: "p", Name: "Projekt Alpha", Color: "#123456", FiscalYear: 2026}}
+	d.Entries = []models.Entry{
+		{Date: "2026-08-31", ProjectID: "p", Hours: 10},
+		{Date: "2026-09-22", ProjectID: "p", Hours: 10},
+	}
+	now := time.Date(2026, 9, 22, 0, 0, 0, 0, time.UTC)
+	plan := forecast.BuildMonthPlan(d, holidays.Get(2026, "SN"), now, now)
+	rec := httptest.NewRecorder()
+	srv.render(rec, httptest.NewRequest("GET", "/month", nil), "month.html", map[string]any{
+		"Settings": d.Settings, "FYYears": []int{2026}, "Plan": plan, "Active": "month",
+	})
+	body := rec.Body.String()
+	if rec.Code != 200 {
+		t.Fatalf("render failed: %s", body)
+	}
+	header := regexp.MustCompile(`(?s)<div class="month-date">\s*<time datetime="2026-08-31">Montag 31.08.</time>\s*<span class="month-day-total"[^>]*>10/8 h <span class="month-over"[^>]*>\(\+2 h\)</span></span>\s*</div>`)
+	if !header.MatchString(body) {
+		t.Fatal("weekday, hours and overtime badge must share the date header")
+	}
+	if !strings.Contains(body, `datetime="2026-09-22" aria-current="date"`) || !strings.Contains(body, `class="month-event estimated"`) {
+		t.Fatal("today must be highlighted and estimated without selecting a mode")
+	}
+	tiles := regexp.MustCompile(`(?s)<div class="month-event[^"]*"[^>]*>(.*?)</div>`).FindAllStringSubmatch(body, -1)
+	if len(tiles) == 0 {
+		t.Fatal("no project tiles")
+	}
+	for _, tile := range tiles {
+		if !regexp.MustCompile(`^\s*<strong>Projekt Alpha</strong>\s*<span>[0-9.]+ h</span>\s*$`).MatchString(tile[1]) {
+			t.Fatalf("tile must contain only project name and hours: %s", tile[1])
 		}
 	}
 }

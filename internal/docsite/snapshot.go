@@ -30,7 +30,6 @@ func DemoPages(week int) []Page {
 		{URL: "/projects", File: "projects.html", Title: "Projekte"},
 		{URL: fmt.Sprintf("/week/%d", week), File: "week.html", Title: "Forecast"},
 		{URL: "/month", File: "month.html", Title: "Monatsplanung"},
-		{URL: "/month?view=stored", File: "month-stored.html"},
 		{URL: "/goal", File: "goal.html", Title: "Ziele"},
 		{URL: "/settings", File: "settings.html", Title: "Einstellungen"},
 	}
@@ -152,10 +151,6 @@ func fallbackURL(val string) string {
 	case strings.HasPrefix(p, "/week"):
 		return "/week"
 	case p == "/month":
-		u, err := url.Parse(val)
-		if err == nil && u.Query().Get("view") == "stored" {
-			return "/month?view=stored"
-		}
 		return "/month"
 	case strings.HasPrefix(p, "/projects"):
 		return "/projects"

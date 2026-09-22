@@ -10,8 +10,6 @@ import (
 	"github.com/daknoblo/forecast-tool/internal/models"
 )
 
-const monthHistoryWeeks = 12
-
 type MonthEvent struct {
 	ProjectID, Name, Color, Basis string
 	Hours                         float64
@@ -42,14 +40,9 @@ type MonthPlan struct {
 	Weeks                                            []MonthWeek
 }
 
-type monthHistory struct {
-	hours [5]float64
-	dates map[string]bool
-}
-
 // BuildMonthPlan is a read-only alternative distribution of existing weekly
 // forecast totals. Past entries and all vacation entries retain their dates.
-func BuildMonthPlan(d models.Data, cal *holidays.Calendar, month, now time.Time, estimate bool) MonthPlan {
+func BuildMonthPlan(d models.Data, cal *holidays.Calendar, month, now time.Time) MonthPlan {
 	fyStart, fyEnd := FiscalYear(d.Settings.Year, d.Settings.FiscalYearStartMonth)
 	month = time.Date(month.Year(), month.Month(), 1, 0, 0, 0, 0, time.UTC)
 	if month.Before(fyStart) {
@@ -74,36 +67,8 @@ func BuildMonthPlan(d models.Data, cal *holidays.Calendar, month, now time.Time,
 	}
 
 	projects := SortedProjects(d.Projects)
-	byID := make(map[string]models.Project, len(projects))
-	for _, p := range projects {
-		byID[p.ID] = p
-	}
-	histories := make(map[string]*monthHistory)
-	historyFrom, historyTo := historyStart.Format("2006-01-02"), historyEnd.Format("2006-01-02")
-	historyCal := holidays.Get(historyEnd.Year(), d.Settings.FederalState)
-	// Historical entries can belong to earlier FY rows of the same assignment.
-	for _, e := range d.Entries {
-		p, ok := byID[e.ProjectID]
-		if !ok || p.IsVacation() || e.Hours <= 0 || e.Date < historyFrom || e.Date >= historyTo {
-			continue
-		}
-		date, err := time.Parse("2006-01-02", e.Date)
-		if err != nil || date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
-			continue
-		}
-		if historyCal.IsHoliday(e.Date) {
-			continue
-		}
-		key := groupKey(p)
-		if histories[key] == nil {
-			histories[key] = &monthHistory{dates: make(map[string]bool)}
-		}
-		h := histories[key]
-		h.hours[int(date.Weekday())-1] += e.Hours
-		h.dates[e.Date] = true
-	}
-
 	index := hoursIndex(d.Entries)
+	histories := buildMonthHistories(projects, index, historyEnd, d.Settings.FederalState)
 	end := month.AddDate(0, 1, 0)
 	for monday := mondayOf(month); monday.Before(end); monday = monday.AddDate(0, 0, 7) {
 		_, isoWeek := monday.ISOWeek()
@@ -120,7 +85,7 @@ func BuildMonthPlan(d models.Data, cal *holidays.Calendar, month, now time.Time,
 			date := monday.AddDate(0, 0, i)
 			iso := date.Format("2006-01-02")
 			day := MonthDay{
-				Date: iso, Label: date.Format("02.01."), Holiday: cal.Name(iso),
+				Date: iso, Label: monthWeekdayNames[i] + " " + date.Format("02.01."), Holiday: cal.Name(iso),
 				InMonth: date.Month() == month.Month(), InYear: !date.Before(fyStart) && !date.After(fyEnd),
 				Today: iso == today, Past: iso < today, Weekend: i >= 5,
 			}
@@ -139,7 +104,7 @@ func BuildMonthPlan(d models.Data, cal *holidays.Calendar, month, now time.Time,
 					} else {
 						w.Work += h
 					}
-					if estimate && !day.Past && !p.IsVacation() {
+					if !day.Past && !p.IsVacation() {
 						remaining[p.ID] += h
 						continue
 					}
@@ -155,9 +120,7 @@ func BuildMonthPlan(d models.Data, cal *holidays.Calendar, month, now time.Time,
 			}
 			w.Days = append(w.Days, day)
 		}
-		if estimate {
-			distributeMonthWeek(&w, projects, remaining, histories)
-		}
+		distributeMonthWeek(&w, projects, remaining, histories)
 		w.Free = math.Max(0, w.Capacity-w.Stored)
 		w.Over = math.Max(0, w.Stored-w.Capacity)
 		for i := range w.Days {
@@ -181,7 +144,7 @@ func monthDayAvailable(day MonthDay, p models.Project) bool {
 	return day.InYear && !day.Past && !day.Weekend && day.Holiday == "" && p.Bookable(day.Date) && day.Capacity-day.Total > 1e-9
 }
 
-func distributeMonthWeek(w *MonthWeek, projects []models.Project, remaining map[string]float64, histories map[string]*monthHistory) {
+func distributeMonthWeek(w *MonthWeek, projects []models.Project, remaining map[string]float64, histories map[string]monthHistory) {
 	var candidates []models.Project
 	for _, p := range projects {
 		if remaining[p.ID] > 0 {
@@ -189,7 +152,7 @@ func distributeMonthWeek(w *MonthWeek, projects []models.Project, remaining map[
 		}
 	}
 	// Narrow booking windows go first so flexible projects do not consume their
-	// only available days. Ties are stable and independent of entry order.
+	// only available days. Strong weekday preferences precede flexible patterns.
 	eligible := func(p models.Project) int {
 		n := 0
 		for _, day := range w.Days {
@@ -204,16 +167,21 @@ func distributeMonthWeek(w *MonthWeek, projects []models.Project, remaining map[
 		if a != b {
 			return a < b
 		}
+		peak := func(p models.Project) float64 {
+			var max float64
+			for _, weight := range histories[groupKey(p)].weights {
+				max = math.Max(max, weight)
+			}
+			return max
+		}
+		if a, b := peak(candidates[i]), peak(candidates[j]); a != b {
+			return a > b
+		}
 		return candidates[i].ID < candidates[j].ID
 	})
 	for _, p := range candidates {
 		left := remaining[p.ID]
 		history := histories[groupKey(p)]
-		basis := "Gleichmäßig: weniger als 3 historische Buchungstage"
-		useHistory := history != nil && len(history.dates) >= 3
-		if useHistory {
-			basis = fmt.Sprintf("Wochentagsmuster aus %d Buchungstagen; freie Kapazität berücksichtigt", len(history.dates))
-		}
 		allocated := make([]float64, len(w.Days))
 		// Each capped pass fills at least one day; an uncapped pass consumes
 		// the remaining hours. At most seven passes are therefore needed.
@@ -222,10 +190,7 @@ func distributeMonthWeek(w *MonthWeek, projects []models.Project, remaining map[
 			var sum float64
 			for i, day := range w.Days {
 				if monthDayAvailable(day, p) {
-					weights[i] = day.Capacity - day.Total
-					if useHistory {
-						weights[i] *= history.hours[i]
-					}
+					weights[i] = (day.Capacity - day.Total) * history.weights[i]
 					sum += weights[i]
 				}
 			}
@@ -252,12 +217,12 @@ func distributeMonthWeek(w *MonthWeek, projects []models.Project, remaining map[
 		}
 		for i, h := range allocated {
 			if h > 1e-9 {
-				w.Days[i].Events = append(w.Days[i].Events, monthEvent(p, h, true, basis, w.Days[i].Date))
+				w.Days[i].Events = append(w.Days[i].Events, monthEvent(p, h, true, history.basis, w.Days[i].Date))
 			}
 		}
 		if left > 1e-9 {
 			w.Unallocated += left
-			w.Pending = append(w.Pending, monthEvent(p, left, true, basis, ""))
+			w.Pending = append(w.Pending, monthEvent(p, left, true, history.basis, ""))
 		}
 	}
 }
