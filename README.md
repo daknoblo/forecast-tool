@@ -82,7 +82,9 @@ only renders the docs and the demo snapshot.
   configuration (gross FY hours − vacation − holidays − standard tasks), with
   target per week/month/quarter, an **hours-flow Sankey** (projects → months →
   quarters → half-years → fiscal year) and a progress chart per half-year and
-  quarter
+  quarter. All goal charts mark the target crossing with an approximate date
+  interpolated from the displayed monthly curve, or indicate that the target
+  is not reached within the period.
 - Remaining budget per project plus a burn-down chart (server-rendered SVG)
 - Dashboard with a **utilization Sankey diagram** and a **free capacity** chart,
   both rendered server-side as inline SVG (no JavaScript dependencies). Every

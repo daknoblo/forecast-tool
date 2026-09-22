@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/daknoblo/forecast-tool/internal/forecast"
 	"github.com/daknoblo/forecast-tool/internal/models"
@@ -339,7 +340,7 @@ func niceStep(max float64, want int) float64 {
 // viewBox for the full-width fiscal-year chart, keeping the font sizes intact.
 // Inputs are numeric plus controlled month labels, so the inline SVG carries no
 // untrusted markup.
-func progressSVG(labels []string, booked, projected []float64, target, todayPos float64, wide bool) template.HTML {
+func progressSVG(labels []string, booked, projected []float64, target, todayPos float64, wide bool, periodStart time.Time) template.HTML {
 	const (
 		padL = 48.0
 		padT = 30.0
@@ -424,7 +425,11 @@ func progressSVG(labels []string, booked, projected []float64, target, todayPos 
 	)
 
 	var b strings.Builder
-	fmt.Fprintf(&b, `<svg viewBox="0 0 %g %g" class="%s" role="img" aria-label="Fortschritt">`, w, h, class)
+	viewH := h
+	if pctAxis {
+		viewH += 24
+	}
+	fmt.Fprintf(&b, `<svg viewBox="0 0 %g %g" class="%s" role="img" aria-label="Fortschritt">`, w, viewH, class)
 
 	// Booked, forecast, projection and target as a centred row of pills above the
 	// plot, each in the colour of the thing it describes.
@@ -503,14 +508,24 @@ func progressSVG(labels []string, booked, projected []float64, target, todayPos 
 	}
 	junction := valueAt(booked, bookedThrough)
 
+	// Follow the exact vertices being drawn, including the partial-month junction.
+	crossing, previousPos, previousHours := -1.0, 0.0, 0.0
+	visit := func(pos, hours float64) {
+		if target > 0 && crossing < 0 && previousHours < target && hours >= target {
+			crossing = previousPos + (pos-previousPos)*(target-previousHours)/(hours-previousHours)
+		}
+		previousPos, previousHours = pos, hours
+	}
 	if todayPos > 0 {
 		var area, line strings.Builder
 		fmt.Fprintf(&area, "%g,%g ", x(0), padT+plotH)
 		for i := 0; i <= lastDone; i++ {
+			visit(float64(i), valueAt(booked, i))
 			fmt.Fprintf(&area, "%g,%g ", x(float64(i)), y(valueAt(booked, i)))
 			fmt.Fprintf(&line, "%g,%g ", x(float64(i)), y(valueAt(booked, i)))
 		}
 		if todayPos > float64(lastDone) {
+			visit(todayPos, junction)
 			fmt.Fprintf(&area, "%g,%g ", x(todayPos), y(junction))
 			fmt.Fprintf(&line, "%g,%g ", x(todayPos), y(junction))
 		}
@@ -521,8 +536,10 @@ func progressSVG(labels []string, booked, projected []float64, target, todayPos 
 	}
 	if todayPos < float64(n) {
 		var line strings.Builder
+		visit(todayPos, junction)
 		fmt.Fprintf(&line, "%g,%g ", x(todayPos), y(junction))
 		for i := lastDone + 1; i <= n; i++ {
+			visit(float64(i), valueAt(projected, i))
 			fmt.Fprintf(&line, "%g,%g ", x(float64(i)), y(valueAt(projected, i)))
 		}
 		fmt.Fprintf(&b, `<polyline fill="none" stroke="%s" stroke-width="2.5" stroke-dasharray="5 3" points="%s"/>`,
@@ -561,8 +578,38 @@ func progressSVG(labels []string, booked, projected []float64, target, todayPos 
 			x(float64(i)+0.5), padT+plotH+18, weight, fill, template.HTMLEscapeString(shortLabel(labelAt(labels, i))))
 	}
 
+	if pctAxis {
+		label := "Ziel im Zeitraum nicht erreicht"
+		color := "#475569"
+		if crossing >= 0 {
+			label, color = "Ziel voraussichtlich ca. ", colProjected
+			if crossing <= todayPos {
+				label, color = "Ziel erreicht ca. ", colDone
+			}
+			label += progressDate(periodStart, crossing, n).Format("02.01.2006")
+			cx, cy := x(crossing), y(target)
+			fmt.Fprintf(&b, `<line class="target-crossing-guide" x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s" stroke-dasharray="3 3"/>`,
+				cx, cy, cx, padT+plotH, color)
+			fmt.Fprintf(&b, `<circle class="target-crossing" cx="%g" cy="%g" r="4" fill="%s" stroke="#ffffff" stroke-width="1.5"><title>%s (aus der Monatskurve interpoliert)</title></circle>`,
+				cx, cy, color, label)
+		}
+		fmt.Fprintf(&b, `<text class="target-crossing-label" x="%g" y="%g" font-size="12" font-weight="600" fill="%s" text-anchor="middle">%s</text>`,
+			w/2, h+12, color, label)
+	}
 	b.WriteString(`</svg>`)
 	return template.HTML(b.String()) // #nosec G203 -- numeric values + controlled month labels only
+}
+
+// progressDate maps a fractional month-axis position to its calendar date.
+// The right edge denotes the end of the period, not a day in the next period.
+func progressDate(start time.Time, pos float64, months int) time.Time {
+	if pos >= float64(months) {
+		return start.AddDate(0, months, -1)
+	}
+	month := int(math.Floor(pos))
+	from := start.AddDate(0, month, 0)
+	to := start.AddDate(0, month+1, 0)
+	return from.Add(time.Duration((pos - float64(month)) * float64(to.Sub(from))))
 }
 
 // labelAt returns the i-th label or an empty string when it is missing.

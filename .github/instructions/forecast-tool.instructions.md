@@ -629,7 +629,7 @@ collects every requirement stated so far as the binding reference.
   labels inside the stripes need a **white halo**
   (`stroke="#ffffff" paint-order="stroke"`), because the translucent base offers
   no reliable contrast.
-- **`web.progressSVG(labels, booked, projected, target, todayPos, wide)`**
+- **`web.progressSVG(labels, booked, projected, target, todayPos, wide, periodStart)`**
   draws the burn-up of a period as **one continuous curve that starts at zero**:
   green `#16a34a` (booked, with a filled area) up to `todayPos`, orange `#ea580c`
   dashed (projection incl. forecast) from there to the end. Both halves meet in
@@ -660,6 +660,14 @@ collects every requirement stated so far as the binding reference.
   (`max-width: none`), so **only the FY chart** fills the full card width while
   the font sizes stay identical; halves and quarters stay capped at
   `max-width: 560px` so their 11 px labels remain readable.
+- Goal charts mark the first intersection of the displayed curve with the target
+  and show an approximate calendar date below the plot, interpolated along the
+  actual plotted segment (including the partial-month junction). Dates use each
+  period's start and actual calendar month lengths; the final boundary is clamped
+  to the last day of that period. Already-booked crossings are labelled reached,
+  future crossings projected. No intersection means "Ziel im Zeitraum nicht
+  erreicht"; no target means no annotation. Reserve an extra 24 px of SVG height
+  for the annotation without changing the plot geometry.
 - **The chart carries two y axes: hours on the left, share of the target on the
   right.** The right axis reuses the *same* gridlines (`v / target × 100`), so
   both sides describe one and the same curve — never give it its own scale. The

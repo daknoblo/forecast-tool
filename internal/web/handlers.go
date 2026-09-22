@@ -642,6 +642,7 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 		// "Today" as a fractional month index, so the curve switches from booked
 		// to projected exactly where the fiscal year currently stands.
 		pos := forecast.FYMonthProgress(d.Settings.Year, d.Settings.FiscalYearStartMonth)
+		start, _ := forecast.FiscalYear(d.Settings.Year, d.Settings.FiscalYearStartMonth)
 		clamp := func(v, max float64) float64 {
 			if v < 0 {
 				return 0
@@ -651,15 +652,15 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 			}
 			return v
 		}
-		fyChart = progressSVG(labels, cumulative(act), cumulative(proj), gs.TargetHours, pos, true)
+		fyChart = progressSVG(labels, cumulative(act), cumulative(proj), gs.TargetHours, pos, true, start)
 		h1Chart = progressSVG(labels[:6], cumulative(act[:6]), cumulative(proj[:6]),
-			round1(gs.TargetHours/2), clamp(pos, 6), false)
+			round1(gs.TargetHours/2), clamp(pos, 6), false, start)
 		h2Chart = progressSVG(labels[6:], cumulative(act[6:]), cumulative(proj[6:]),
-			round1(gs.TargetHours/2), clamp(pos-6, 6), false)
+			round1(gs.TargetHours/2), clamp(pos-6, 6), false, start.AddDate(0, 6, 0))
 		for q := 0; q < 4; q++ {
 			from, to := q*3, q*3+3
 			quarterCharts[q] = progressSVG(labels[from:to], cumulative(act[from:to]), cumulative(proj[from:to]),
-				round1(gs.TargetHours/4), clamp(pos-float64(from), 3), false)
+				round1(gs.TargetHours/4), clamp(pos-float64(from), 3), false, start.AddDate(0, from, 0))
 		}
 	}
 

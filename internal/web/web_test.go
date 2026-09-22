@@ -573,7 +573,7 @@ func TestProgressChartPercentAxis(t *testing.T) {
 	booked := []float64{50, 100}
 	projected := []float64{50, 150}
 
-	got := string(progressSVG(labels, booked, projected, 200, 1, false))
+	got := string(progressSVG(labels, booked, projected, 200, 1, false, time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)))
 	for _, want := range []string{">0 %<", ">100 %<"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("percentage axis is missing %q", want)
@@ -581,7 +581,7 @@ func TestProgressChartPercentAxis(t *testing.T) {
 	}
 
 	// Without a target a percentage has no basis.
-	if got := string(progressSVG(labels, booked, projected, 0, 1, false)); strings.Contains(got, " %<") {
+	if got := string(progressSVG(labels, booked, projected, 0, 1, false, time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC))); strings.Contains(got, " %<") {
 		t.Error("chart without a target must not draw a percentage axis")
 	}
 }
@@ -596,7 +596,7 @@ func TestProgressChartBookedEndsAtTotal(t *testing.T) {
 	projected := []float64{250, 400, 646} // cumulative incl. forecast
 	const target, todayPos = 359, 1.548   // mid-August
 
-	got := string(progressSVG(labels, booked, projected, target, todayPos, false))
+	got := string(progressSVG(labels, booked, projected, target, todayPos, false, time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)))
 
 	green := regexp.MustCompile(`<polyline fill="none" stroke="#16a34a" stroke-width="2.5" points="([^"]+)"`).FindStringSubmatch(got)
 	if green == nil {
