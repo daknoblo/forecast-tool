@@ -369,11 +369,15 @@ func TestWeekTotalsPartitionTheYear(t *testing.T) {
 	startISO, endISO := start.Format("2006-01-02"), end.Format("2006-01-02")
 	want := entryHours(d, func(e models.Entry) bool { return e.Date >= startISO && e.Date <= endISO })
 
-	var sum, actual, forecast float64
+	var sum float64
 	last := 0
 	for _, wt := range ys.WeekTotals {
-		if !eq(wt.Actual+wt.Forecast, wt.Hours, 0.2) {
-			t.Errorf("week %d: %v booked + %v forecast != %v hours", wt.Week, wt.Actual, wt.Forecast, wt.Hours)
+		wantWeek := entryHours(d, func(e models.Entry) bool {
+			day, err := time.Parse("2006-01-02", e.Date)
+			return err == nil && FYWeekIndexOf(year, 7, day) == wt.Week
+		})
+		if !eq(wt.Hours, wantWeek, 0.1) {
+			t.Errorf("week %d: %v hours, want %v", wt.Week, wt.Hours, wantWeek)
 		}
 		if wt.TargetHours > 0 && !eq(wt.UtilizationPct, wt.Hours/wt.TargetHours*100, 0.2) {
 			t.Errorf("week %d: utilization %v != %v", wt.Week, wt.UtilizationPct, wt.Hours/wt.TargetHours*100)
@@ -382,17 +386,12 @@ func TestWeekTotalsPartitionTheYear(t *testing.T) {
 			t.Errorf("week %d: status classified %v hours, but the row shows %v", wt.Week, wt.Status.Hours, wt.Hours)
 		}
 		sum += wt.Hours
-		actual += wt.Actual
-		forecast += wt.Forecast
 		if wt.Hours > 0 {
 			last = wt.Week
 		}
 	}
 	if !eq(sum, want, float64(len(ys.WeekTotals))*0.05+0.1) {
 		t.Errorf("week totals sum to %v, want %v", sum, want)
-	}
-	if !eq(actual+forecast, sum, 1) {
-		t.Errorf("weekly booked %v + forecast %v != %v", actual, forecast, sum)
 	}
 	if ys.LastPlannedWeek != last {
 		t.Errorf("LastPlannedWeek = %d, want %d", ys.LastPlannedWeek, last)

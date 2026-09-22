@@ -1,12 +1,15 @@
 package web
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/daknoblo/forecast-tool/internal/forecast"
 	"github.com/daknoblo/forecast-tool/internal/holidays"
@@ -27,6 +30,105 @@ func newTestServer(t *testing.T) (http.Handler, *storage.Store) {
 		t.Fatalf("NewServer: %v", err)
 	}
 	return srv.Handler(), store
+}
+
+func TestDashboardAndGoalShareWeeklyUtilization(t *testing.T) {
+	tableRE := regexp.MustCompile(`(?s)<table class="grid compact weekly">.*?</table>`)
+	rowRE := regexp.MustCompile(`(?s)<tr>\s*<td>.*?</tr>`)
+	for _, year := range []int{2026, 2030} {
+		t.Run(fmt.Sprint(year), func(t *testing.T) {
+			h, store := newTestServer(t)
+			if err := store.Mutate(func(d *models.Data) error {
+				d.Settings.Year = year
+				d.Settings.FiscalYearStartMonth = 7
+				d.Settings.WeeklyTargetHours = 32
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			check := func(private bool) string {
+				t.Helper()
+				var dashboard string
+				for _, path := range []string{"/", "/goal"} {
+					req := httptest.NewRequest(http.MethodGet, path, nil)
+					if private {
+						req.AddCookie(&http.Cookie{Name: privateCookie, Value: "1"})
+					}
+					rec := httptest.NewRecorder()
+					h.ServeHTTP(rec, req)
+					if rec.Code != http.StatusOK {
+						t.Fatalf("GET %s: %d", path, rec.Code)
+					}
+					body := rec.Body.String()
+					tables := tableRE.FindAllString(body, -1)
+					if len(tables) != 1 || strings.Count(body, "<h2>Wochenauslastung</h2>") != 1 {
+						t.Fatalf("%s: expected exactly one weekly table", path)
+					}
+					if path == "/" {
+						dashboard = tables[0]
+					} else if tables[0] != dashboard {
+						t.Fatal("goal weekly table differs from dashboard")
+					}
+				}
+				return dashboard
+			}
+			if rows := rowRE.FindAllString(check(false), -1); len(rows) != 0 {
+				t.Fatalf("empty plan has %d rows", len(rows))
+			}
+			start, _ := forecast.FiscalYear(year, 7)
+			week4 := forecast.FYWeekMonday(year, 7, 4)
+			if err := store.Mutate(func(d *models.Data) error {
+				d.Projects = append(d.Projects, models.Project{
+					ID: "weekly", AssignmentID: "weekly", Name: "Weekly", FiscalYear: year, Active: true,
+				})
+				for i, day := range []time.Time{start, week4, week4.AddDate(0, 0, 1)} {
+					hours := 16.0
+					if i == 0 {
+						hours = 8
+					}
+					d.Entries = append(d.Entries, models.Entry{ProjectID: "weekly", Date: day.Format("2006-01-02"), Hours: hours})
+				}
+				d.Entries = append(d.Entries, models.Entry{
+					ProjectID: models.VacationProjectID(year), Date: week4.AddDate(0, 0, 2).Format("2006-01-02"), Hours: 8,
+				})
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			table := check(false)
+			for _, want := range []string{
+				`<th>Woche</th><th class="num">Soll Stunden</th><th class="num">Gebuchte Stunden</th><th>Status</th><th class="weekutil">Auslastung</th>`,
+				`<td class="num">40 h</td>`, `<small>125 %</small>`, `class="barrow"`,
+			} {
+				if !strings.Contains(table, want) {
+					t.Errorf("missing dashboard table feature %q", want)
+				}
+			}
+			if strings.Contains(table, ">Forecast<") || strings.Contains(table, ">Ist gebucht<") {
+				t.Error("obsolete goal columns remain")
+			}
+			d := store.Snapshot()
+			summary := forecast.BuildYearSummary(d, holidays.Get(year, d.Settings.FederalState))
+			rows := rowRE.FindAllString(table, -1)
+			if len(rows) != 4 || summary.LastPlannedWeek != 4 {
+				t.Fatalf("sparse plan should show four weeks including gaps, got %d", len(rows))
+			}
+			for i, row := range rows {
+				week := summary.WeekTotals[i]
+				for _, want := range []string{
+					fmt.Sprintf(`href="/week/%d"`, week.Week),
+					`<span class="weekrange">` + week.RangeLabel + `</span>`,
+					`<td class="num">` + formatHours(week.Hours) + ` h</td>`,
+					`class="util util-` + week.Status.Key + `"`,
+				} {
+					if !strings.Contains(row, want) {
+						t.Errorf("week %d: missing %q", week.Week, want)
+					}
+				}
+			}
+			check(true)
+		})
+	}
 }
 
 // postForm submits a form to the handler the way the browser does.

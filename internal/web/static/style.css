@@ -392,7 +392,7 @@ table.week tfoot td.center { text-align: center; }
 .budgets th.carrycol, .budgets td.carrycol { white-space: nowrap; color: var(--muted); }
 .budgets th.utilcol, .budgets td.utilcol { width: 16rem; }
 
-/* dashboard weekly utilization table: wide bars, grey Mon-Fri date range */
+/* shared weekly utilization table: wide bars, grey Mon-Fri date range */
 .weekly th.weekutil, .weekly td.weekutil { width: 28rem; }
 .weekly th:first-child, .weekly td:first-child { white-space: nowrap; }
 .weekly .barrow { display: flex; align-items: center; gap: 0.6rem; }
@@ -428,5 +428,3 @@ table.week.span tfoot tr.footspacer td { height: 14px; padding: 0; border: none;
 /* vacation row: subtle tint to set it apart from real project rows */
 table.week.span tr.vacrow > td { background: #f4f3fb; }
 table.week.span tr.vacrow > td.pname { background: #ece9f8; }
-
-

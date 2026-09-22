@@ -429,8 +429,11 @@ collects every requirement stated so far as the binding reference.
   **Gebucht** bar (`ActualPct`, opaque), the latter two against the fiscal year's
   `AvailableBudget`. Every bar row carries a `title` naming its basis, because
   the three do not share one. No "Verbraucht" column.
-- **Weekly utilization table (dashboard, `table.grid.compact.weekly`), columns in
-  this order:** Woche (link `W1 · KW27` plus the grey `.weekrange` Mon–Fri range
+- **Shared weekly utilization table (dashboard and goal, `table.grid.compact.weekly`),
+  rendered by `weeklyutilization` in `partials.html` with `YearSummary` as its
+  context.** Both handlers supply `Summary`; there is no separate goal-specific
+  table or weekly forecast/actual split. Columns in
+  this order: Woche (link `W1 · KW27` plus the grey `.weekrange` Mon–Fri range
   from `WeekTotal.RangeLabel`, e.g. "Mo. 29.06.2026 – Fr. 03.07.2026", on **one**
   line) · "Soll Stunden" · "Gebuchte Stunden" · Status (directly next to the
   hours) · Auslastung (`.weekutil`, 28rem wide, bar + percentage in a `.barrow`

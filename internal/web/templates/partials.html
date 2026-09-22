@@ -104,3 +104,28 @@
 {{define "utilstatus"}}<span class="util util-{{.Key}}" title="{{.Label}} · {{hours .Hours}} h"><span class="util-dot">{{if eq .Key "min"}}↓{{else if eq .Key "optimal"}}OK{{else if eq .Key "high"}}↑{{else}}✕{{end}}</span><span class="util-label">{{.Label}}</span></span>{{end}}
 
 {{define "utildot"}}<span class="util util-{{.Key}}" title="{{.Label}} · {{hours .Hours}} h"><span class="util-dot">{{if eq .Key "min"}}↓{{else if eq .Key "optimal"}}OK{{else if eq .Key "high"}}↑{{else}}✕{{end}}</span></span>{{end}}
+
+{{define "weeklyutilization"}}
+<h2>Wochenauslastung</h2>
+<table class="grid compact weekly">
+  <thead><tr><th>Woche</th><th class="num">Soll Stunden</th><th class="num">Gebuchte Stunden</th><th>Status</th><th class="weekutil">Auslastung</th></tr></thead>
+  <tbody>
+  {{range .WeekTotals}}
+    {{if le .Week $.LastPlannedWeek}}
+    <tr>
+      <td><a href="/week/{{.Week}}">{{.Label}}</a> <span class="weekrange">{{.RangeLabel}}</span></td>
+      <td class="num">{{hours .TargetHours}} h</td>
+      <td class="num">{{hours .Hours}} h</td>
+      <td>{{template "utilstatus" .Status}}</td>
+      <td class="weekutil">
+        <div class="barrow">
+          <div class="bar"><span style="width:{{barWidth .UtilizationPct}}%"></span></div>
+          <small>{{hours .UtilizationPct}} %</small>
+        </div>
+      </td>
+    </tr>
+    {{end}}
+  {{end}}
+  </tbody>
+</table>
+{{end}}

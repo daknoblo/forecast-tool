@@ -179,29 +179,7 @@
 </section>
 
 <section class="card">
-  <h2>Wochenauslastung</h2>
-  <table class="grid compact">
-    <thead>
-      <tr><th>Woche</th><th class="num">Forecast</th><th class="num">Ist gebucht</th><th class="num">Soll</th><th>Status</th><th>Auslastung</th></tr>
-    </thead>
-    <tbody>
-    {{range .WeekTotals}}
-      {{if le .Week $.LastPlannedWeek}}
-      <tr>
-        <td><a href="/week/{{.Week}}">{{.Label}}</a></td>
-        <td class="num">{{hours .Forecast}} h</td>
-        <td class="num ist">{{hours .Actual}} h</td>
-        <td class="num">{{hours .TargetHours}} h</td>
-        <td>{{template "utilstatus" .Status}}</td>
-        <td>
-          <div class="bar"><span style="width:{{barWidth .UtilizationPct}}%"></span></div>
-          <small>{{hours .UtilizationPct}} %</small>
-        </td>
-      </tr>
-      {{end}}
-    {{end}}
-    </tbody>
-  </table>
+  {{template "weeklyutilization" .Summary}}
 </section>
 
 <section class="card" id="arbeitszeit">

@@ -510,8 +510,6 @@ type WeekTotal struct {
 	Label          string
 	RangeLabel     string  // Mon-Fri range, e.g. "Mo. 01.07.2027 – Fr. 05.07.2027"
 	Hours          float64 // all hours in this week (booked + forecast)
-	Forecast       float64 // hours on today/future days in this week
-	Actual         float64 // hours on past days in this week (booked)
 	TargetHours    float64
 	UtilizationPct float64
 	Status         models.UtilStatus // booking traffic-light for this week
@@ -642,8 +640,6 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 	actualByGroup := map[string]float64{}     // reviewed fiscal year only
 	outByP := map[string]float64{}
 	weekSum := map[int]float64{}
-	weekForecast := map[int]float64{}
-	weekActual := map[int]float64{}
 
 	for k, v := range hidx {
 		sep := strings.IndexByte(k, '|')
@@ -680,11 +676,6 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 		// Weekly totals over the reviewed fiscal year.
 		if w := FYWeekIndexOf(year, startMonth, t); w >= 1 {
 			weekSum[w] += v
-			if past {
-				weekActual[w] += v
-			} else {
-				weekForecast[w] += v
-			}
 		}
 	}
 
@@ -854,8 +845,6 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 			Label:          fmt.Sprintf("W%d · KW%02d", w, isoWeek),
 			RangeLabel:     formatDayWithWeekday(monday) + " – " + formatDayWithWeekday(monday.AddDate(0, 0, 4)),
 			Hours:          hrs,
-			Forecast:       round1(weekForecast[w]),
-			Actual:         round1(weekActual[w]),
 			TargetHours:    d.Settings.WeeklyTargetHours,
 			UtilizationPct: util,
 			Status:         d.Settings.ClassifyUtilization(hrs),

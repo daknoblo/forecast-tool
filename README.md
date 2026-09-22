@@ -73,7 +73,8 @@ only renders the docs and the demo snapshot.
 - Configurable **utilization traffic light**: four states (minimum burn rate,
   optimal, too high, overbooked) with freely chosen thresholds (hours) and
   labels; coloured dots in the forecast grid and in the weekly tables of the
-  dashboard and goals pages
+  dashboard and goals pages. Both pages use the same weekly utilization table
+  (week and date range, target hours, booked/planned hours, status and utilization)
 - Fiscal-year logic (configurable start month) with a central FY switcher in the
   header
 - Automatic public holidays (all 16 German federal states)
