@@ -2,6 +2,7 @@ package docsite
 
 import (
 	"fmt"
+	stdhtml "html"
 	"io"
 	"net/http"
 	"net/url"
@@ -28,6 +29,8 @@ func DemoPages(week int) []Page {
 		{URL: "/", File: "index.html", Title: "Dashboard"},
 		{URL: "/projects", File: "projects.html", Title: "Projekte"},
 		{URL: fmt.Sprintf("/week/%d", week), File: "week.html", Title: "Forecast"},
+		{URL: "/month", File: "month.html", Title: "Monatsplanung"},
+		{URL: "/month?view=stored", File: "month-stored.html"},
 		{URL: "/goal", File: "goal.html", Title: "Ziele"},
 		{URL: "/settings", File: "settings.html", Title: "Einstellungen"},
 	}
@@ -115,7 +118,7 @@ func rewrite(html string, byURL map[string]string) (string, []string) {
 	var assets []string
 	html = attrRe.ReplaceAllStringFunc(html, func(m string) string {
 		g := attrRe.FindStringSubmatch(m)
-		attr, val := g[1], g[2]
+		attr, val := g[1], stdhtml.UnescapeString(g[2])
 		if !strings.HasPrefix(val, "/") {
 			return m // external, anchor or already relative
 		}
@@ -148,6 +151,12 @@ func fallbackURL(val string) string {
 		return "/"
 	case strings.HasPrefix(p, "/week"):
 		return "/week"
+	case p == "/month":
+		u, err := url.Parse(val)
+		if err == nil && u.Query().Get("view") == "stored" {
+			return "/month?view=stored"
+		}
+		return "/month"
 	case strings.HasPrefix(p, "/projects"):
 		return "/projects"
 	case strings.HasPrefix(p, "/goal"):

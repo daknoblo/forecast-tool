@@ -102,6 +102,7 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("GET /{$}", s.handleDashboard)
 	mux.HandleFunc("GET /week", s.handleWeekRedirect)
+	mux.HandleFunc("GET /month", s.handleMonth)
 	mux.HandleFunc("GET /week/{week}", s.handleWeek)
 	mux.HandleFunc("POST /week/cells", s.handleWeekCells)
 	mux.HandleFunc("POST /week/{week}", s.handleWeekSave)

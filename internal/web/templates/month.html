@@ -1,0 +1,90 @@
+{{template "header" .}}
+<section class="card month-heading">
+  <div>
+    <h1>Monatsplanung</h1>
+    <p class="muted">Projektstunden als Tagesblöcke · Feiertage in {{.Settings.FederalState}} · Urlaub auf einen Blick</p>
+  </div>
+  <div class="month-nav" aria-label="Monat wählen">
+    {{if .Plan.Prev}}<a class="btn" href="/month?month={{.Plan.Prev}}&amp;view={{.Mode}}" aria-label="Vorheriger Monat">‹</a>{{end}}
+    <h2>{{.Plan.Label}}</h2>
+    {{if .Plan.Next}}<a class="btn" href="/month?month={{.Plan.Next}}&amp;view={{.Mode}}" aria-label="Nächster Monat">›</a>{{end}}
+    <a class="btn" href="/month?view={{.Mode}}">Heute</a>
+  </div>
+  <div class="month-modes">
+    <a class="chip{{if .Estimate}} active{{end}}" href="/month?month={{.Plan.Month}}&amp;view=estimate">Geschätzte Tagesverteilung</a>
+    <a class="chip{{if not .Estimate}} active{{end}}" href="/month?month={{.Plan.Month}}&amp;view=stored">Gespeicherte Planung</a>
+    <span class="month-readonly">Nur Vorschau · keine Änderungen an Buchungen</span>
+  </div>
+</section>
+
+<details class="card month-method">
+  <summary>Wie entsteht die Schätzung?</summary>
+  <p>Grundlage sind die gespeicherten Projektstunden pro Woche, nicht eine Vorhersage zusätzlicher Aufträge.
+    Die letzten zwölf abgeschlossenen Wochen ({{.Plan.HistoryFrom}} bis {{.Plan.HistoryTo}}) liefern je Assignment das Stundenmuster nach Wochentag.
+    Ab drei Buchungstagen wird dieses Muster verwendet, sonst wird gleichmäßig nach freier Kapazität verteilt.
+    Fortgeführte Assignments werden über Fiskaljahre hinweg erkannt. Es werden keine Daten an einen KI-Dienst gesendet.</p>
+  <p>Vergangene Buchungen und Urlaub bleiben unverändert. Ab heute werden Projektstunden nur auf Montag bis Freitag,
+    ohne Feiertage und innerhalb des Projektzeitraums vorgeschlagen. Basis: 8 h pro Arbeitstag wie in der Kapazitätsrechnung;
+    Teilurlaub reduziert diese Kapazität. Standardaufgaben haben keine Tagesdaten und werden hier nicht separat abgezogen.
+    Projekte mit wenigen verfügbaren Tagen werden zuerst verteilt, bei Gleichstand nach Projekt-ID.
+    Passt das historische Muster nicht auf die freien Tage, wird die Restmenge gleichmäßig verteilt.
+    Die Vorschläge sind keine Termine mit Uhrzeit.</p>
+  <p>Die Wochenstunden bleiben erhalten: Nicht unterbringbare Stunden stehen separat neben der Woche.
+    Wochen am Monatsrand werden vollständig innerhalb des gewählten Fiskaljahres berechnet;
+    eine Verteilung kann sich dadurch in den Nachbarmonat verschieben, niemals in eine andere Woche oder ein anderes FY.
+    Die Monatsnavigation bleibt im ausgewählten FY. „Heute“ springt außerhalb dieses FY an dessen nächsten Rand.</p>
+</details>
+
+<div class="month-scroll" tabindex="0" role="region" aria-label="Monatskalender mit Wochenübersicht">
+<table class="month-calendar">
+  <caption class="muted">{{.Plan.Label}} · Montag bis Freitag · {{if .Estimate}}Gestrichelt = geschätzt{{else}}Gespeicherte Stunden{{end}} · Urlaub = Abwesenheit · Feiertage = keine Arbeitskapazität</caption>
+  <thead><tr><th scope="col">Montag</th><th scope="col">Dienstag</th><th scope="col">Mittwoch</th><th scope="col">Donnerstag</th><th scope="col">Freitag</th><th scope="col">Woche</th></tr></thead>
+  <tbody>
+  {{range .Plan.Weeks}}
+  <tr>
+    {{range .Days}}
+    {{if not .Weekend}}
+    <td class="month-day{{if not .InMonth}} adjacent{{end}}{{if .Weekend}} weekend{{end}}{{if .Holiday}} holiday{{end}}{{if .Today}} today{{end}}{{if not .InYear}} outyear{{end}}">
+      <div class="month-date"><time datetime="{{.Date}}">{{.Label}}</time>{{if .Today}}<strong>Heute</strong>{{end}}</div>
+      {{if .Holiday}}<div class="month-holiday">{{.Holiday}}</div>{{end}}
+      {{if .InYear}}
+        {{range .Events}}
+        <div class="month-event{{if .Estimated}} estimated{{end}}{{if .Vacation}} vacation{{end}}" style="border-left-color: {{.Color}}"
+             title="{{.Name}} · {{hours .Hours}} h{{if .Basis}} · {{.Basis}}{{end}}{{if .Outside}} · Außerhalb des Projektzeitraums{{end}}">
+          <strong>{{.Name}}</strong>
+          <span>{{hours .Hours}} h · {{if .Vacation}}Urlaub{{else if .Estimated}}geschätzt{{else if $.Estimate}}gebucht{{else}}gespeichert{{end}}</span>
+          {{if .Outside}}<small>Außerhalb des Zeitraums</small>{{end}}
+        </div>
+        {{end}}
+        <div class="month-day-total">{{hours .Total}} / {{hours .Capacity}} h{{if .Past}} · gebucht{{end}}</div>
+        {{if $.Estimate}}{{if not .Past}}<small class="muted">Gespeichert: {{hours .Stored}} h</small>{{end}}{{end}}
+        {{if gt .Over 0.0}}<div class="month-warning">{{hours .Over}} h über Tageskapazität</div>{{end}}
+      {{else}}<small class="muted">Anderes FY</small>{{end}}
+    </td>
+    {{end}}
+    {{end}}
+    <td class="month-week">
+      <a href="/week/{{.FYWeek}}?weeks=1"><strong>KW {{.ISOWeek}} · W{{.FYWeek}}</strong></a>
+      <small class="muted">{{.Label}}</small>
+      <dl>
+        <dt>Gespeichert</dt><dd>{{hours .Stored}} h</dd>
+        <dt>Projektstunden</dt><dd>{{hours .Work}} h</dd>
+        <dt>Urlaub</dt><dd>{{hours .Vacation}} h</dd>
+        <dt>Kapazität</dt><dd>{{hours .Capacity}} h</dd>
+        <dt>Freier Saldo</dt><dd>{{hours .Free}} h</dd>
+      </dl>
+      {{if gt .WeekendStored 0.0}}<p class="muted">Davon am Wochenende gespeichert: {{hours .WeekendStored}} h (in der Wochensumme enthalten).</p>{{end}}
+      {{if gt .Over 0.0}}<p class="month-warning">{{hours .Over}} h über Wochenkapazität</p>{{end}}
+      {{if gt .Unallocated 0.0}}
+      <div class="month-warning"><strong>{{hours .Unallocated}} h nicht verteilbar</strong>
+        {{range .Pending}}<div>{{.Name}}: {{hours .Hours}} h</div>{{end}}
+        <small>Freie Tage bzw. Projektzeitraum reichen nicht aus. Diese Stunden bleiben Bestandteil des Wochen-Forecasts.</small>
+      </div>
+      {{end}}
+    </td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{template "footer" .}}

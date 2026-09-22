@@ -60,9 +60,11 @@ func TestBuildDemoDataIsValidAndDeterministic(t *testing.T) {
 
 func TestRewritePointsLinksAtTheSnapshot(t *testing.T) {
 	byURL := map[string]string{
-		"/":     "index.html",
-		"/week": "week.html",
-		"/goal": "goal.html",
+		"/":                  "index.html",
+		"/week":              "week.html",
+		"/goal":              "goal.html",
+		"/month":             "month.html",
+		"/month?view=stored": "month-stored.html",
 	}
 
 	html := `<html><head></head><body>` +
@@ -70,6 +72,8 @@ func TestRewritePointsLinksAtTheSnapshot(t *testing.T) {
 		`<a href="/">Dashboard</a>` +
 		`<a href="/week/17?weeks=3">Forecast</a>` +
 		`<a href="/goal">Ziele</a>` +
+		`<a href="/month?month=2026-07&amp;view=stored">Gespeichert</a>` +
+		`<a href="/month?month=2026-07&amp;view=estimate">Schätzung</a>` +
 		`<a href="/export">Export</a>` +
 		`<a href="https://example.com">extern</a>` +
 		`</body></html>`
@@ -81,6 +85,8 @@ func TestRewritePointsLinksAtTheSnapshot(t *testing.T) {
 		`href="index.html"`,
 		`href="week.html"`, // captured under another week number
 		`href="goal.html"`,
+		`href="month.html"`,
+		`href="month-stored.html"`,
 		`href="#"`, // /export was not captured
 		`href="https://example.com"`,
 	} {

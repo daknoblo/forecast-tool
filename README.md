@@ -70,6 +70,22 @@ only renders the docs and the demo snapshot.
   forecast), automatic totals, and buttons to clear single days or whole weeks
 - **Auto-save**: edits in the forecast grid are persisted in the background
   (`POST /week/cells`); the page is never reloaded while typing
+- **Monthly planning** (`/month`): a Monday–Friday calendar beside Forecast,
+  with public holidays, vacation, project blocks and weekly capacity balances.
+  Switch between stored entries and a **read-only estimated daily distribution**.
+  Existing weekly project totals are distributed from today onward using weekday
+  patterns from the last 12 completed weeks (matched across FYs by assignment ID);
+  fewer than three historical booking days means a capacity-weighted even split.
+  Past bookings and vacation never move. Suggestions respect project windows,
+  holidays and the existing 8-hour workday capacity, reduced by partial vacation.
+  Narrow project windows are allocated first (ties by project ID); remaining
+  hours use other available weekdays when historical preferences cannot fit.
+  Overflow is listed explicitly as unallocated, never lost or moved to another
+  week/FY. Whole boundary weeks include adjacent-month dates within the active FY.
+  Weekends have no columns; any stored weekend hours remain in weekly totals
+  and are explicitly noted in the weekly summary.
+  Standard tasks have no daily dates and are not deducted separately.
+  No writes, external AI calls, clock times or additional forecast hours are created.
 - Configurable **utilization traffic light**: four states (minimum burn rate,
   optimal, too high, overbooked) with freely chosen thresholds (hours) and
   labels; coloured dots in the forecast grid and in the weekly tables of the

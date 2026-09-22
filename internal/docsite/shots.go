@@ -57,6 +57,11 @@ func DemoShots(week int) []Shot {
 			Description: "Projekte × Tage über mehrere Wochen, ein Stundenwert pro Tag. Vergangene Tage gelten als gebucht, ab heute als Forecast. Eingaben speichern sich automatisch.",
 		},
 		{
+			File: "month.png", Path: "/month", FullPage: true,
+			Title:       "Monatsplanung",
+			Description: "Monatskalender mit Feiertagen, Urlaub, Wochenkapazität und einer rein lokalen, unverbindlichen Tagesverteilung der Forecast-Stunden.",
+		},
+		{
 			File: "projects.png", Path: "/projects", FullPage: true,
 			Title:       "Projekte",
 			Description: "Budget, Übertrag aus früheren Fiskaljahren, verfügbares Restbudget, Burnrate und Burn-Down-Diagramm je Assignment.",

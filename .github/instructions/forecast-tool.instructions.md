@@ -343,9 +343,9 @@ collects every requirement stated so far as the binding reference.
   user reads to tell which version is deployed. Never read it from a file or an
   env var — it has to describe the binary.
 - **Navigation (header)** in this order and wording:
-  Dashboard (`/`) – Projekte (`/projects`) – Forecast (`/week`) – Ziele
+  Dashboard (`/`) – Projekte (`/projects`) – Forecast (`/week`) – Monatsplanung (`/month`) – Ziele
   (`/goal`) – Einstellungen (`/settings`). The active-class keys remain
-  technically `dashboard`/`projects`/`week`/`goal`/`settings` (display and order
+  technically `dashboard`/`projects`/`week`/`month`/`goal`/`settings` (display and order
   only).
 - **Footer:** `{{appName}} · Fiskaljahr {{Year}} · {{version}}` on the left, on
   the right a link to the **project repository**
@@ -497,6 +497,19 @@ collects every requirement stated so far as the binding reference.
   time (**green `#16a34a`**), below = overbooked (**red `#dc2626`**); the value
   labels carry the same semantics (`#166534` / `#b91c1c`).
 - `BuildSankey(d, cal, rangeKey, offset)` therefore needs the holiday calendar.
+
+## Monthly planning
+
+- **Monthly planning (`/month`)** is a read-only calendar using `viewData`.
+  Stored and estimated views share the same weekly totals (including explicitly
+  unallocated hours). Never persist a suggestion implicitly. Past entries and
+  vacation stay fixed; future project hours are distributed within their week/FY,
+  respecting holidays, project windows and the existing 8-hour daily capacity.
+  Learn weekday preferences from the last 12 completed weeks by assignment;
+  fewer than three booked dates falls back to an even capacity-weighted split.
+  Include whole boundary weeks and label adjacent-month/out-of-FY dates.
+  Render Monday–Friday only, using the space for wider day columns. Preserve any
+  stored weekend hours in weekly totals and note them in the weekly summary.
 
 ## Private mode (presentation mode)
 
