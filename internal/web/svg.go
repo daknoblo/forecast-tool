@@ -579,14 +579,14 @@ func progressSVG(labels []string, booked, projected []float64, target, todayPos 
 	}
 
 	if pctAxis {
-		label := "Ziel im Zeitraum nicht erreicht"
+		label := "Zielerreichung kann aktuell nicht geschätzt werden"
 		color := "#475569"
 		if crossing >= 0 {
-			label, color = "Ziel voraussichtlich ca. ", colProjected
+			label, color = "Ziel voraussichtlich am ", colProjected
 			if crossing <= todayPos {
-				label, color = "Ziel erreicht ca. ", colDone
+				label, color = "Ziel wurde am ", colDone
 			}
-			label += progressDate(periodStart, crossing, n).Format("02.01.2006")
+			label += progressDate(periodStart, crossing, n).Format("02.01.2006") + " erreicht"
 			cx, cy := x(crossing), y(target)
 			fmt.Fprintf(&b, `<line class="target-crossing-guide" x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s" stroke-dasharray="3 3"/>`,
 				cx, cy, cx, padT+plotH, color)

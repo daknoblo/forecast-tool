@@ -64,15 +64,15 @@ func TestProgressChartTargetCrossing(t *testing.T) {
 		position          float64
 		label             string
 	}{
-		{"future month", []float64{100, 180, 180}, []float64{100, 200, 340}, 300, 1.5, 2 + 100.0/140, "Ziel voraussichtlich ca. 22.09.2026"},
-		{"current forecast", []float64{100, 180, 180}, []float64{100, 200, 340}, 190, 1.5, 1.75, "Ziel voraussichtlich ca. 24.08.2026"},
-		{"current booked", []float64{100, 180, 180}, []float64{100, 200, 340}, 150, 1.5, 1.3125, "Ziel erreicht ca. 10.08.2026"},
-		{"junction", []float64{100, 180, 180}, []float64{100, 200, 340}, 180, 1.5, 1.5, "Ziel erreicht ca. 16.08.2026"},
-		{"before start", []float64{0, 0, 0}, []float64{100, 200, 300}, 50, -1, 0.5, "Ziel voraussichtlich ca. 16.07.2026"},
-		{"plateau", []float64{100, 100, 100}, []float64{100, 100, 100}, 100, 4, 1, "Ziel erreicht ca. 01.08.2026"},
-		{"period end", []float64{0, 0, 0}, []float64{100, 200, 300}, 300, 0, 3, "Ziel voraussichtlich ca. 30.09.2026"},
-		{"not reached", []float64{0, 0, 0}, []float64{0, 0, 0}, 300, 1, -1, "Ziel im Zeitraum nicht erreicht"},
-		{"past uses booked", []float64{10, 20, 30}, []float64{100, 200, 300}, 200, 3, -1, "Ziel im Zeitraum nicht erreicht"},
+		{"future month", []float64{100, 180, 180}, []float64{100, 200, 340}, 300, 1.5, 2 + 100.0/140, "Ziel voraussichtlich am 22.09.2026 erreicht"},
+		{"current forecast", []float64{100, 180, 180}, []float64{100, 200, 340}, 190, 1.5, 1.75, "Ziel voraussichtlich am 24.08.2026 erreicht"},
+		{"current booked", []float64{100, 180, 180}, []float64{100, 200, 340}, 150, 1.5, 1.3125, "Ziel wurde am 10.08.2026 erreicht"},
+		{"junction", []float64{100, 180, 180}, []float64{100, 200, 340}, 180, 1.5, 1.5, "Ziel wurde am 16.08.2026 erreicht"},
+		{"before start", []float64{0, 0, 0}, []float64{100, 200, 300}, 50, -1, 0.5, "Ziel voraussichtlich am 16.07.2026 erreicht"},
+		{"plateau", []float64{100, 100, 100}, []float64{100, 100, 100}, 100, 4, 1, "Ziel wurde am 01.08.2026 erreicht"},
+		{"period end", []float64{0, 0, 0}, []float64{100, 200, 300}, 300, 0, 3, "Ziel voraussichtlich am 30.09.2026 erreicht"},
+		{"not reached", []float64{0, 0, 0}, []float64{0, 0, 0}, 300, 1, -1, "Zielerreichung kann aktuell nicht geschätzt werden"},
+		{"past uses booked", []float64{10, 20, 30}, []float64{100, 200, 300}, 200, 3, -1, "Zielerreichung kann aktuell nicht geschätzt werden"},
 		{"no target", []float64{0, 0, 0}, []float64{100, 200, 300}, 0, 0, -1, ""},
 	}
 	marker := regexp.MustCompile(`<circle class="target-crossing" cx="([^"]+)" cy="([^"]+)"`)
@@ -174,7 +174,7 @@ func TestGoalChartsUseTheirPeriodStart(t *testing.T) {
 		t.Fatalf("%d labels, want %d", len(labels), len(want))
 	}
 	for i, date := range want {
-		if labels[i][1] != "Ziel voraussichtlich ca. "+date {
+		if labels[i][1] != "Ziel voraussichtlich am "+date+" erreicht" {
 			t.Errorf("chart %d: %q, want %s", i, labels[i][1], date)
 		}
 	}
