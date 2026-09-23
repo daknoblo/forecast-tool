@@ -7,7 +7,7 @@ go 1.26.6
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.1
-	github.com/rickar/cal/v2 v2.1.29
+	github.com/rickar/cal/v2 v2.1.31
 	github.com/yuin/goldmark v1.8.5
 )
 
