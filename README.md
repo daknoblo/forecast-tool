@@ -82,13 +82,23 @@ only renders the docs and the demo snapshot.
   **read-only local estimate**, without a view switch. Compact project tiles
   place names and hours on one line; each day header combines weekday/date,
   hours/capacity and a yellow overtime badge.
-  The weekly sidebar lists capacity, vacation, each project's weekly hours
+  The title, month navigation/Today and AI planning button share one header row
+  on wide screens, without subtitles (controls wrap on narrow screens).
+  The weekly sidebar lists net capacity, **Urlaub/Feiertage**, each project's weekly hours
   with its project colour, total booked hours and available capacity. Totals
   include adjacent-month days within the FY, weekend entries and unallocated
   hours. A yellow overload badge appears beside the week identifier only when
   the weekly total exceeds capacity; there is no date-range line underneath.
   Fiscal-week identifiers use **FYW10** throughout the UI; **KW** continues to
   identify ISO calendar weeks.
+  **In monthly planning only**, vacation is an absence, not booked work.
+  Daily and weekly booked totals exclude vacation; net capacity subtracts
+  weekday public holidays and vacation (partial days proportionally), at most
+  8 hours per day, without double-counting overlapping absences or weekends.
+  The combined absence row shows this capacity reduction. For example, one
+  vacation day plus one weekday public holiday leave 24 hours of a 40-hour week.
+  Vacation entries remain visible and unchanged in storage. Forecast, dashboard
+  and goal calculations retain their existing semantics.
   Existing weekly project totals are distributed using weekday patterns from the
   last 12 completed weeks (matched across FYs by assignment ID). Newer weeks
   carry more weight (four-week half-life); normalized weekly shares keep one

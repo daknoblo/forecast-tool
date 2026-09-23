@@ -521,12 +521,25 @@ collects every requirement stated so far as the binding reference.
   left, total/capacity and a yellow overtime badge on the right. Project tiles
   are one line with a bold name and hours, without booked/estimated wording.
   The right-hand week summary has no date-range subtitle. Order its rows:
-  Kapazität, Urlaub, one project-coloured row per non-vacation project with
+  Kapazität, Urlaub/Feiertage, one project-coloured row per non-vacation project with
   hours in that week, Gesamt gebucht, Verfügbar. Include complete FY-clipped
   weeks, weekend and unallocated hours in the project totals, including inactive
   projects' existing entries. AI previews retain the original weekly totals even
   when hours remain unallocated. Use a yellow overload badge beside the FYW
   identifier only above weekly capacity; available hours remain floored at zero.
+- Only in monthly planning, vacation is absence rather than booked work:
+  `MonthDay.Stored/Total` and `MonthWeek.Stored/Work/WeekendStored` exclude it.
+  Net day capacity is max(0, regular weekday non-holiday capacity - vacation).
+  `MonthWeek.Absence` sums weekday capacity reductions (holidays and vacation),
+  capped at 8 h/day, never double-counting holiday/vacation overlaps or weekends.
+  Full vacation days without project work show 0/0 h without an overtime badge; partial vacation
+  reduces the denominator. Preserve absence tiles and original entries.
+  Local estimation, AI previews and saved plans use the same net calculation.
+  Leave Forecast, dashboard, goals and AI context/validation semantics unchanged;
+  AI already excludes absence time when deriving available planning hours.
+  The heading contains title, month/Today navigation and regenerate button in
+  one row on wide screens, wrapping responsively; remove both header subtitles.
+  Keep errors visible and configuration/private-mode guidance in the details.
 - **Explicit AI planning:** the top-right regenerate button posts the displayed
   current/future month and editable prompt to `/month/generate`, using the
   configured AI deployment/credentials. `MonthAIContext` includes the previous

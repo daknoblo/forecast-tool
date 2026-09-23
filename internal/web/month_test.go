@@ -37,11 +37,11 @@ func TestMonthRouteReadOnlyAndPrivate(t *testing.T) {
 		want    string
 	}{
 		{"/month?month=2026-07&view=stored", false, 200, "SensitiveProject"},
-		{"/month?month=2026-07", false, 200, "Nur Vorschau"},
+		{"/month?month=2026-07", false, 200, "lokale Schätzung ab heute"},
 		{"/month?month=2026-07", true, 200, "frei erfundene Beispieldaten"},
 		{"/month?month=2020-01", false, 200, "Juli 2026"},
 		{"/month?month=2026-13", false, 400, "Ungültiger Monat"},
-		{"/month?view=wrong", false, 200, "Ab heute: Schätzung"},
+		{"/month?view=wrong", false, 200, "lokale Schätzung ab heute"},
 	} {
 		req := httptest.NewRequest("GET", tc.path, nil)
 		if tc.private {
@@ -61,6 +61,9 @@ func TestMonthRouteReadOnlyAndPrivate(t *testing.T) {
 		}
 		if tc.status == 200 && (strings.Contains(body, "<thead>") || strings.Contains(body, "month-modes") || strings.Contains(body, "&amp;view=")) {
 			t.Fatal("calendar must not have a weekday header or view switch")
+		}
+		if tc.status == 200 && (strings.Contains(body, "month-readonly") || strings.Contains(body, "Projektstunden als Tagesblöcke")) {
+			t.Fatal("removed monthly header subtitles still appear")
 		}
 	}
 	if !reflect.DeepEqual(before, store.Snapshot()) {
@@ -128,8 +131,11 @@ func TestMonthWeeklySummaryLayout(t *testing.T) {
 		t.Fatalf("weekly summaries not rendered: %d", rec.Code)
 	}
 	first := weeks[0][1]
+	if !regexp.MustCompile(`datetime="2026-09-02"[^>]*>[^<]*</time>\s*<span class="month-day-total"[^>]*>0/0 h</span>`).MatchString(rec.Body.String()) {
+		t.Fatal("vacation day must display zero work and zero bookable capacity")
+	}
 	position := -1
-	for _, label := range []string{"Kapazität:", "Urlaub", "Projekt Alpha", "Projekt Beta", "Gesamt gebucht", "Verfügbar"} {
+	for _, label := range []string{"Kapazität:", "Urlaub/Feiertage", "Projekt Alpha", "Projekt Beta", "Gesamt gebucht", "Verfügbar"} {
 		next := strings.Index(first, "<dt>"+label+"</dt>")
 		if next <= position {
 			t.Fatalf("missing/out of order summary row %q", label)
@@ -140,7 +146,8 @@ func TestMonthWeeklySummaryLayout(t *testing.T) {
 		"FYW36", `title="10 h über Wochenkapazität">(+10 h)</span>`,
 		`style="--project-color: #123456"`, `style="--project-color: #654321"`,
 		"<dt>Projekt Alpha</dt><dd>30 h</dd>", "<dt>Projekt Beta</dt><dd>12 h</dd>",
-		"<dt>Gesamt gebucht</dt><dd>50 h</dd>", "<dt>Verfügbar</dt><dd>0 h</dd>",
+		"<dt>Kapazität:</dt><dd>32 h</dd>", "<dt>Urlaub/Feiertage</dt><dd>8 h</dd>",
+		"<dt>Gesamt gebucht</dt><dd>42 h</dd>", "<dt>Verfügbar</dt><dd>0 h</dd>",
 	} {
 		if !strings.Contains(first, want) {
 			t.Fatalf("summary missing %q: %s", want, first)

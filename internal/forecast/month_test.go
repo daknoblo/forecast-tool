@@ -54,7 +54,7 @@ func TestMonthWeeklyProjectTotals(t *testing.T) {
 	for _, estimate := range []bool{false, true} {
 		plan := buildMonthPlan(d, holidays.Get(2027, "SN"), now, now, estimate)
 		week := plan.Weeks[0]
-		if week.FYWeek != 1 || week.Capacity != 24 || week.Stored != 34 || week.Vacation != 8 ||
+		if week.FYWeek != 1 || week.Capacity != 16 || week.Stored != 26 || week.Vacation != 8 || week.Absence != 8 ||
 			week.Over != 10 || week.Free != 0 || week.WeekendStored != 2 {
 			t.Fatalf("wrong boundary week summary: %+v", week)
 		}
@@ -67,7 +67,7 @@ func TestMonthWeeklyProjectTotals(t *testing.T) {
 			totals[p.ProjectID] = p.Hours
 			sum += p.Hours
 		}
-		if !reflect.DeepEqual(totals, map[string]float64{"p": 16, "q": 10}) || sum+week.Vacation != week.Stored {
+		if !reflect.DeepEqual(totals, map[string]float64{"p": 16, "q": 10}) || sum != week.Stored {
 			t.Fatalf("project totals disagree with complete week: %v", totals)
 		}
 		overloaded := plan.Weeks[1]
@@ -92,6 +92,50 @@ func monthTestWeek(t *testing.T, plan MonthPlan, monday string) MonthWeek {
 	return MonthWeek{}
 }
 
+func TestMonthAbsenceReducesCapacityWithoutDoubleCounting(t *testing.T) {
+	d := monthTestData()
+	d.Entries = []models.Entry{
+		{Date: "2026-04-27", ProjectID: "v", Hours: 4},
+		{Date: "2026-04-28", ProjectID: "v", Hours: 8},
+		{Date: "2026-04-29", ProjectID: "p", Hours: 10},
+		{Date: "2026-05-01", ProjectID: "v", Hours: 8}, // Public holiday: no second deduction.
+		{Date: "2026-05-02", ProjectID: "v", Hours: 8}, // Weekend has no regular capacity.
+	}
+	before := append([]models.Entry(nil), d.Entries...)
+	cal := holidays.Get(2026, "SN")
+	for _, estimate := range []bool{false, true} {
+		plan := buildMonthPlan(d, cal, monthTestDate("2026-05-01"), monthTestDate("2026-04-20"), estimate)
+		w := monthTestWeek(t, plan, "2026-04-27")
+		if w.Capacity != 20 || w.Absence != 20 || w.Stored != 10 || w.Work != 10 ||
+			w.Free != 10 || w.Over != 0 || w.WeekendStored != 0 || w.Vacation != 28 {
+			t.Fatalf("absence counted as work or deducted twice: %+v", w)
+		}
+		for i, capacity := range []float64{4, 0, 8, 8, 0, 0, 0} {
+			day := w.Days[i]
+			if day.Capacity != capacity {
+				t.Fatalf("%s: capacity=%g, want %g", day.Date, day.Capacity, capacity)
+			}
+			if capacity == 0 && (day.Total != 0 || day.Stored != 0 || day.Over != 0) {
+				t.Fatalf("absence-only day counted as work: %+v", day)
+			}
+			if day.Vacation > 0 && (len(day.Events) == 0 || !day.Events[0].Vacation) {
+				t.Fatal("absence entries must remain visible")
+			}
+		}
+		if !estimate && (w.Days[2].Total != 10 || w.Days[2].Over != 2) {
+			t.Fatal("real project overtime must remain visible")
+		}
+	}
+	if !reflect.DeepEqual(before, d.Entries) {
+		t.Fatal("monthly calculations mutated entries")
+	}
+	// Weekly views retain their existing vacation-as-booking semantics.
+	week := BuildWeek(d, cal, FYWeekIndexOf(2026, 1, monthTestDate("2026-04-27")))
+	if week.ProjectTotals["v"] != 20 || week.Total != 30 {
+		t.Fatalf("monthly change leaked into weekly calculation: %+v", week)
+	}
+}
+
 func TestMonthHolidayVacationAndOverflow(t *testing.T) {
 	for _, hours := range []float64{20, 40} {
 		d := monthTestData()
@@ -100,10 +144,11 @@ func TestMonthHolidayVacationAndOverflow(t *testing.T) {
 			{Date: "2026-04-28", ProjectID: "v", Hours: 8},
 			{Date: "2026-04-29", ProjectID: "v", Hours: 4},
 		}
+
 		before := append([]models.Entry(nil), d.Entries...)
 		plan := BuildMonthPlan(d, holidays.Get(2026, "SN"), monthTestDate("2026-05-01"), monthTestDate("2026-04-20"))
 		w := monthTestWeek(t, plan, "2026-04-27")
-		if w.Capacity != 32 || w.Vacation != 12 || w.Stored != hours+12 || w.Unallocated != math.Max(0, hours-20) {
+		if w.Capacity != 20 || w.Vacation != 12 || w.Absence != 20 || w.Stored != hours || w.Unallocated != math.Max(0, hours-20) {
 			t.Fatalf("wrong weekly figures: %+v", w)
 		}
 		var displayed float64
@@ -132,6 +177,25 @@ func TestMonthHolidayVacationAndOverflow(t *testing.T) {
 				t.Fatal("month boundary changed weekly distribution")
 			}
 		}
+	}
+}
+
+func TestMonthAbsenceBoundsAtFiscalStart(t *testing.T) {
+	d := monthTestData()
+	d.Settings.Year, d.Settings.FiscalYearStartMonth = 2027, 7
+	for i := range d.Projects {
+		d.Projects[i].FiscalYear = 2027
+	}
+	d.Entries = []models.Entry{
+		{Date: "2026-06-30", ProjectID: "v", Hours: 8},
+		{Date: "2026-07-01", ProjectID: "v", Hours: 12},
+		{Date: "2026-07-04", ProjectID: "v", Hours: 8},
+	}
+	plan := BuildStoredMonthPlan(d, holidays.Get(2026, "SN"), monthTestDate("2026-07-01"), monthTestDate("2026-07-01"))
+	w := monthTestWeek(t, plan, "2026-06-29")
+	if w.Capacity != 16 || w.Absence != 8 || w.Vacation != 20 || w.Stored != 0 ||
+		w.WeekendStored != 0 || w.Over != 0 || w.Days[2].Over != 0 || w.Days[2].Capacity != 0 {
+		t.Fatalf("absence must be capped to in-year weekday capacity: %+v", w)
 	}
 }
 

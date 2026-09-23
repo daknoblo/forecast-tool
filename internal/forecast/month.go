@@ -16,6 +16,8 @@ type MonthEvent struct {
 	Vacation, Estimated, Outside  bool
 }
 
+// Monthly totals count project work only; capacity is net of holidays/vacation.
+// Vacation entries remain visible and persisted, but are not counted as work.
 type MonthDay struct {
 	Date, Label, Holiday              string
 	InMonth, InYear, Today, Past      bool
@@ -32,6 +34,7 @@ type MonthWeek struct {
 	Days                                   []MonthDay
 	Stored, Capacity, Vacation, Work, Free float64
 	Over, Unallocated                      float64
+	Absence                                float64
 	WeekendStored                          float64
 	Pending                                []MonthEvent
 	Projects                               []MonthEvent
@@ -115,10 +118,10 @@ func buildMonthPlan(d models.Data, cal *holidays.Calendar, month, now time.Time,
 					if h <= 0 {
 						continue
 					}
-					day.Stored += h
 					if p.IsVacation() {
 						day.Vacation += h
 					} else {
+						day.Stored += h
 						w.Work += h
 						projectHours[p.ID] += h
 					}
@@ -127,7 +130,13 @@ func buildMonthPlan(d models.Data, cal *holidays.Calendar, month, now time.Time,
 						continue
 					}
 					day.Events = append(day.Events, monthEvent(p, h, false, "", iso))
-					day.Total += h
+					if !p.IsVacation() {
+						day.Total += h
+					}
+				}
+				day.Capacity = math.Max(0, day.Capacity-day.Vacation)
+				if !day.Weekend {
+					w.Absence += HolidayDayHours - day.Capacity
 				}
 				w.Stored += day.Stored
 				if day.Weekend {

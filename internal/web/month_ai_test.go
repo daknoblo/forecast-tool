@@ -180,7 +180,7 @@ func TestMonthAIPreviewThenExplicitSave(t *testing.T) {
 	}
 	rec = httptest.NewRecorder()
 	f.server.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/month?month="+f.month, nil))
-	if !strings.Contains(rec.Body.String(), "Gespeicherter Forecast") || strings.Contains(rec.Body.String(), `class="month-event estimated"`) {
+	if !strings.Contains(rec.Body.String(), "Gespeicherte Tagesverteilung") || strings.Contains(rec.Body.String(), `class="month-event estimated"`) {
 		t.Fatal("saved calendar was re-estimated")
 	}
 	rec = monthRequest(f.server.Handler(), "/month/save", "application/x-www-form-urlencoded", "preview="+token)
@@ -206,6 +206,11 @@ func TestMonthAIUnallocatedPreviewCannotBeSaved(t *testing.T) {
 		}
 		if !strings.Contains(rec.Body.String(), "<dt>Projekt Pattern</dt><dd>8 h</dd>") {
 			t.Fatal("preview project summary must include allocated and unallocated hours")
+		}
+		if !strings.Contains(rec.Body.String(), "<dt>Kapazität:</dt><dd>36 h</dd>") ||
+			!strings.Contains(rec.Body.String(), "<dt>Urlaub/Feiertage</dt><dd>4 h</dd>") ||
+			!strings.Contains(rec.Body.String(), "<dt>Gesamt gebucht</dt><dd>8 h</dd>") {
+			t.Fatal("AI preview must use net capacity and exclude vacation from booked hours")
 		}
 	}
 	rec = monthRequest(f.server.Handler(), "/month/save", "application/x-www-form-urlencoded", "preview="+token)
