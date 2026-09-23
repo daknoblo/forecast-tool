@@ -5,7 +5,13 @@
       <h1>Monatsplanung</h1>
       <p class="muted">Projektstunden als Tagesblöcke · Feiertage in {{.Settings.FederalState}} · Urlaub auf einen Blick</p>
     </div>
-    <button type="button" class="btn primary" id="month-generate" data-month="{{.Plan.Month}}"{{if not .CanGenerate}} disabled{{end}}>Planung mit KI regenerieren</button>
+    <div class="month-generate-controls">
+      <button type="button" class="btn primary" id="month-generate" data-month="{{.Plan.Month}}"{{if not .CanGenerate}} disabled{{end}}>Planung mit KI regenerieren</button>
+      <span id="month-loading" class="month-loading" role="status" hidden title="KI plant den Monat. Das kann bis zu zwei Minuten dauern.">
+        <span class="month-spinner" aria-hidden="true"></span>
+        <span class="month-loading-text">KI plant den Monat. Bestehende Buchungen bleiben unverändert.</span>
+      </span>
+    </div>
   </div>
   <div class="month-nav" aria-label="Monat wählen">
     {{if .Plan.Prev}}<a class="btn" href="/month?month={{.Plan.Prev}}" aria-label="Vorheriger Monat">‹</a>{{end}}
@@ -23,7 +29,7 @@
   {{if .Private}}<p class="hint">KI-Planung und Speichern sind im privaten Modus gesperrt.</p>
   {{else if not .AIReady}}<p class="hint">Für die KI-Planung zuerst einen <a href="/settings#ai">KI-Endpoint und ein Deployment auswählen</a>.</p>{{end}}
   <p id="month-ai-status" class="msg" role="status" hidden></p>
-  {{if .PlanningError}}<p class="msg error" role="alert">{{.PlanningError}}</p>{{end}}
+  {{if .PlanningError}}<p id="month-planning-error" class="msg error" role="alert">{{.PlanningError}}</p>{{end}}
 </section>
 
 <details class="card month-method">
@@ -115,6 +121,8 @@
   var prompt = document.getElementById('month-prompt');
   var save = document.getElementById('month-save');
   var status = document.getElementById('month-ai-status');
+  var loading = document.getElementById('month-loading');
+  var planningError = document.getElementById('month-planning-error');
   var busy = false;
   function show(message, error) {
     status.hidden = false;
@@ -138,7 +146,11 @@
     var saveButton = save && save.querySelector('button');
     var saveDisabled = saveButton && saveButton.disabled;
     if (saveButton) saveButton.disabled = true;
-    show('KI plant den Monat. Das kann bis zu zwei Minuten dauern. Bestehende Buchungen bleiben unverändert.');
+    status.hidden = true;
+    status.textContent = '';
+    if (planningError) planningError.hidden = true;
+    loading.hidden = false;
+    generate.setAttribute('aria-busy', 'true');
     try {
       var result = await send('/month/generate', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -151,6 +163,9 @@
       prompt.readOnly = false;
       if (saveButton) saveButton.disabled = saveDisabled;
       busy = false;
+    } finally {
+      loading.hidden = true;
+      generate.removeAttribute('aria-busy');
     }
   });
   if (save) save.addEventListener('submit', async function (event) {

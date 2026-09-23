@@ -68,6 +68,27 @@ func TestMonthRouteReadOnlyAndPrivate(t *testing.T) {
 	}
 }
 
+func TestMonthLoadingIndicator(t *testing.T) {
+	b, err := os.ReadFile("templates/month.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, required := range []string{
+		`id="month-loading" class="month-loading" role="status" hidden`,
+		`class="month-spinner" aria-hidden="true"`,
+		"loading.hidden = false;", "loading.hidden = true;",
+		"generate.setAttribute('aria-busy', 'true');", "generate.removeAttribute('aria-busy');",
+		"if (planningError) planningError.hidden = true;",
+	} {
+		if !strings.Contains(string(b), required) {
+			t.Fatalf("missing loading lifecycle: %s", required)
+		}
+	}
+	if strings.Contains(string(b), "show('KI plant den Monat.") {
+		t.Fatal("generation still displays a loading banner")
+	}
+}
+
 func TestMonthTemplateSeparatesGenerationAndSave(t *testing.T) {
 	b, err := os.ReadFile("templates/month.html")
 	if err != nil {

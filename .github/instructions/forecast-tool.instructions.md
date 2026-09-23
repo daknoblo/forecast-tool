@@ -527,6 +527,10 @@ collects every requirement stated so far as the binding reference.
   `Settings.MonthPlanningPrompt` (max 8,000 runes, blank = default) is separately
   saved through `/month/prompt`; display it under the estimation details, with
   noneditable system rules available for inspection.
+- While regenerating, show an accessible loading spinner beside the button
+  instead of a loading banner; respect reduced-motion preferences. Hide stale
+  preview errors on retry, stop the spinner on completion/failure, and keep
+  request errors visible. Disable duplicate generation while pending.
 - Parse and validate AI JSON strictly: known IDs, unique positive finite entries,
   allowed days/windows (including no full-day vacation), and exact
   editable totals per project/ISO week. Preserve inactive projects' existing
