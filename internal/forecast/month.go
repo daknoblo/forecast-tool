@@ -20,6 +20,7 @@ type MonthDay struct {
 	Date, Label, Holiday              string
 	InMonth, InYear, Today, Past      bool
 	Weekend                           bool
+	Estimated                         bool
 	Capacity, Vacation, Stored, Total float64
 	Over                              float64
 	Events                            []MonthEvent
@@ -43,6 +44,16 @@ type MonthPlan struct {
 // BuildMonthPlan is a read-only alternative distribution of existing weekly
 // forecast totals. Past entries and all vacation entries retain their dates.
 func BuildMonthPlan(d models.Data, cal *holidays.Calendar, month, now time.Time) MonthPlan {
+	return buildMonthPlan(d, cal, month, now, true)
+}
+
+// BuildStoredMonthPlan renders the actual daily distribution without estimating
+// it again, including a validated AI preview or an explicitly saved plan.
+func BuildStoredMonthPlan(d models.Data, cal *holidays.Calendar, month, now time.Time) MonthPlan {
+	return buildMonthPlan(d, cal, month, now, false)
+}
+
+func buildMonthPlan(d models.Data, cal *holidays.Calendar, month, now time.Time, estimate bool) MonthPlan {
 	fyStart, fyEnd := FiscalYear(d.Settings.Year, d.Settings.FiscalYearStartMonth)
 	month = time.Date(month.Year(), month.Month(), 1, 0, 0, 0, 0, time.UTC)
 	if month.Before(fyStart) {
@@ -68,7 +79,10 @@ func BuildMonthPlan(d models.Data, cal *holidays.Calendar, month, now time.Time)
 
 	projects := SortedProjects(d.Projects)
 	index := hoursIndex(d.Entries)
-	histories := buildMonthHistories(projects, index, historyEnd, d.Settings.FederalState)
+	var histories map[string]monthHistory
+	if estimate {
+		histories = buildMonthHistories(projects, index, historyEnd, d.Settings.FederalState)
+	}
 	end := month.AddDate(0, 1, 0)
 	for monday := mondayOf(month); monday.Before(end); monday = monday.AddDate(0, 0, 7) {
 		_, isoWeek := monday.ISOWeek()
@@ -88,6 +102,7 @@ func BuildMonthPlan(d models.Data, cal *holidays.Calendar, month, now time.Time)
 				Date: iso, Label: monthWeekdayNames[i] + " " + date.Format("02.01."), Holiday: cal.Name(iso),
 				InMonth: date.Month() == month.Month(), InYear: !date.Before(fyStart) && !date.After(fyEnd),
 				Today: iso == today, Past: iso < today, Weekend: i >= 5,
+				Estimated: estimate && iso >= today,
 			}
 			if day.InYear {
 				if !day.Weekend && day.Holiday == "" {
@@ -104,7 +119,7 @@ func BuildMonthPlan(d models.Data, cal *holidays.Calendar, month, now time.Time)
 					} else {
 						w.Work += h
 					}
-					if !day.Past && !p.IsVacation() {
+					if estimate && !day.Past && !p.IsVacation() {
 						remaining[p.ID] += h
 						continue
 					}
@@ -120,7 +135,9 @@ func BuildMonthPlan(d models.Data, cal *holidays.Calendar, month, now time.Time)
 			}
 			w.Days = append(w.Days, day)
 		}
-		distributeMonthWeek(&w, projects, remaining, histories)
+		if estimate {
+			distributeMonthWeek(&w, projects, remaining, histories)
+		}
 		w.Free = math.Max(0, w.Capacity-w.Stored)
 		w.Over = math.Max(0, w.Stored-w.Capacity)
 		for i := range w.Days {

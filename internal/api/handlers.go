@@ -574,6 +574,7 @@ type settingsInput struct {
 	WeeklyTargetHours    *float64   `json:"weeklyTargetHours"`
 	FiscalYearStartMonth *int       `json:"fiscalYearStartMonth"`
 	DashboardRange       *string    `json:"dashboardRange"`
+	MonthPlanningPrompt  *string    `json:"monthPlanningPrompt"`
 	Utilization          *utilInput `json:"utilization"`
 	AI                   *aiInput   `json:"ai"`
 }
@@ -606,6 +607,10 @@ func (s *Server) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusBadRequest, "dashboardRange ist kein gültiger Dashboard-Zeitraum")
 		return
 	}
+	if in.MonthPlanningPrompt != nil && len([]rune(*in.MonthPlanningPrompt)) > models.MaxMonthPlanningPrompt {
+		s.writeError(w, http.StatusBadRequest, "monthPlanningPrompt ist zu lang")
+		return
+	}
 
 	err := s.store.Mutate(func(d *models.Data) error {
 		if in.Year != nil {
@@ -622,6 +627,9 @@ func (s *Server) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 		}
 		if in.DashboardRange != nil {
 			d.Settings.DashboardRange = *in.DashboardRange
+		}
+		if in.MonthPlanningPrompt != nil {
+			d.Settings.MonthPlanningPrompt = strings.TrimSpace(*in.MonthPlanningPrompt)
 		}
 		if u := in.Utilization; u != nil {
 			applyUtilization(&d.Settings.Utilization, u)

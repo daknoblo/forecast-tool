@@ -72,8 +72,8 @@ only renders the docs and the demo snapshot.
   (`POST /week/cells`); the page is never reloaded while typing
 - **Monthly planning** (`/month`): a Monday–Friday calendar beside Forecast,
   with public holidays, vacation, project blocks and weekly capacity balances.
-  Past days always show stored entries, today and future days a **read-only
-  estimated daily distribution**, without a view switch. Compact project tiles
+  Past days always show stored entries; today and future days initially show a
+  **read-only local estimate**, without a view switch. Compact project tiles
   place names and hours on one line; each day header combines weekday/date,
   hours/capacity and a yellow overtime badge.
   Existing weekly project totals are distributed using weekday patterns from the
@@ -94,7 +94,25 @@ only renders the docs and the demo snapshot.
   Weekends have no columns; any stored weekend hours remain in weekly totals
   and are explicitly noted in the weekly summary.
   Standard tasks have no daily dates and are not deducted separately.
-  No writes, external AI calls, clock times or additional forecast hours are created.
+  The local estimate does not write data or call an external service.
+  **“Planung mit KI regenerieren”** explicitly sends the last 84 days of actual
+  daily bookings, project/assignment metadata, weekly forecast totals and
+  holiday/vacation availability to the configured AI deployment. The editable,
+  globally saved prompt under **“Wie entsteht die Schätzung?”** asks for real
+  booking patterns such as four 2-hour blocks rather than five 1.6-hour blocks.
+  Immutable system rules and strict server-side validation enforce project/week
+  totals, project windows, holidays and the 8-hour day. No credentials or unrelated
+  settings are part of the planning context.
+  Results first appear as an **unsaved preview**. Only **“Forecast speichern”**
+  replaces future non-vacation entries in the displayed month, including today.
+  Unlike the local estimate, AI planning never moves hours into adjacent months.
+  Past entries, vacation and out-of-month dates remain unchanged. Unallocated
+  hours block saving; invalid or truncated responses are rejected without a
+  fallback write. Drafts expire after 30 minutes or a restart; changed source
+  data requires regeneration. Saved months render their exact stored distribution
+  even after reload (later manual edits remain visible), without local
+  redistribution. Prompt editing, generation and saving are blocked in private
+  mode. No clock times or additional forecast hours are created.
 - Configurable **utilization traffic light**: four states (minimum burn rate,
   optimal, too high, overbooked) with freely chosen thresholds (hours) and
   labels; coloured dots in the forecast grid and in the weekly tables of the
@@ -209,6 +227,11 @@ per-project budgets with booked/forecast/remaining hours, hours per month,
 quarter and per project and month) and sends that together with the question.
 The raw data file never leaves the machine, and the section is disabled while
 **private mode** is on.
+
+Monthly AI planning uses the same deployment and authentication, but sends the
+selected planning context including individual historical daily bookings rather
+than the goal chat's aggregated digest. It has a separate editable prompt and an
+explicit preview/save workflow; the goal chat remains read-only.
 
 ### Foundry with Microsoft Entra ID
 

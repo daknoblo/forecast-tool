@@ -216,6 +216,12 @@ func clone(src models.Data) models.Data {
 	for k, v := range src.FiscalYears {
 		d.FiscalYears[k] = v
 	}
+	if src.SavedMonthPlans != nil {
+		d.SavedMonthPlans = make(map[string]string, len(src.SavedMonthPlans))
+		for month, savedAt := range src.SavedMonthPlans {
+			d.SavedMonthPlans[month] = savedAt
+		}
+	}
 	return d
 }
 
@@ -263,6 +269,11 @@ func (s *Store) Mutate(fn func(d *models.Data) error) error {
 	if err := models.Validate(working); err != nil {
 		return err
 	}
+	previous := s.data
 	s.data = working
-	return s.persist()
+	if err := s.persist(); err != nil {
+		s.data = previous
+		return err
+	}
+	return nil
 }

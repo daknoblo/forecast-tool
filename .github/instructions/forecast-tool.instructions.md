@@ -44,8 +44,8 @@ collects every requirement stated so far as the binding reference.
   `assignmentId`. `startDate`/`endDate` (ISO `YYYY-MM-DD`, inclusive, both
   optional/`omitempty`) bound the **planned booking window**; empty = the whole
   fiscal year. `Project.Bookable(iso)` checks membership with a lexicographic
-  string comparison and is used for **warnings and UI hints only** – it never
-  blocks a write. `Validate` checks the date format and `startDate <= endDate`.
+  string comparison. Manual/API entry writes use it for warnings only; generated
+  monthly plans must respect it. `Validate` checks the date format and `startDate <= endDate`.
   `active` marks a project as **finished** rather than merely hiding it: an
   inactive project drops out of the forecast grid **and** releases the budget it
   never planned (see "Project booking window & burn rate").
@@ -56,7 +56,8 @@ collects every requirement stated so far as the binding reference.
   `storage.normalize` via `mergeEntries`: one value per (date, projectId),
   actual wins) and is never written again.
 - `Settings` (global): year (= active fiscal year), federalState,
-  weeklyTargetHours, fiscalYearStartMonth, dashboardRange, `ai` (AISettings), `utilization`
+  weeklyTargetHours, fiscalYearStartMonth, dashboardRange, monthPlanningPrompt,
+  `ai` (AISettings), `utilization`
   (UtilizationSettings).
 - `UtilizationSettings` (global, in `Settings.Utilization`): the utilization
   traffic light. Three thresholds (`minHours` 26, `optimalHours` 40, `overHours`
@@ -500,7 +501,7 @@ collects every requirement stated so far as the binding reference.
 
 ## Monthly planning
 
-- **Monthly planning (`/month`)** is a read-only calendar using `viewData`.
+- **Monthly planning (`GET /month`)** is a non-mutating calendar using `viewData`.
   One combined view shows stored past entries and estimates from today onward;
   no mode switch. Weekly totals include explicitly unallocated hours.
   Never persist a suggestion implicitly. Past entries and
@@ -517,6 +518,31 @@ collects every requirement stated so far as the binding reference.
   No weekday header row: every day displays its full weekday and date on the
   left, total/capacity and a yellow overtime badge on the right. Project tiles
   are one line with a bold name and hours, without booked/estimated wording.
+- **Explicit AI planning:** the top-right regenerate button posts the displayed
+  current/future month and editable prompt to `/month/generate`, using the
+  configured AI deployment/credentials. `MonthAIContext` includes the previous
+  84 days of actual daily entries (through yesterday), assignment continuity,
+  weekly project totals, exact editable/immutable hours, windows, holidays and
+  vacation capacity. Never include credentials or unrelated settings.
+  `Settings.MonthPlanningPrompt` (max 8,000 runes, blank = default) is separately
+  saved through `/month/prompt`; display it under the estimation details, with
+  noneditable system rules available for inspection.
+- Parse and validate AI JSON strictly: known IDs, unique positive finite entries,
+  allowed days/windows, 8-hour daily capacity reduced by vacation, and exact
+  editable totals per project/ISO week. Preserve inactive projects' existing
+  hours too. Unlike local estimation, AI may replace only non-vacation entries
+  from today onward **inside the displayed month/FY**. Never move past,
+  vacation or adjacent-month entries. Unallocated hours appear in the preview
+  and prohibit saving; never discard them or silently fall back.
+- Drafts are server-held, bounded to eight, expire after 30 minutes/restart, and
+  must match source data (including original daily positions and today).
+  `/month/save` accepts only an opaque draft token, checks freshness and applies
+  within a single `store.Mutate`. Failed persistence must preserve memory/disk
+  and permit retry. Store `Data.SavedMonthPlans` (`YYYY-MM` -> RFC3339 timestamp)
+  on explicit save; those months render exact stored entries via
+  `BuildStoredMonthPlan`, not redistributed estimates. Normal later entry
+  edits remain visible. Generation never writes entries. Reject all three
+  planning mutations in private mode and never expose a real custom prompt there.
 
 ## Private mode (presentation mode)
 

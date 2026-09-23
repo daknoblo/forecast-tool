@@ -35,9 +35,10 @@ type Settings struct {
 	WeeklyTargetHours    float64 `json:"weeklyTargetHours"`
 	FiscalYearStartMonth int     `json:"fiscalYearStartMonth"` // 1-12; 7 = July (default). 1 == calendar year
 	DashboardRange       string  `json:"dashboardRange"`
+	MonthPlanningPrompt  string  `json:"monthPlanningPrompt,omitempty"`
 
-	// AI holds the selected deployment and legacy manual endpoint for read-only
-	// analysis. Foundry identity and resource selection come from the environment.
+	// AI holds the selected deployment and legacy manual endpoint for analysis
+	// and planning previews. Foundry identity comes from the environment.
 	AI AISettings `json:"ai"`
 
 	// Utilization configures the booking traffic-light thresholds and labels
@@ -318,11 +319,14 @@ type Entry struct {
 
 // Data is the full persisted document.
 type Data struct {
-	Settings    Settings                   `json:"settings"`
-	FiscalYears map[int]FiscalYearSettings `json:"fiscalYears"`
-	Projects    []Project                  `json:"projects"`
-	Entries     []Entry                    `json:"entries"`
+	Settings        Settings                   `json:"settings"`
+	FiscalYears     map[int]FiscalYearSettings `json:"fiscalYears"`
+	Projects        []Project                  `json:"projects"`
+	Entries         []Entry                    `json:"entries"`
+	SavedMonthPlans map[string]string          `json:"savedMonthPlans,omitempty"`
 }
+
+const MaxMonthPlanningPrompt = 8000
 
 // DefaultFiscalYearStartMonth is the month a fiscal year starts in unless the
 // user configures another one (7 = July).
@@ -378,6 +382,17 @@ func (d Data) CurrentFY() FiscalYearSettings {
 // used before persisting data that was edited directly as JSON, so bad input
 // is rejected instead of corrupting the store.
 func Validate(d Data) error {
+	if len([]rune(d.Settings.MonthPlanningPrompt)) > MaxMonthPlanningPrompt {
+		return fmt.Errorf("Der Planungsprompt darf höchstens %d Zeichen enthalten", MaxMonthPlanningPrompt)
+	}
+	for month, savedAt := range d.SavedMonthPlans {
+		if date, err := time.Parse("2006-01", month); err != nil || !ValidYear(date.Year()) {
+			return fmt.Errorf("Ungültiger Monat in savedMonthPlans")
+		}
+		if _, err := time.Parse(time.RFC3339, savedAt); err != nil {
+			return fmt.Errorf("Ungültiger Speicherzeitpunkt in savedMonthPlans")
+		}
+	}
 	if !ValidYear(d.Settings.Year) {
 		return fmt.Errorf("settings.year %d liegt außerhalb von %d–%d", d.Settings.Year, MinYear, MaxYear)
 	}

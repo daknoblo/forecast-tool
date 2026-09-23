@@ -42,6 +42,7 @@ type Server struct {
 	store   *storage.Store
 	logger  *slog.Logger
 	foundry *foundryState
+	monthAI monthAIState
 
 	tpl *template.Template
 
@@ -105,6 +106,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /{$}", s.handleDashboard)
 	mux.HandleFunc("GET /week", s.handleWeekRedirect)
 	mux.HandleFunc("GET /month", s.handleMonth)
+	mux.HandleFunc("POST /month/generate", s.handleMonthGenerate)
+	mux.HandleFunc("POST /month/save", s.handleMonthSave)
+	mux.HandleFunc("POST /month/prompt", s.handleMonthPrompt)
 	mux.HandleFunc("GET /week/{week}", s.handleWeek)
 	mux.HandleFunc("POST /week/cells", s.handleWeekCells)
 	mux.HandleFunc("POST /week/{week}", s.handleWeekSave)

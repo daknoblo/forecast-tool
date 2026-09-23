@@ -23,6 +23,13 @@ table.foundry-config td:last-child { overflow-wrap: anywhere; }
 }
 
 .month-heading h1 { margin-bottom: 0.35rem; }
+.month-title-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+.month-title-row button { flex-shrink: 0; }
+.form-stack.month-prompt-form { max-width: none; margin-top: 1rem; }
+.month-system-prompt, .month-explanation { white-space: pre-wrap; overflow-wrap: anywhere; }
+.month-system-prompt { font-size: 0.8rem; }
+.month-heading #month-ai-status { margin-top: 1rem; }
+.month-heading button:disabled, .month-preview button:disabled { opacity: 0.5; cursor: not-allowed; }
 .month-heading p { margin: 0; }
 .month-nav { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 0.65rem; margin-top: 1rem; }
 .month-nav h2 { margin: 0 1rem; min-width: 12rem; text-align: center; }

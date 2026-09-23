@@ -68,17 +68,16 @@ func TestMonthRouteReadOnlyAndPrivate(t *testing.T) {
 	}
 }
 
-func TestMonthTemplateHasNoWriteInteraction(t *testing.T) {
+func TestMonthTemplateSeparatesGenerationAndSave(t *testing.T) {
 	b, err := os.ReadFile("templates/month.html")
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, forbidden := range []string{"<form", "<script", "fetch(", "data-autosave"} {
-		if strings.Contains(string(b), forbidden) {
-			t.Fatalf("calendar preview must stay read-only: %s", forbidden)
+	for _, required := range []string{`id="month-generate"`, `action="/month/save"`, `name="preview"`, `action="/month/prompt"`, `id="month-prompt"`} {
+		if !strings.Contains(string(b), required) {
+			t.Fatalf("calendar missing explicit planning control: %s", required)
 		}
 	}
-
 }
 
 func TestMonthCompactHeadersAndAutomaticEstimates(t *testing.T) {

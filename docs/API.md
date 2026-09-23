@@ -314,12 +314,25 @@ curl -X DELETE https://host/api/v1/projects/abc -H "Authorization: Bearer $WRITE
 
 Partial update. Fields: `year` (active FY), `federalState` (state code, e.g.
 `BY`), `weeklyTargetHours`, `fiscalYearStartMonth` (1–12), `dashboardRange`
-(`1w`, `2w`, `4w`, `2m`, `3m`, `6m`, `fy`; default `4w`), `utilization`
+(`1w`, `2w`, `4w`, `2m`, `3m`, `6m`, `fy`; default `4w`), `monthPlanningPrompt`, `utilization`
 (traffic-light thresholds/labels) and `ai` (`endpoint`/`deployment`/`apiVersion`
 — **no** key). Invalid values → `400`.
 
 `dashboardRange` controls the dashboard charts when no valid `sankey` query
 parameter is supplied. Explicit horizon links do not change the saved default.
+
+`monthPlanningPrompt` is the editable task prompt for monthly AI planning
+(maximum 8,000 Unicode characters). Empty/whitespace selects the built-in
+prompt; omission keeps the existing value. Changing it does not generate or
+save a forecast. Immutable system rules and server-side plan validation cannot
+be overridden by this prompt.
+
+The full data document's `savedMonthPlans` map (`YYYY-MM` to RFC3339 timestamp)
+is maintained when a monthly preview is explicitly saved. It selects exact
+stored-day rendering instead of local re-estimation; it is not an alternate
+entry store. It is not writable through this settings endpoint. Generation,
+ephemeral previews and explicit saves belong to the same-origin HTML UI,
+not the bearer-authenticated JSON API.
 
 ```bash
 curl -X PUT https://host/api/v1/settings \

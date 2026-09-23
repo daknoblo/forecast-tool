@@ -4,10 +4,49 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/daknoblo/forecast-tool/internal/models"
 )
+
+func TestMonthPlanningPersistenceAndRollback(t *testing.T) {
+	s, path := newStore(t)
+	if err := s.Mutate(func(d *models.Data) error {
+		d.Settings.MonthPlanningPrompt = "Prefer blocks on four days."
+		d.SavedMonthPlans = map[string]string{"2026-09": "2026-09-23T12:00:00Z"}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := New(path)
+	if err != nil || !reflect.DeepEqual(s.Snapshot(), reopened.Snapshot()) {
+		t.Fatal("monthly settings did not survive reopening")
+	}
+	before := s.Snapshot()
+	copy := s.Snapshot()
+	copy.SavedMonthPlans["2026-09"] = "changed"
+	if !reflect.DeepEqual(s.Snapshot(), before) {
+		t.Fatal("snapshot aliases saved month markers")
+	}
+	if err := os.Mkdir(path+".tmp", 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Mutate(func(d *models.Data) error {
+		d.Settings.MonthPlanningPrompt = "must not survive failure"
+		d.SavedMonthPlans["2026-10"] = "2026-09-23T13:00:00Z"
+		return nil
+	}); err == nil {
+		t.Fatal("expected persistence failure")
+	}
+	if !reflect.DeepEqual(before, s.Snapshot()) {
+		t.Fatal("failed write changed in-memory state")
+	}
+	reopened, err = New(path)
+	if err != nil || !reflect.DeepEqual(before, reopened.Snapshot()) {
+		t.Fatal("failed write changed persisted state")
+	}
+}
 
 func newStore(t *testing.T) (*Store, string) {
 	t.Helper()
