@@ -194,7 +194,7 @@ func (s *Server) handleMonthGenerate(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusInternalServerError, "Die Planungsdaten konnten nicht aufbereitet werden.")
 		return
 	}
-	answer, err := ai.Ask(r.Context(), cfg, systemPrompt, string(message), s.logger)
+	answer, err := ai.Ask(r.Context(), cfg, systemPrompt+"\n\n"+forecast.MonthPlanningExplanationFormat, string(message), s.logger)
 	if err != nil {
 		s.logger.Error("month ai request failed", "error", err)
 		writeJSONError(w, http.StatusBadGateway, err.Error())

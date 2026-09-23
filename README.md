@@ -134,7 +134,14 @@ only renders the docs and the demo snapshot.
   The local non-AI estimator and regular capacity/overtime indicators
   retain their existing 8-hour baseline. No credentials or unrelated
   settings are part of the planning context.
-  Results first appear as an **unsaved preview**. Only **“Forecast speichern”**
+  Results first appear as an **unsaved preview**.
+  The explanation renders Markdown paragraphs, lists and emphasis.
+  Every request adds a presentation instruction for one bullet per project with
+  a bold project name, including when custom prompts are saved. This instruction
+  is visible in the prompt details and does not modify those saved prompts.
+  Raw HTML is disabled; links and images are rendered as text without loading
+  external resources. Existing plain-text explanations remain readable.
+  Only **“Forecast speichern”**
   replaces future non-vacation entries in the displayed month, including today.
   Unlike the local estimate, AI planning never moves hours into adjacent months.
   Past entries, vacation and out-of-month dates remain unchanged. Unallocated

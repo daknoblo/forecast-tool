@@ -57,7 +57,8 @@ func NewServer(store *storage.Store, logger *slog.Logger) (*Server, error) {
 		logger = slog.Default()
 	}
 	funcs := template.FuncMap{
-		"hours": formatHours,
+		"hours":            formatHours,
+		"monthExplanation": renderMonthExplanation,
 		// hoursRaw marks a figure that goes into a form field rather than onto the
 		// page; same formatting, different intent.
 		"hoursRaw": formatHours,

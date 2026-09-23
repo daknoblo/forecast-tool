@@ -37,6 +37,11 @@
     </label>
     <span class="save-status" data-save-status data-save-quiet hidden role="status"></span>
   </form>
+  <details>
+    <summary>Zusätzliche Darstellungsvorgabe für die Erläuterung</summary>
+    <p class="hint">Diese Vorgabe wird bei jeder Anfrage an den Systemprompt angehängt, ohne deine gespeicherten Prompts zu verändern:</p>
+    <p class="hint">{{.ExplanationFormat}}</p>
+  </details>
   <p class="hint">Beide Prompts werden als Konfiguration in der Datendatei gespeichert und gelten für neue KI-Vorschauen; ein leeres Feld verwendet den jeweiligen Standardprompt. Beim Regenerieren werden Projekt-/Wochenstunden, tatsächliche Tagesbuchungen der letzten zwölf Wochen, Projektzeiträume, Feiertage und Urlaub an den konfigurierten KI-Endpoint gesendet. Zugangsdaten sind kein Bestandteil des Planungskontexts.</p>
   <p class="hint">Historische Buchungen sind nur Muster, keine neuen Planungsvorgaben. Ausschließlich vorhandene Forecast-Stunden je Projekt und Woche werden verteilt. Die serverseitige Prüfung bleibt unabhängig von deinen Prompts aktiv: zusätzliche Stunden oder Projekte sowie ein ungültiges Antwortformat werden abgelehnt.</p>
   <p class="hint">Nur Tage ab heute im angezeigten Monat werden neu verteilt. Vergangene Buchungen, Urlaub und Nachbarmonate bleiben unverändert. Für die KI sind 8 h die reguläre Kapazität, keine Obergrenze: historische Überbuchungen dienen als Orientierung, höhere Werte werden direkt an den Tagen angezeigt. Keine Verschiebung zwischen Wochen. Ganztägiger Urlaub und Feiertage bleiben frei. Nicht verteilbare Stunden verhindern weiterhin das Speichern. Die lokale Ausgangsschätzung bleibt auf die reguläre Kapazität begrenzt.</p>
@@ -45,7 +50,7 @@
 {{if .Preview}}
 <section class="card month-preview">
   <h2>KI-Vorschau prüfen</h2>
-  {{if .Explanation}}<p class="month-explanation">{{.Explanation}}</p>{{end}}
+  {{if .Explanation}}<div class="month-explanation">{{monthExplanation .Explanation}}</div>{{end}}
   <p class="hint">Historie: {{.ContextFrom}} bis {{.ContextTo}}. Die Vorschau ist 30 Minuten gültig und geht bei einem Serverneustart verloren. Änderungen an den Planungsdaten erfordern eine neue Vorschau.</p>
   {{if not .CanSave}}<p class="msg error">Die Wochenstunden sind nicht vollständig verteilbar. Passe den Wochen-Forecast oder die Projektzeiträume an und regeneriere die Planung. Es werden keine Stunden verworfen.</p>{{end}}
   <form method="post" action="/month/save" id="month-save" class="form-row">

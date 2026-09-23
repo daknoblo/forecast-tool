@@ -34,7 +34,14 @@ table.foundry-config td:last-child { overflow-wrap: anywhere; }
   .activity.busy .activity-spinner { animation: none; }
 }
 .form-stack.month-prompt-form { max-width: none; margin-top: 1rem; }
-.month-explanation { white-space: pre-wrap; overflow-wrap: anywhere; }
+.month-explanation { overflow-wrap: anywhere; line-height: 1.6; }
+.month-explanation p, .month-explanation ul, .month-explanation ol { margin: 0.65rem 0; }
+.month-explanation ul, .month-explanation ol { padding-left: 1.5rem; }
+.month-explanation li + li { margin-top: 0.45rem; }
+.month-explanation > :first-child { margin-top: 0; }
+.month-explanation > :last-child { margin-bottom: 0; }
+.month-explanation pre { white-space: pre-wrap; }
+.month-explanation h1, .month-explanation h2, .month-explanation h3 { font-size: 1rem; margin: 0.8rem 0 0.4rem; }
 .month-heading #month-ai-status { margin-top: 1rem; }
 .month-heading button:disabled, .month-preview button:disabled { opacity: 0.5; cursor: not-allowed; }
 .month-heading p { margin: 0; }

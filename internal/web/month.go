@@ -36,8 +36,9 @@ func (s *Server) handleMonth(w http.ResponseWriter, r *http.Request) {
 		"Active": "month", "Wide": true, "Settings": d.Settings, "FYYears": fyYears(d),
 		"Plan": plan, "Prompt": prompt, "PromptLimit": models.MaxMonthPlanningPrompt,
 		"SystemPrompt": systemPrompt, "Saved": saved,
-		"CanGenerate": !isPrivate(r) && !month.AddDate(0, 1, 0).Before(now) && s.aiReady(d.Settings.AI),
-		"AIReady":     s.aiReady(d.Settings.AI),
+		"ExplanationFormat": forecast.MonthPlanningExplanationFormat,
+		"CanGenerate":       !isPrivate(r) && !month.AddDate(0, 1, 0).Before(now) && s.aiReady(d.Settings.AI),
+		"AIReady":           s.aiReady(d.Settings.AI),
 	}
 	if token := r.URL.Query().Get("preview"); token != "" && !isPrivate(r) {
 		preview, err := s.monthPreview(token, d, month, now)

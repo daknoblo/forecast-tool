@@ -543,6 +543,15 @@ collects every requirement stated so far as the binding reference.
   planning targets: only positive `weeks.projects.editableHours` for the exact
   project/week authorize allocations. Historical bookings never create forecast
   hours. Server-side validation remains independent of both editable prompts.
+- Render the preview explanation as safe Markdown using the existing Goldmark
+  dependency: paragraphs, lists, emphasis and line breaks. Never enable raw HTML;
+  links/images must render as text, without navigation or remote resource loads.
+  Append `MonthPlanningExplanationFormat` to every system message (also custom
+  prompts), requesting one bullet per planned project with a bold project name
+  and separate general notes. Keep the outer response strict JSON. Show this
+  additional presentation instruction in the UI without changing saved prompts.
+  Existing plain-text explanations remain supported; do not guess project
+  boundaries by splitting arbitrary prose.
 - Use the shared activity indicator in the header before "Privat", not a local
   loading spinner/banner. Keep it visible and static when idle; animate only
   during requests/navigation, respecting reduced-motion preferences.

@@ -100,7 +100,7 @@ func TestMonthGenerateConfiguredSystemPrompt(t *testing.T) {
 					t.Error(err)
 				}
 				if len(request.Messages) < 2 || request.Messages[0].Role != "system" ||
-					request.Messages[0].Content != expected ||
+					request.Messages[0].Content != expected+"\n\n"+forecast.MonthPlanningExplanationFormat ||
 					!strings.Contains(request.Messages[1].Content, "Task instructions") {
 					t.Errorf("wrong prompt roles/content: %+v", request)
 				}
