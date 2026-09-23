@@ -844,10 +844,27 @@ collects every requirement stated so far as the binding reference.
 
 ## Chat with your data (`POST /goal/chat`)
 
+- Optional **Foundry identity mode** is enabled by any non-empty
+  `AZURE_RESOURCE_ID` / `AZURE_TENANT_ID` /
+  `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET`. All four are
+  required. Secrets stay in environment variables; never fall back to a key if
+  identity mode is incomplete or fails. The new `internal/foundry` package uses
+  the Azure identity SDK, verified ARM account/deployment discovery and bounded,
+  same-account pagination; bearer inference goes only to the verified v1 URL.
+- Settings show the discovered endpoint and supported chat deployment dropdown;
+  `POST /settings/ai/refresh` refreshes the five-minute runtime catalog cache.
+  Private mode blocks discovery and refresh. Only the deployment selection is
+  persisted, using the existing field. Manual endpoint configuration is retained
+  but ignored in identity mode. Discovery failures discard the cached catalog.
+- The inference client supports classic Azure URLs and explicit `/openai/v1`
+  bases (model in JSON, no dated API version). Foundry reasoning behavior follows
+  canonical model metadata, not deployment aliases. Do not reflect upstream
+  error bodies or authorization details in logs or UI.
+
 - **There is no JSON editor.** The `/data` page, its routes, `data.html`,
   `store.ReplaceJSON`/`ValidateJSON`/`Reset` and the `forecastPlan` expansion are
   gone; the AI is now a **read-only analyst**, it never writes data.
-- The AI endpoint is configured in the **settings** (own form, `section=ai`):
+- In manual mode the AI endpoint is configured in the **settings** (own form, `section=ai`):
   endpoint URL, deployment/model-router name, API version. The **API key** comes
   from the `FORECAST_AI_API_KEY` environment variable (Docker secret /
   `environment`), not from the UI. On save any legacy key is removed from the
@@ -867,11 +884,14 @@ collects every requirement stated so far as the binding reference.
   and month. That is a few kB instead of the whole document.
 - The answer is untrusted model output and is written with **`textContent`**,
   never `innerHTML`.
-- The AI client lives in `internal/ai` (stdlib only): `ai.Ask(ctx, cfg, system,
+- The AI inference client lives in `internal/ai` (stdlib only): `ai.Ask(ctx, cfg, system,
   user, logger)` posts to the Azure OpenAI-compatible URL
   `{endpoint}/openai/deployments/{deployment}/chat/completions?api-version=...`,
-  auth via the `api-key` header, `temperature: 0`, a timeout, markdown-fence
-  stripping and **refused redirects** (the key must not follow a redirect).
+  or `{endpoint}/chat/completions` for an explicit v1 base. Manual auth uses the
+  `api-key` header; identity mode supplies a verified bearer authorizer.
+  `temperature: 0` is omitted for catalog-identified reasoning models. A timeout,
+  bounded responses, markdown-fence stripping and **refused redirects** apply
+  in either mode (credentials must not follow a redirect).
   German error messages.
 - Truncated AI answers (`finish_reason: length`) are detected and reported with a
   German message; the client sets `max_completion_tokens` (8192).

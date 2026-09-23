@@ -39,8 +39,9 @@ var Version = "dev"
 
 // Server wires storage, templates and HTTP routing together.
 type Server struct {
-	store  *storage.Store
-	logger *slog.Logger
+	store   *storage.Store
+	logger  *slog.Logger
+	foundry *foundryState
 
 	tpl *template.Template
 
@@ -89,6 +90,7 @@ func NewServer(store *storage.Store, logger *slog.Logger) (*Server, error) {
 	return &Server{
 		store:    store,
 		logger:   logger,
+		foundry:  newFoundryState(),
 		tpl:      tpl,
 		staticFS: http.StripPrefix("/static/", cacheForever(http.FileServer(http.FS(sub)))),
 	}, nil
@@ -115,6 +117,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /goal/chat", s.handleGoalChat)
 	mux.HandleFunc("GET /settings", s.handleSettings)
 	mux.HandleFunc("POST /settings", s.handleSettingsSave)
+	mux.HandleFunc("POST /settings/ai/refresh", s.handleFoundryRefresh)
 	mux.HandleFunc("GET /export", s.handleExport)
 	mux.HandleFunc("POST /fy", s.handleSetActiveFY)
 	mux.HandleFunc("POST /private", s.handlePrivateToggle)
@@ -694,7 +697,7 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 		"WorkloadDayMax":  forecast.LongDayHours,
 		"ChatPresets":     chatPresets,
 		"ChatPromptsJSON": template.JS(promptsJSON), // #nosec G203 -- JSON-encoded constants, no user input
-		"AIConfigured":    aiConfigured(effectiveAI(d.Settings.AI)),
+		"AIConfigured":    s.aiReady(d.Settings.AI),
 		"AIKeyEnv":        aiAPIKeyEnv,
 	})
 }
@@ -727,6 +730,7 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		"AIKeyEnv":        aiAPIKeyEnv,
 		"AIKeySet":        trim(os.Getenv(aiAPIKeyEnv)) != "",
 		"AIKeyInStore":    trim(d.Settings.AI.APIKey) != "",
+		"Foundry":         s.foundrySettings(r, d.Settings.AI.Deployment),
 		"APIReadEnv":      api.ReadTokenEnv,
 		"APIReadSet":      trim(os.Getenv(api.ReadTokenEnv)) != "",
 		"APIWriteEnv":     api.WriteTokenEnv,
@@ -740,19 +744,7 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if trim(r.FormValue("section")) == "ai" {
-		endpoint := trim(r.FormValue("aiEndpoint"))
-		deployment := trim(r.FormValue("aiDeployment"))
-		apiVersion := trim(r.FormValue("aiApiVersion"))
-		_ = s.store.Update(func(d *models.Data) error {
-			d.Settings.AI.Endpoint = endpoint
-			d.Settings.AI.Deployment = deployment
-			d.Settings.AI.APIVersion = apiVersion
-			// The secret key is provided via FORECAST_AI_API_KEY and must never be
-			// stored in the data file; clear any legacy value on save.
-			d.Settings.AI.APIKey = ""
-			return nil
-		})
-		s.settingsSaved(w, r)
+		s.handleAISettingsSave(w, r)
 		return
 	}
 	if trim(r.FormValue("section")) == "utilization" {

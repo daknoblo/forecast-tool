@@ -210,13 +210,50 @@ quarter and per project and month) and sends that together with the question.
 The raw data file never leaves the machine, and the section is disabled while
 **private mode** is on.
 
-Configure an Azure OpenAI-compatible endpoint under **Settings → AI endpoint**:
+### Foundry with Microsoft Entra ID
+
+For automatic endpoint and deployment discovery, configure these environment
+variables and restart the server:
+
+| Environment variable | Purpose |
+|----------------------|---------|
+| `AZURE_RESOURCE_ID` | Full account resource ID: `/subscriptions/<subscription-id>/resourceGroups/<group>/providers/Microsoft.CognitiveServices/accounts/<account>` |
+| `AZURE_TENANT_ID` | Entra tenant ID |
+| `AZURE_CLIENT_ID` | Application/client ID |
+| `AZURE_CLIENT_SECRET` | Application client secret, supplied only through the environment |
+
+The compose files pass these variables through from the host or `.env` (see
+`.env.example`). Use the **account** resource ID, not a Foundry project URL.
+Grant the application resource/deployment read permissions (for example, Reader
+on that account) and inference permissions for the intended models (for Azure
+OpenAI, for example Cognitive Services OpenAI User).
+
+**Settings → AI endpoint** then discovers the account's OpenAI v1 endpoint and
+offers supported, successfully provisioned synchronous chat deployments in a
+dropdown. The selection auto-saves; **Deployments neu laden** refreshes the
+catalog explicitly. Discovery is otherwise cached for five minutes and refreshed
+on the next settings/chat access. Incompatible modalities and batch deployments
+are not offered. Reasoning models are identified from catalog model metadata,
+not the user-chosen deployment alias; unsupported sampling parameters are omitted.
+
+Authentication uses an explicit client-secret credential with SDK token caching
+and refresh, separate ARM and inference scopes, and no implicit local/managed
+identity fallback. Only Azure public cloud is supported. Secrets, tokens and
+catalogs are never saved in `data.json`. Any non-empty Foundry variable enables
+identity mode: incomplete configuration, discovery or authentication errors do
+**not** fall back to an API key or an unverified endpoint. Changing environment
+configuration requires a restart. Private mode blocks discovery, refresh and chat.
+
+### Manual API-key mode
+
+With all four Foundry variables unset, configure a manual Azure
+OpenAI-compatible endpoint under **Settings → AI endpoint**:
 
 | Field        | Example                                   |
 |--------------|-------------------------------------------|
-| Endpoint URL | `https://my-resource.openai.azure.com`    |
+| Endpoint URL | `https://my-resource.openai.azure.com` or `https://my-resource.services.ai.azure.com/openai/v1` |
 | Deployment   | `model-router`                            |
-| API version  | `2024-10-21`                              |
+| API version  | `2024-10-21` (classic API only; omitted for v1) |
 
 The **API key** is **not** stored in `data.json`; it is supplied through the
 `FORECAST_AI_API_KEY` environment variable — e.g. as a Docker secret or an
@@ -235,16 +272,9 @@ cp .env.example .env
 docker compose up -d
 ```
 
-The prompt and the current JSON are sent to the endpoint; the result is placed
-in the editor and validated. Nothing is saved until you explicitly click
-*Speichern*. The model additionally receives a **blueprint** (a complete example
-document) so it knows the exact JSON format.
-
-For recurring forecasts spread evenly across a whole fiscal year the model does
-not emit hundreds of daily entries (that would exceed the token limit) but a
-compact `forecastPlan` directive (`projectId`, `fiscalYear`, `hoursPerWeek`).
-The server expands it deterministically into Mon–Fri entries
-(`hoursPerWeek / 5` per working day) for the entire fiscal year.
+For v1, the deployment is sent as `model` in the JSON body rather than embedded
+in the URL. The existing classic endpoint format remains supported. Answers are
+displayed as text only; the analyst never writes or expands forecast entries.
 
 ## HTTP API
 A JSON API is available under `/api/v1` so external tools (e.g. a desktop

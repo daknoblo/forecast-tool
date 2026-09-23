@@ -11,6 +11,10 @@
 
 * { box-sizing: border-box; }
 
+.foundry-config { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.4rem 1rem; }
+.foundry-config dt { font-weight: 600; }
+.foundry-config dd { margin: 0; overflow-wrap: anywhere; }
+
 .month-heading h1 { margin-bottom: 0.35rem; }
 .month-heading p { margin: 0; }
 .month-nav { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 0.65rem; margin-top: 1rem; }

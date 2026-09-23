@@ -36,8 +36,8 @@ type Settings struct {
 	FiscalYearStartMonth int     `json:"fiscalYearStartMonth"` // 1-12; 7 = July (default). 1 == calendar year
 	DashboardRange       string  `json:"dashboardRange"`
 
-	// AI holds the configuration for the remote AI endpoint used to update the
-	// JSON document from a natural-language prompt.
+	// AI holds the selected deployment and legacy manual endpoint for read-only
+	// analysis. Foundry identity and resource selection come from the environment.
 	AI AISettings `json:"ai"`
 
 	// Utilization configures the booking traffic-light thresholds and labels
@@ -55,7 +55,7 @@ type Settings struct {
 // variable, not stored here. APIKey is retained only for backward-compatible
 // reading of old documents and is no longer written.
 type AISettings struct {
-	Endpoint   string `json:"endpoint"`         // base URL, e.g. https://my-resource.openai.azure.com
+	Endpoint   string `json:"endpoint"`         // manual base URL; overridden by Foundry discovery
 	APIKey     string `json:"apiKey,omitempty"` // deprecated: prefer FORECAST_AI_API_KEY env var
 	Deployment string `json:"deployment"`       // deployment / model-router name
 	APIVersion string `json:"apiVersion"`       // e.g. 2024-10-21

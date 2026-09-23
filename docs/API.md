@@ -99,7 +99,11 @@ whether the variables are set.
 
 ### `GET /api/v1/data`
 Returns the complete document (`settings`, `fiscalYears`, `projects`,
-`entries`). The AI API key is always redacted.
+`entries`). The AI API key is always redacted. Foundry identity, client secrets
+and discovered catalogs are environment/runtime configuration, not part of this
+document. In Foundry mode `settings.ai.deployment` selects a discovered chat
+deployment; the manual endpoint and API version are ignored for inference.
+Unknown or incompatible deployments cannot be used for chat.
 
 ```bash
 curl -H "Authorization: Bearer $READ" https://host/api/v1/data
