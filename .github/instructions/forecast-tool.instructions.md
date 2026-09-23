@@ -527,6 +527,9 @@ collects every requirement stated so far as the binding reference.
   projects' existing entries. AI previews retain the original weekly totals even
   when hours remain unallocated. Use a yellow overload badge beside the FYW
   identifier only above weekly capacity; available hours remain floored at zero.
+  Style the Urlaub/Feiertage row with the same tinted background and colour
+  stripe as project rows, using the active FY vacation project's configured
+  colour even for holiday-only or empty weeks (default: models.VacationColor).
 - Only in monthly planning, vacation is absence rather than booked work:
   `MonthDay.Stored/Total` and `MonthWeek.Stored/Work/WeekendStored` exclude it.
   Net day capacity is max(0, regular weekday non-holiday capacity - vacation).

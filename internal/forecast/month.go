@@ -42,6 +42,7 @@ type MonthWeek struct {
 
 type MonthPlan struct {
 	Month, Label, Prev, Next, HistoryFrom, HistoryTo string
+	VacationColor                                    string
 	Weeks                                            []MonthWeek
 }
 
@@ -71,8 +72,15 @@ func buildMonthPlan(d models.Data, cal *holidays.Calendar, month, now time.Time,
 	historyStart := historyEnd.AddDate(0, 0, -7*monthHistoryWeeks)
 	plan := MonthPlan{
 		Month: month.Format("2006-01"), Label: fmt.Sprintf("%s %d", monthNames[month.Month()-1], month.Year()),
-		HistoryFrom: historyStart.Format("02.01.2006"),
-		HistoryTo:   historyEnd.AddDate(0, 0, -1).Format("02.01.2006"),
+		HistoryFrom:   historyStart.Format("02.01.2006"),
+		HistoryTo:     historyEnd.AddDate(0, 0, -1).Format("02.01.2006"),
+		VacationColor: models.VacationColor,
+	}
+	for _, project := range d.Projects {
+		if project.IsVacation() && project.FiscalYear == d.Settings.Year && project.Color != "" {
+			plan.VacationColor = project.Color
+			break
+		}
 	}
 	if month.After(fyStart) {
 		plan.Prev = month.AddDate(0, -1, 0).Format("2006-01")

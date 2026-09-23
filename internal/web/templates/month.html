@@ -86,7 +86,9 @@
       </div>
       <dl class="month-week-summary">
         <div class="month-summary-row"><dt>Kapazität:</dt><dd>{{hours .Capacity}} h</dd></div>
-        <div class="month-summary-row"><dt>Urlaub/Feiertage</dt><dd>{{hours .Absence}} h</dd></div>
+        <div class="month-summary-row month-project-total" style="--project-color: {{$.Plan.VacationColor}}">
+          <dt>Urlaub/Feiertage</dt><dd>{{hours .Absence}} h</dd>
+        </div>
         {{range .Projects}}
         <div class="month-summary-row month-project-total" style="--project-color: {{if .Color}}{{.Color}}{{else}}#64748b{{end}}">
           <dt>{{.Name}}</dt><dd>{{hours .Hours}} h</dd>

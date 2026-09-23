@@ -113,7 +113,7 @@ func TestMonthWeeklySummaryLayout(t *testing.T) {
 	d.Projects = []models.Project{
 		{ID: "p", Name: "Projekt Alpha", Color: "#123456", FiscalYear: 2026},
 		{ID: "q", Name: "Projekt Beta", Color: "#654321", FiscalYear: 2026},
-		{ID: "v", Name: "Urlaub", System: models.VacationSystem, FiscalYear: 2026},
+		{ID: "v", Name: "Urlaub", System: models.VacationSystem, FiscalYear: 2026, Color: "#32cd32"},
 	}
 	d.Entries = []models.Entry{
 		{Date: "2026-08-31", ProjectID: "p", Hours: 30},
@@ -157,6 +157,9 @@ func TestMonthWeeklySummaryLayout(t *testing.T) {
 		t.Fatal("overload badge must be next to the week label")
 	}
 	for i, week := range weeks {
+		if !regexp.MustCompile(`class="month-summary-row month-project-total" style="--project-color: #32cd32">\s*<dt>Urlaub/Feiertage</dt>`).MatchString(week[1]) {
+			t.Fatal("absence summary must use the vacation project's color, including empty weeks")
+		}
 		if strings.Contains(week[1], plan.Weeks[i].Label) || strings.Contains(week[1], "<dt>Gespeichert</dt>") {
 			t.Fatal("obsolete summary date/label still shown")
 		}

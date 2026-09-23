@@ -31,6 +31,34 @@ func monthTestData() models.Data {
 	return d
 }
 
+func TestMonthVacationColor(t *testing.T) {
+	for _, color := range []string{"#32cd32", "#ab1234", ""} {
+		d := monthTestData()
+		d.Projects[1].Color = color
+		d.Projects[1].Name = "Abwesenheit"
+		d.Projects[1].Active = false
+		d.Projects = append([]models.Project{
+			{ID: "previous-vacation", System: models.VacationSystem, FiscalYear: 2025, Color: "#112233"},
+		}, d.Projects...)
+		want := color
+		if want == "" {
+			want = models.VacationColor
+		}
+		for _, estimate := range []bool{false, true} {
+			plan := buildMonthPlan(d, holidays.Get(2026, "SN"), monthTestDate("2026-05-01"), monthTestDate("2026-04-20"), estimate)
+			if plan.VacationColor != want {
+				t.Fatalf("color=%q estimate=%t: got %q, want %q", color, estimate, plan.VacationColor, want)
+			}
+		}
+	}
+	d := monthTestData()
+	d.Projects = d.Projects[:1]
+	plan := BuildStoredMonthPlan(d, holidays.Get(2026, "SN"), monthTestDate("2026-05-01"), monthTestDate("2026-05-01"))
+	if plan.VacationColor != models.VacationColor {
+		t.Fatal("missing vacation project must use the standard vacation color")
+	}
+}
+
 func TestMonthWeeklyProjectTotals(t *testing.T) {
 	d := monthTestData()
 	d.Settings.Year = 2027

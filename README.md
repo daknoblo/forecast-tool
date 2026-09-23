@@ -85,7 +85,9 @@ only renders the docs and the demo snapshot.
   The title, month navigation/Today and AI planning button share one header row
   on wide screens, without subtitles (controls wrap on narrow screens).
   The weekly sidebar lists net capacity, **Urlaub/Feiertage**, each project's weekly hours
-  with its project colour, total booked hours and available capacity. Totals
+  with its project colour, total booked hours and available capacity.
+  The absence row uses the active fiscal year's configured vacation-project colour.
+  Totals
   include adjacent-month days within the FY, weekend entries and unallocated
   hours. A yellow overload badge appears beside the week identifier only when
   the weekly total exceeds capacity; there is no date-range line underneath.
