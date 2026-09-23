@@ -114,20 +114,36 @@
 
 <section class="card" id="ai">
   <h2>KI-Endpoint</h2>
-  <p class="hint">Unter <a href="/goal#chat">Ziele &rarr; Chat with your data</a> kannst du Fragen zu deinen gebuchten und geplanten Stunden stellen. Der KI-Dienst erhält nur die Zusammenfassung, niemals Schreibzugriff.</p>
   {{if .Foundry.Enabled}}
-  <h3>Microsoft Foundry · Entra-ID</h3>
   {{if .Private}}
-  <p class="hint">Die Foundry-Konfiguration und das Laden der Deployments sind im privaten Modus verborgen bzw. gesperrt.</p>
+  <p class="hint">Konfiguration und Deployment-Auswahl sind im privaten Modus gesperrt.</p>
   {{else}}
-  <dl class="foundry-config">
-    <div class="foundry-wide"><dt>Azure-Ressource</dt><dd><code>{{if .Foundry.ResourceID}}{{.Foundry.ResourceID}}{{else}}Nicht gesetzt{{end}}</code></dd></div>
-    <div><dt>Tenant-ID</dt><dd><code>{{if .Foundry.TenantID}}{{.Foundry.TenantID}}{{else}}Nicht gesetzt{{end}}</code></dd></div>
-    <div><dt>Client-ID</dt><dd><code>{{if .Foundry.ClientID}}{{.Foundry.ClientID}}{{else}}Nicht gesetzt{{end}}</code></dd></div>
-    <div><dt>Client-Secret</dt><dd>{{if .Foundry.SecretSet}}<span class="badge ok">Befüllt</span>{{else}}<span class="badge error">Nicht gesetzt</span>{{end}}</dd></div>
-    <div class="foundry-wide"><dt>Erkannter Endpoint</dt><dd><code>{{if .Foundry.Endpoint}}{{.Foundry.Endpoint}}{{else}}Nicht verfügbar{{end}}</code></dd></div>
-  </dl>
-  <p class="hint">Die Anmeldung erfolgt per Client-Secret aus der Umgebung. Das Secret wird weder angezeigt noch in der Datendatei gespeichert. Der API-Key-Modus ist hier deaktiviert; bei Anmeldefehlern gibt es keinen automatischen Rückfall.</p>
+  <table class="kv tokens foundry-config">
+    <tr>
+      <td>Azure-Ressource</td>
+      <td><code>AZURE_RESOURCE_ID</code></td>
+      <td>{{if .Foundry.ResourceID}}{{.Foundry.ResourceID}}{{else}}Nicht gesetzt{{end}}</td>
+    </tr>
+    <tr>
+      <td>Tenant-ID</td>
+      <td><code>AZURE_TENANT_ID</code></td>
+      <td>{{if .Foundry.TenantID}}{{.Foundry.TenantID}}{{else}}Nicht gesetzt{{end}}</td>
+    </tr>
+    <tr>
+      <td>Client-ID</td>
+      <td><code>AZURE_CLIENT_ID</code></td>
+      <td>{{if .Foundry.ClientID}}{{.Foundry.ClientID}}{{else}}Nicht gesetzt{{end}}</td>
+    </tr>
+    <tr>
+      <td>Client-Secret</td>
+      <td><code>AZURE_CLIENT_SECRET</code></td>
+      <td>{{if .Foundry.SecretSet}}<span class="badge ok">Befüllt</span>{{else}}<span class="badge error">Nicht gesetzt</span>{{end}}</td>
+    </tr>
+    <tr>
+      <td>Erkannter Endpoint</td>
+      <td colspan="2">{{if .Foundry.Endpoint}}{{.Foundry.Endpoint}}{{else}}Nicht verfügbar{{end}}</td>
+    </tr>
+  </table>
   {{if .Foundry.Error}}<p class="save-status error" role="alert">{{.Foundry.Error}}</p>{{end}}
   <form method="post" action="/settings" class="form-stack foundry-form" data-autosave>
     <input type="hidden" name="section" value="ai">
@@ -141,15 +157,13 @@
       </label>
       <button type="submit" class="btn" form="foundry-refresh">Deployments neu laden</button>
     </div>
-    {{if not .Foundry.Deployments}}{{if not .Foundry.Error}}<p class="hint">Keine unterstützten Chat-Deployments gefunden. Stelle ein synchrones Chat-Modell in dieser Ressource bereit und lade die Liste erneut.</p>{{end}}{{end}}
+    {{if not .Foundry.Deployments}}{{if not .Foundry.Error}}<p class="hint">Keine unterstützten Chat-Deployments gefunden.</p>{{end}}{{end}}
     <span class="save-status" data-save-status data-save-quiet hidden role="status"></span>
   </form>
   <form method="post" action="/settings/ai/refresh" id="foundry-refresh"></form>
-  {{if .Foundry.RefreshedAt}}<p class="hint">Stand: {{.Foundry.RefreshedAt}} · automatische Aktualisierung nach 5 Minuten beim nächsten Zugriff</p>{{end}}
-  <p class="hint">Erforderlich sind Leserechte für die Azure-Ressource und ihre Deployments sowie Inferenzrechte für das ausgewählte Modell, jeweils für die konfigurierte Entra-Anwendung.</p>
+  {{if .Foundry.RefreshedAt}}<p class="hint">Stand: {{.Foundry.RefreshedAt}}</p>{{end}}
   {{end}}
   {{else}}
-  <p class="hint">API-Key-Modus: Azure-Ressourcen-URL für die klassische API oder Basis-URL mit <code>/openai/v1</code> für die neue API.</p>
   <form method="post" action="/settings" class="form-stack" data-autosave>
     <input type="hidden" name="section" value="ai">
     <label>Endpoint-URL
@@ -165,14 +179,11 @@
       {{if .AIKeySet}}<span class="badge ok">aus Umgebungsvariable <code>{{.AIKeyEnv}}</code> geladen</span>
       {{else}}<span class="badge error">nicht gesetzt</span>{{end}}
     </label>
-    <p class="hint">Der API-Key wird <strong>nicht</strong> in der Datendatei gespeichert, sondern über die Umgebungsvariable <code>{{.AIKeyEnv}}</code> bereitgestellt (z. B. als Docker-Secret bzw. <code>environment</code>-Eintrag in <code>docker-compose.yml</code>).{{if .AIKeyInStore}} Es liegt noch ein veralteter Key in der Datendatei – ändere ein Feld in dieser Karte (z. B. die API-Version neu eintragen und das Feld verlassen), um ihn zu entfernen, und rotiere den Schlüssel.{{end}}</p>
+    <p class="hint">API-Key über <code>{{.AIKeyEnv}}</code> setzen.{{if .AIKeyInStore}} Es liegt noch ein veralteter Key in der Datendatei – ändere ein Feld in dieser Karte (z. B. die API-Version neu eintragen und das Feld verlassen), um ihn zu entfernen, und rotiere den Schlüssel.{{end}}</p>
     <span class="save-status" data-save-status data-save-quiet hidden role="status"></span>
   </form>
-  <details class="hint">
-    <summary>Foundry mit Entra-ID statt API-Key einrichten</summary>
-    <p>Setze <code>AZURE_RESOURCE_ID</code>, <code>AZURE_TENANT_ID</code>, <code>AZURE_CLIENT_ID</code> und <code>AZURE_CLIENT_SECRET</code> in der Server-Umgebung und starte den Server neu. Danach wird hier die Deployment-Auswahl automatisch aus der Azure-Ressource geladen. Schon eine gesetzte Variable aktiviert den Foundry-Modus; eine unvollständige Konfiguration muss erst ergänzt werden.</p>
-  </details>
   {{end}}
+  <p class="hint"><a href="/goal#chat">Chat öffnen</a> · <a href="https://github.com/daknoblo/forecast-tool#chat-with-your-data">Dokumentation</a></p>
 </section>
 
 <section class="card">

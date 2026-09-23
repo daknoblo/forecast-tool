@@ -101,6 +101,11 @@ func TestSettingsFoundryPresentation(t *testing.T) {
 			if strings.Contains(strings.ToLower(body), "automatisch gespeichert") {
 				t.Fatal("settings still contain automatic-save hints")
 			}
+			for _, removed := range []string{"Microsoft Foundry · Entra-ID", "Die Anmeldung erfolgt per Client-Secret", "Erforderlich sind Leserechte", "automatische Aktualisierung nach 5 Minuten"} {
+				if strings.Contains(body, removed) {
+					t.Errorf("settings still contain redundant text: %s", removed)
+				}
+			}
 			if strings.Count(body, "data-save-quiet hidden") != strings.Count(body, "data-autosave>") {
 				t.Fatal("settings forms must retain hidden auto-save feedback")
 			}
@@ -113,8 +118,11 @@ func TestSettingsFoundryPresentation(t *testing.T) {
 					status = `<span class="badge ok">Befüllt</span>`
 				}
 				for _, want := range []string{
-					"<dt>Azure-Ressource</dt>", "<dt>Tenant-ID</dt>", "<dt>Client-ID</dt>",
-					"<dt>Erkannter Endpoint</dt>", "<dt>Client-Secret</dt><dd>" + status,
+					`class="kv tokens foundry-config"`,
+					"<td>Azure-Ressource</td>", "<td>Tenant-ID</td>", "<td>Client-ID</td>",
+					"<td>Erkannter Endpoint</td>", "<td>Client-Secret</td>", "<td>" + status + "</td>",
+					"<code>AZURE_RESOURCE_ID</code>", "<code>AZURE_TENANT_ID</code>",
+					"<code>AZURE_CLIENT_ID</code>", "<code>AZURE_CLIENT_SECRET</code>",
 					`class="form-row foundry-controls"`, `form="foundry-refresh"`,
 					`action="/settings/ai/refresh" id="foundry-refresh"`,
 				} {
@@ -123,7 +131,7 @@ func TestSettingsFoundryPresentation(t *testing.T) {
 					}
 				}
 			}
-			if tc.private && (strings.Contains(body, "<dt>Client-Secret</dt>") || srv.foundrySettings(req, "").SecretSet) {
+			if tc.private && (strings.Contains(body, "<td>Client-Secret</td>") || srv.foundrySettings(req, "").SecretSet) {
 				t.Fatal("private mode exposed secret presence")
 			}
 		})

@@ -852,7 +852,11 @@ collects every requirement stated so far as the binding reference.
   the Azure identity SDK, verified ARM account/deployment discovery and bounded,
   same-account pagination; bearer inference goes only to the verified v1 URL.
 - Settings show the discovered endpoint and supported chat deployment dropdown;
-  discovered identity values have labelled read-only panels. The client secret
+  discovered identity values use the same compact `kv tokens` table as API
+  access (label, environment variable, value/status), not separate panels.
+  Keep the card concise: no extra provider heading or setup prose; link to the
+  documentation instead. Preserve errors, empty-state and private-mode hints.
+  The client secret
   is represented only by a set/unset boolean, never by its value or length.
   Deployment selection and the refresh button share a wrapping row.
   `POST /settings/ai/refresh` refreshes the five-minute runtime catalog cache.

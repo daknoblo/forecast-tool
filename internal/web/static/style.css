@@ -11,17 +11,15 @@
 
 * { box-sizing: border-box; }
 
-.foundry-config { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; }
-.foundry-config > div { min-width: 0; padding: 0.65rem 0.8rem; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
-.foundry-config .foundry-wide { grid-column: 1 / -1; }
-.foundry-config dt { color: var(--muted); font-size: 0.85rem; margin-bottom: 0.35rem; }
-.foundry-config dd { margin: 0; overflow-wrap: anywhere; }
+table.foundry-config { width: 100%; margin-bottom: 1rem; }
+table.foundry-config td:last-child { overflow-wrap: anywhere; }
 .form-stack.foundry-form { max-width: none; }
 .foundry-controls label { flex: 1 1 16rem; min-width: 0; max-width: 420px; }
 .foundry-controls select { width: 100%; }
 #ai > .save-status.error { white-space: normal; }
 @media (max-width: 760px) {
-  .foundry-config { grid-template-columns: minmax(0, 1fr); }
+  table.foundry-config tr { display: block; margin-bottom: 0.75rem; }
+  table.foundry-config td { display: block; }
 }
 
 .month-heading h1 { margin-bottom: 0.35rem; }
