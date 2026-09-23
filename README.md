@@ -106,12 +106,12 @@ only renders the docs and the demo snapshot.
   is included in the context. A reference derived from the 90th percentile of
   positive daily project totals on non-holiday weekdays without vacation
   (at least 8 hours; 8 hours without history) guides plausible distributions.
-  The preview shows the observation count, median and reference, reduced by
-  partial vacation. Higher values remain allowed: all proposed days exceeding
-  regular available capacity are listed, unusual values above the historical
-  reference are flagged separately, and an explicit checkbox confirmation is
-  required before saving, enforced server-side. This is not a legal working-time
-  approval. The local non-AI estimator and regular capacity/overtime indicators
+  The AI context includes the observation count, median and reference, reduced by
+  partial vacation. Higher values remain allowed and are shown directly on the
+  calendar days; the preview has no duplicate workload summary or confirmation
+  checkbox. Clicking **“Forecast speichern”** is sufficient for a valid complete
+  plan. This is not a legal working-time approval.
+  The local non-AI estimator and regular capacity/overtime indicators
   retain their existing 8-hour baseline. No credentials or unrelated
   settings are part of the planning context.
   Results first appear as an **unsaved preview**. Only **“Forecast speichern”**

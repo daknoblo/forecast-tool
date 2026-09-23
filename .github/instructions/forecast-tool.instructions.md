@@ -541,9 +541,10 @@ collects every requirement stated so far as the binding reference.
   count. Subtract immutable hours from this reference for partial vacation.
   Explain `availableHours` as regular capacity, `suggestedHours` as advisory;
   neither is a hard limit or reason by itself to leave hours unallocated.
-  List every proposed day above regular available capacity, distinguish values
-  above the historical reference, and require explicit `confirmOverload=yes`
-  on save when warnings exist, checked server-side against fresh context.
+  Show workload directly on calendar days; do not duplicate workload statistics
+  or warning lists in the preview and do not require confirmation checkboxes
+  or an overload confirmation parameter on save. The explicit save button is
+  sufficient for valid complete plans.
   Existing daily/weekly overtime badges and the local non-AI estimator retain
   the 8-hour baseline. This is not a legal working-time approval.
 - Drafts are server-held, bounded to eight, expire after 30 minutes/restart, and

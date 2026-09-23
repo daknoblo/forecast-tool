@@ -277,11 +277,7 @@ func TestMonthAIHolidayVacationWindowAndSharedCapacity(t *testing.T) {
 			}
 			if test == "vacation" || test == "shared capacity" {
 				if err := ValidateMonthAIPlan(ctx, plan); err != nil {
-					t.Fatal("overload should be a warning:", err)
-				}
-				warnings := MonthAIWarnings(ctx, plan)
-				if len(warnings) != 1 || !warnings[0].Unusual {
-					t.Fatal("overload missing warning")
+					t.Fatal("overload should be allowed:", err)
 				}
 			} else if err := ValidateMonthAIPlan(ctx, plan); err == nil {
 				t.Fatal("unavailable date accepted")
@@ -315,10 +311,6 @@ func TestMonthAIHistoricalWorkloadIsOrientationNotLimit(t *testing.T) {
 	if err := ValidateMonthAIPlan(ctx, plan); err != nil {
 		t.Fatal("historical reference became a hard limit:", err)
 	}
-	warnings := MonthAIWarnings(ctx, plan)
-	if len(warnings) != 2 || warnings[0].Unusual || !warnings[1].Unusual || warnings[0].ReferenceHours != 12 {
-		t.Fatalf("wrong overload warnings: %+v", warnings)
-	}
 	for _, day := range ctx.Days {
 		if day.Date == "2026-07-08" && (day.SuggestedHours != 8 || day.AvailableHours != 4) {
 			t.Fatalf("partial vacation not deducted: %+v", day)
@@ -343,8 +335,8 @@ func TestMonthAIHistoricalWorkloadIsOrientationNotLimit(t *testing.T) {
 	if !found {
 		t.Fatal("saved overtime disappeared or regular capacity changed")
 	}
-	_, fallback, ordinary := monthAIFixture(t)
-	if fallback.Workload.ReferenceHours != 8 || fallback.Workload.ObservedDays != 0 || len(MonthAIWarnings(fallback, ordinary)) != 0 {
+	_, fallback, _ := monthAIFixture(t)
+	if fallback.Workload.ReferenceHours != 8 || fallback.Workload.ObservedDays != 0 {
 		t.Fatal("incorrect no-history fallback")
 	}
 }

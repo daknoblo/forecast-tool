@@ -22,7 +22,6 @@ import (
 const monthPreviewTTL = 30 * time.Minute
 
 var errMonthPreviewStale = errors.New("Die Planungsdaten haben sich geändert oder die Vorschau ist abgelaufen. Bitte neu planen.")
-var errMonthConfirmation = errors.New("Bitte bestätige die angezeigten Auslastungswarnungen, bevor du den Forecast speicherst.")
 
 type monthAIPreview struct {
 	Context    forecast.MonthAIContext
@@ -266,9 +265,6 @@ func (s *Server) handleMonthSave(w http.ResponseWriter, r *http.Request) {
 		if err != nil || revision != preview.Revision {
 			return errMonthPreviewStale
 		}
-		if len(forecast.MonthAIWarnings(context, preview.Plan)) > 0 && r.PostForm.Get("confirmOverload") != "yes" {
-			return errMonthConfirmation
-		}
 		if err := forecast.ApplyMonthAIPlan(d, context, preview.Plan); err != nil {
 			return err
 		}
@@ -280,7 +276,7 @@ func (s *Server) handleMonthSave(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		s.logger.Warn("month plan save failed", "error", err)
-		if errors.Is(err, errMonthPreviewStale) || errors.Is(err, errMonthConfirmation) {
+		if errors.Is(err, errMonthPreviewStale) {
 			writeJSONError(w, http.StatusConflict, err.Error())
 		} else {
 			writeJSONError(w, http.StatusInternalServerError, "Der Forecast konnte nicht gespeichert werden. Die bisherigen Buchungen bleiben unverändert.")

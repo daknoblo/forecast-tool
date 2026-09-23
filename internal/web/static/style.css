@@ -26,7 +26,6 @@ table.foundry-config td:last-child { overflow-wrap: anywhere; }
 .month-title-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
 .month-title-row button { flex-shrink: 0; }
 .form-stack.month-prompt-form { max-width: none; margin-top: 1rem; }
-.form-row .month-confirm { flex-basis: 100%; flex-direction: row; align-items: center; gap: 0.5rem; }
 .month-system-prompt, .month-explanation { white-space: pre-wrap; overflow-wrap: anywhere; }
 .month-system-prompt { font-size: 0.8rem; }
 .month-heading #month-ai-status { margin-top: 1rem; }

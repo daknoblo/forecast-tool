@@ -211,7 +211,7 @@ func TestMonthAIUnallocatedPreviewCannotBeSaved(t *testing.T) {
 	}
 }
 
-func TestMonthAIOverloadRequiresExplicitConfirmation(t *testing.T) {
+func TestMonthAIOverloadSavesWithoutAdditionalConfirmation(t *testing.T) {
 	f := newMonthAIFixture(t)
 	if err := f.store.Mutate(func(d *models.Data) error {
 		d.Entries[0].Hours = 12
@@ -224,25 +224,21 @@ func TestMonthAIOverloadRequiresExplicitConfirmation(t *testing.T) {
 	location, token := f.generate(t)
 	rec := httptest.NewRecorder()
 	f.server.Handler().ServeHTTP(rec, httptest.NewRequest("GET", location, nil))
-	for _, required := range []string{"Auslastung bitte prüfen", `name="confirmOverload" value="yes" required`, "über dem historischen Richtwert"} {
-		if !strings.Contains(rec.Body.String(), required) {
-			t.Fatalf("preview missing %q", required)
+	for _, forbidden := range []string{"Auslastung bitte prüfen", `type="checkbox"`, "Auslastungsorientierung:", "confirmOverload"} {
+		if strings.Contains(rec.Body.String(), forbidden) {
+			t.Fatalf("preview still includes %q", forbidden)
 		}
 	}
-	before := f.store.Snapshot()
-	for _, confirmation := range []string{"", "&confirmOverload=no"} {
-		rec = monthRequest(f.server.Handler(), "/month/save", "application/x-www-form-urlencoded", "preview="+token+confirmation)
-		if rec.Code != http.StatusConflict || !reflect.DeepEqual(before, f.store.Snapshot()) {
-			t.Fatal("unconfirmed overload changed stored data")
-		}
+	if !strings.Contains(rec.Body.String(), "12/8 h") || !strings.Contains(rec.Body.String(), "(+4 h)") {
+		t.Fatal("daily overload indicator missing")
 	}
-	rec = monthRequest(f.server.Handler(), "/month/save", "application/x-www-form-urlencoded", "preview="+token+"&confirmOverload=yes")
+	rec = monthRequest(f.server.Handler(), "/month/save", "application/x-www-form-urlencoded", "preview="+token)
 	if rec.Code != http.StatusNoContent || f.store.Snapshot().SavedMonthPlans[f.month] == "" {
-		t.Fatalf("confirmed overload not saved: %d %s", rec.Code, rec.Body.String())
+		t.Fatalf("overload not saved: %d %s", rec.Code, rec.Body.String())
 	}
 	reopened, err := storage.New(f.store.Path())
 	if err != nil || !reflect.DeepEqual(f.store.Snapshot(), reopened.Snapshot()) {
-		t.Fatal("confirmed forecast did not persist")
+		t.Fatal("forecast did not persist")
 	}
 }
 

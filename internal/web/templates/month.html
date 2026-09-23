@@ -35,7 +35,7 @@
     <span class="save-status" data-save-status data-save-quiet hidden role="status"></span>
   </form>
   <p class="hint">Der Prompt gilt für neue KI-Vorschauen; leer = Standardprompt. Beim Regenerieren werden Projekt-/Wochenstunden, tatsächliche Tagesbuchungen der letzten zwölf Wochen, Projektzeiträume, Feiertage und Urlaub an den konfigurierten KI-Endpoint gesendet. Zugangsdaten sind kein Bestandteil des Planungskontexts.</p>
-  <p class="hint">Nur Tage ab heute im angezeigten Monat werden neu verteilt. Vergangene Buchungen, Urlaub und Nachbarmonate bleiben unverändert. Für die KI sind 8 h die reguläre Kapazität, keine Obergrenze: historische Überbuchungen dienen als Orientierung, höhere Werte erfordern eine Bestätigung. Keine Verschiebung zwischen Wochen. Ganztägiger Urlaub und Feiertage bleiben frei. Nicht verteilbare Stunden verhindern weiterhin das Speichern. Die lokale Ausgangsschätzung bleibt auf die reguläre Kapazität begrenzt.</p>
+  <p class="hint">Nur Tage ab heute im angezeigten Monat werden neu verteilt. Vergangene Buchungen, Urlaub und Nachbarmonate bleiben unverändert. Für die KI sind 8 h die reguläre Kapazität, keine Obergrenze: historische Überbuchungen dienen als Orientierung, höhere Werte werden direkt an den Tagen angezeigt. Keine Verschiebung zwischen Wochen. Ganztägiger Urlaub und Feiertage bleiben frei. Nicht verteilbare Stunden verhindern weiterhin das Speichern. Die lokale Ausgangsschätzung bleibt auf die reguläre Kapazität begrenzt.</p>
   <details>
     <summary>Feste Regeln und Antwortformat (nicht editierbar)</summary>
     <pre class="month-system-prompt">{{.SystemPrompt}}</pre>
@@ -47,17 +47,9 @@
   <h2>KI-Vorschau prüfen</h2>
   {{if .Explanation}}<p class="month-explanation">{{.Explanation}}</p>{{end}}
   <p class="hint">Historie: {{.ContextFrom}} bis {{.ContextTo}}. Die Vorschau ist 30 Minuten gültig und geht bei einem Serverneustart verloren. Änderungen an den Planungsdaten erfordern eine neue Vorschau.</p>
-  <p class="hint">Auslastungsorientierung: {{if .Workload.ObservedDays}}{{.Workload.ObservedDays}} gebuchte Arbeitstage ohne Urlaub/Feiertage · Median {{hours .Workload.MedianHours}} h · 90. Perzentil {{hours .Workload.P90Hours}} h.{{else}}Keine vergleichbaren Buchungstage vorhanden.{{end}} Richtwert: {{hours .Workload.ReferenceHours}} h, bei Teilurlaub entsprechend reduziert. Kein festes Maximum und keine arbeitsrechtliche Freigabe.</p>
-  {{if .Warnings}}
-  <div class="month-warning" role="alert">
-    <strong>Auslastung bitte prüfen</strong>
-    <ul>{{range .Warnings}}<li>{{.Date}}: {{hours .Hours}} h Projektarbeit · regulär frei {{hours .StandardHours}} h · Richtwert {{hours .ReferenceHours}} h{{if .Unusual}} — über dem historischen Richtwert{{end}}</li>{{end}}</ul>
-  </div>
-  {{end}}
   {{if not .CanSave}}<p class="msg error">Die Wochenstunden sind nicht vollständig verteilbar. Passe den Wochen-Forecast oder die Projektzeiträume an und regeneriere die Planung. Es werden keine Stunden verworfen.</p>{{end}}
   <form method="post" action="/month/save" id="month-save" class="form-row">
     <input type="hidden" name="preview" value="{{.Preview}}">
-    {{if .Warnings}}<label class="month-confirm"><input type="checkbox" name="confirmOverload" value="yes" required> Ich habe die Auslastungswarnungen geprüft und möchte diese Tagesverteilung speichern.</label>{{end}}
     <button type="submit" class="btn primary"{{if not .CanSave}} disabled{{end}}>Forecast speichern</button>
     <a class="btn" href="/month?month={{.Plan.Month}}">Vorschau verwerfen</a>
   </form>
