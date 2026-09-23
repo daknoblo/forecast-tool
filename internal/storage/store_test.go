@@ -14,6 +14,7 @@ func TestMonthPlanningPersistenceAndRollback(t *testing.T) {
 	s, path := newStore(t)
 	if err := s.Mutate(func(d *models.Data) error {
 		d.Settings.MonthPlanningPrompt = "Prefer blocks on four days."
+		d.Settings.MonthPlanningSystemPrompt = "Preserve weekly totals and return JSON."
 		d.SavedMonthPlans = map[string]string{"2026-09": "2026-09-23T12:00:00Z"}
 		return nil
 	}); err != nil {
@@ -34,6 +35,7 @@ func TestMonthPlanningPersistenceAndRollback(t *testing.T) {
 	}
 	if err := s.Mutate(func(d *models.Data) error {
 		d.Settings.MonthPlanningPrompt = "must not survive failure"
+		d.Settings.MonthPlanningSystemPrompt = "must not survive failure either"
 		d.SavedMonthPlans["2026-10"] = "2026-09-23T13:00:00Z"
 		return nil
 	}); err == nil {

@@ -569,14 +569,15 @@ type aiInput struct {
 }
 
 type settingsInput struct {
-	Year                 *int       `json:"year"`
-	FederalState         *string    `json:"federalState"`
-	WeeklyTargetHours    *float64   `json:"weeklyTargetHours"`
-	FiscalYearStartMonth *int       `json:"fiscalYearStartMonth"`
-	DashboardRange       *string    `json:"dashboardRange"`
-	MonthPlanningPrompt  *string    `json:"monthPlanningPrompt"`
-	Utilization          *utilInput `json:"utilization"`
-	AI                   *aiInput   `json:"ai"`
+	Year                      *int       `json:"year"`
+	FederalState              *string    `json:"federalState"`
+	WeeklyTargetHours         *float64   `json:"weeklyTargetHours"`
+	FiscalYearStartMonth      *int       `json:"fiscalYearStartMonth"`
+	DashboardRange            *string    `json:"dashboardRange"`
+	MonthPlanningPrompt       *string    `json:"monthPlanningPrompt"`
+	MonthPlanningSystemPrompt *string    `json:"monthPlanningSystemPrompt"`
+	Utilization               *utilInput `json:"utilization"`
+	AI                        *aiInput   `json:"ai"`
 }
 
 // handleUpdateSettings updates the provided global settings fields. The secret
@@ -611,6 +612,10 @@ func (s *Server) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusBadRequest, "monthPlanningPrompt ist zu lang")
 		return
 	}
+	if in.MonthPlanningSystemPrompt != nil && len([]rune(*in.MonthPlanningSystemPrompt)) > models.MaxMonthPlanningPrompt {
+		s.writeError(w, http.StatusBadRequest, "monthPlanningSystemPrompt ist zu lang")
+		return
+	}
 
 	err := s.store.Mutate(func(d *models.Data) error {
 		if in.Year != nil {
@@ -630,6 +635,9 @@ func (s *Server) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 		}
 		if in.MonthPlanningPrompt != nil {
 			d.Settings.MonthPlanningPrompt = strings.TrimSpace(*in.MonthPlanningPrompt)
+		}
+		if in.MonthPlanningSystemPrompt != nil {
+			d.Settings.MonthPlanningSystemPrompt = strings.TrimSpace(*in.MonthPlanningSystemPrompt)
 		}
 		if u := in.Utilization; u != nil {
 			applyUtilization(&d.Settings.Utilization, u)

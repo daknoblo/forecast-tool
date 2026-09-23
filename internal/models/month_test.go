@@ -17,6 +17,15 @@ func TestMonthPlanningValidation(t *testing.T) {
 		t.Fatal("oversized prompt accepted")
 	}
 	d.Settings.MonthPlanningPrompt = ""
+	d.Settings.MonthPlanningSystemPrompt = strings.Repeat("ä", MaxMonthPlanningPrompt)
+	if err := Validate(d); err != nil {
+		t.Fatal(err)
+	}
+	d.Settings.MonthPlanningSystemPrompt += "a"
+	if err := Validate(d); err == nil {
+		t.Fatal("oversized system prompt accepted")
+	}
+	d.Settings.MonthPlanningSystemPrompt = ""
 	for _, value := range []map[string]string{
 		{"2026-13": "2026-09-23T12:00:00Z"},
 		{"2026-09": "not a timestamp"},

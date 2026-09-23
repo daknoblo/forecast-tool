@@ -23,17 +23,19 @@ func (s *Server) handleMonth(w http.ResponseWriter, r *http.Request) {
 	plan := forecast.BuildMonthPlan(d, s.calendar(d), month, now)
 	month, _ = time.Parse("2006-01", plan.Month)
 	prompt := monthPrompt(d)
+	systemPrompt := monthSystemPrompt(d)
 	saved := d.SavedMonthPlans[plan.Month] != "" && !isPrivate(r)
 	if saved {
 		plan = forecast.BuildStoredMonthPlan(d, s.calendar(d), month, now)
 	}
 	if isPrivate(r) {
 		prompt = forecast.DefaultMonthPlanningPrompt
+		systemPrompt = forecast.MonthPlanningSystemPrompt
 	}
 	page := map[string]any{
 		"Active": "month", "Wide": true, "Settings": d.Settings, "FYYears": fyYears(d),
 		"Plan": plan, "Prompt": prompt, "PromptLimit": models.MaxMonthPlanningPrompt,
-		"SystemPrompt": forecast.MonthPlanningSystemPrompt, "Saved": saved,
+		"SystemPrompt": systemPrompt, "Saved": saved,
 		"CanGenerate": !isPrivate(r) && !month.AddDate(0, 1, 0).Before(now) && s.aiReady(d.Settings.AI),
 		"AIReady":     s.aiReady(d.Settings.AI),
 	}
@@ -45,6 +47,7 @@ func (s *Server) handleMonth(w http.ResponseWriter, r *http.Request) {
 			page["Plan"] = s.previewMonthPlan(d, month, now, preview)
 			page["Preview"] = token
 			page["Prompt"] = preview.Prompt
+			page["SystemPrompt"] = preview.SystemPrompt
 			page["CanSave"] = len(preview.Plan.Unallocated) == 0
 			page["Explanation"] = preview.Plan.Explanation
 			page["Deployment"] = preview.Deployment

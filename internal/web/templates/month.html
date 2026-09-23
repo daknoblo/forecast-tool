@@ -32,14 +32,14 @@
     <label for="month-prompt">Planungsprompt
       <textarea id="month-prompt" name="prompt" class="prompt" rows="12" maxlength="{{.PromptLimit}}"{{if .Private}} disabled{{end}}>{{.Prompt}}</textarea>
     </label>
+    <label for="month-system-prompt">Systemprompt und Antwortformat
+      <textarea id="month-system-prompt" name="systemPrompt" class="prompt" rows="16" maxlength="{{.PromptLimit}}"{{if .Private}} disabled{{end}}>{{.SystemPrompt}}</textarea>
+    </label>
     <span class="save-status" data-save-status data-save-quiet hidden role="status"></span>
   </form>
-  <p class="hint">Der Prompt gilt für neue KI-Vorschauen; leer = Standardprompt. Beim Regenerieren werden Projekt-/Wochenstunden, tatsächliche Tagesbuchungen der letzten zwölf Wochen, Projektzeiträume, Feiertage und Urlaub an den konfigurierten KI-Endpoint gesendet. Zugangsdaten sind kein Bestandteil des Planungskontexts.</p>
+  <p class="hint">Beide Prompts werden als Konfiguration in der Datendatei gespeichert und gelten für neue KI-Vorschauen; ein leeres Feld verwendet den jeweiligen Standardprompt. Beim Regenerieren werden Projekt-/Wochenstunden, tatsächliche Tagesbuchungen der letzten zwölf Wochen, Projektzeiträume, Feiertage und Urlaub an den konfigurierten KI-Endpoint gesendet. Zugangsdaten sind kein Bestandteil des Planungskontexts.</p>
+  <p class="hint">Historische Buchungen sind nur Muster, keine neuen Planungsvorgaben. Ausschließlich vorhandene Forecast-Stunden je Projekt und Woche werden verteilt. Die serverseitige Prüfung bleibt unabhängig von deinen Prompts aktiv: zusätzliche Stunden oder Projekte sowie ein ungültiges Antwortformat werden abgelehnt.</p>
   <p class="hint">Nur Tage ab heute im angezeigten Monat werden neu verteilt. Vergangene Buchungen, Urlaub und Nachbarmonate bleiben unverändert. Für die KI sind 8 h die reguläre Kapazität, keine Obergrenze: historische Überbuchungen dienen als Orientierung, höhere Werte werden direkt an den Tagen angezeigt. Keine Verschiebung zwischen Wochen. Ganztägiger Urlaub und Feiertage bleiben frei. Nicht verteilbare Stunden verhindern weiterhin das Speichern. Die lokale Ausgangsschätzung bleibt auf die reguläre Kapazität begrenzt.</p>
-  <details>
-    <summary>Feste Regeln und Antwortformat (nicht editierbar)</summary>
-    <pre class="month-system-prompt">{{.SystemPrompt}}</pre>
-  </details>
 </details>
 
 {{if .Preview}}
@@ -113,6 +113,7 @@
 (function () {
   var generate = document.getElementById('month-generate');
   var prompt = document.getElementById('month-prompt');
+  var systemPrompt = document.getElementById('month-system-prompt');
   var save = document.getElementById('month-save');
   var status = document.getElementById('month-ai-status');
   var planningError = document.getElementById('month-planning-error');
@@ -141,6 +142,7 @@
     busy = true;
     generate.disabled = true;
     prompt.readOnly = true;
+    systemPrompt.readOnly = true;
     var saveButton = save && save.querySelector('button');
     var saveDisabled = saveButton && saveButton.disabled;
     if (saveButton) saveButton.disabled = true;
@@ -151,13 +153,14 @@
     try {
       var result = await send('/month/generate', {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({month: generate.dataset.month, prompt: prompt.value})
+        body: JSON.stringify({month: generate.dataset.month, prompt: prompt.value, systemPrompt: systemPrompt.value})
       });
       window.location.assign(result.previewURL);
     } catch (error) {
       show(error.message, true);
       generate.disabled = false;
       prompt.readOnly = false;
+      systemPrompt.readOnly = false;
       if (saveButton) saveButton.disabled = saveDisabled;
       busy = false;
     } finally {

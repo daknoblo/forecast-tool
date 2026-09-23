@@ -104,9 +104,16 @@ only renders the docs and the demo snapshot.
   **“Planung mit KI regenerieren”** explicitly sends the last 84 days of actual
   daily bookings, project/assignment metadata, weekly forecast totals and
   holiday/vacation availability to the configured AI deployment. The editable,
-  globally saved prompt under **“Wie entsteht die Schätzung?”** asks for real
+  globally saved planning prompt under **“Wie entsteht die Schätzung?”** asks for real
   booking patterns such as four 2-hour blocks rather than five 1.6-hour blocks.
-  Immutable system rules and strict server-side validation enforce project/week
+  Both the planning prompt and system prompt/response format are editable there,
+  saved in the existing data document as `settings.monthPlanningPrompt` and
+  `settings.monthPlanningSystemPrompt` (8,000 characters each; empty uses the
+  respective built-in default). Changes apply to new previews, not saved entries.
+  History also includes occasional projects without forecast hours; it supplies
+  patterns only, never new planning totals. Only positive `editableHours` for the
+  exact project/week permit new allocations.
+  Strict server-side validation, independent of edited prompts, enforces project/week
   totals, project windows, holidays and full-day vacation. Eight hours remains the
   regular capacity, **not a hard AI planning limit**. Actual historical overtime
   is included in the context. A reference derived from the 90th percentile of

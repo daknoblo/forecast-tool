@@ -61,6 +61,49 @@ func TestMonthAIBlocksAndPreview(t *testing.T) {
 	}
 }
 
+func TestMonthAIHistoryDoesNotCreateForecast(t *testing.T) {
+	d := monthTestData()
+	d.Projects = append(d.Projects, models.Project{
+		ID: "occasional", AssignmentID: "occasional", Name: "Occasional work", Active: true, FiscalYear: 2026,
+	})
+	d.Entries = []models.Entry{
+		{Date: "2026-06-30", ProjectID: "occasional", Hours: 4},
+		{Date: "2026-07-06", ProjectID: "occasional", Hours: 2},
+		{Date: "2026-07-08", ProjectID: "p", Hours: 8},
+	}
+	ctx := monthAIContextForTest(t, d, "2026-07-01", "2026-07-07")
+	if len(ctx.History) != 2 {
+		t.Fatal("occasional actual bookings must remain available as history")
+	}
+	plan := MonthAIPlan{Entries: []models.Entry{{Date: "2026-07-08", ProjectID: "p", Hours: 8}}}
+	if err := ValidateMonthAIPlan(ctx, plan); err != nil {
+		t.Fatal(err)
+	}
+	for _, date := range []string{"2026-07-07", "2026-07-13"} {
+		bad := MonthAIPlan{Entries: append([]models.Entry{}, plan.Entries...)}
+		bad.Entries = append(bad.Entries, models.Entry{Date: date, ProjectID: "occasional", Hours: 2})
+		if err := ValidateMonthAIPlan(ctx, bad); err == nil {
+			t.Fatalf("historical-only project acquired new forecast hours on %s", date)
+		}
+		bad.Entries = plan.Entries
+		bad.Unallocated = []MonthAIUnallocated{{
+			WeekStart: mondayOf(monthTestDate(date)).Format("2006-01-02"),
+			ProjectID: "occasional", Hours: 2, Reason: "Historical work",
+		}}
+		if err := ValidateMonthAIPlan(ctx, bad); err == nil {
+			t.Fatal("historical-only project acquired unallocated hours")
+		}
+	}
+	if err := ApplyMonthAIPlan(&d, ctx, plan); err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range d.Entries {
+		if entry.ProjectID == "occasional" && entry.Date >= ctx.Today {
+			t.Fatal("history-only project persisted in forecast")
+		}
+	}
+}
+
 func TestMonthAIRawHistoryContinuityExposureAndPrivacy(t *testing.T) {
 	d := monthTestData()
 	d.Settings.Year = 2027

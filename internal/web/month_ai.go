@@ -24,12 +24,13 @@ const monthPreviewTTL = 30 * time.Minute
 var errMonthPreviewStale = errors.New("Die Planungsdaten haben sich geändert oder die Vorschau ist abgelaufen. Bitte neu planen.")
 
 type monthAIPreview struct {
-	Context    forecast.MonthAIContext
-	Plan       forecast.MonthAIPlan
-	Revision   [32]byte
-	Prompt     string
-	Deployment string
-	Created    time.Time
+	Context      forecast.MonthAIContext
+	Plan         forecast.MonthAIPlan
+	Revision     [32]byte
+	Prompt       string
+	SystemPrompt string
+	Deployment   string
+	Created      time.Time
 }
 
 type monthAIState struct {
@@ -45,9 +46,16 @@ func monthPrompt(d models.Data) string {
 	return forecast.DefaultMonthPlanningPrompt
 }
 
-func validateMonthPrompt(value string) error {
+func monthSystemPrompt(d models.Data) string {
+	if value := strings.TrimSpace(d.Settings.MonthPlanningSystemPrompt); value != "" {
+		return value
+	}
+	return forecast.MonthPlanningSystemPrompt
+}
+
+func validateMonthPrompt(value, label string) error {
 	if len([]rune(value)) > models.MaxMonthPlanningPrompt {
-		return fmt.Errorf("Der Planungsprompt darf höchstens %d Zeichen enthalten.", models.MaxMonthPlanningPrompt)
+		return fmt.Errorf("Der %s darf höchstens %d Zeichen enthalten.", label, models.MaxMonthPlanningPrompt)
 	}
 	return nil
 }
@@ -78,22 +86,30 @@ func (s *Server) handleMonthPrompt(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Im privaten Modus kann der Planungsprompt nicht geändert werden.", http.StatusForbidden)
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
+	r.Body = http.MaxBytesReader(w, r.Body, 256<<10)
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Ungültiger Planungsprompt.", http.StatusBadRequest)
 		return
 	}
 	prompt := strings.TrimSpace(r.PostForm.Get("prompt"))
-	if err := validateMonthPrompt(prompt); err != nil {
+	if err := validateMonthPrompt(prompt, "Planungsprompt"); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	systemPrompt := strings.TrimSpace(r.PostForm.Get("systemPrompt"))
+	if err := validateMonthPrompt(systemPrompt, "Systemprompt"); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	if err := s.store.Mutate(func(d *models.Data) error {
 		d.Settings.MonthPlanningPrompt = prompt
+		if r.PostForm.Has("systemPrompt") {
+			d.Settings.MonthPlanningSystemPrompt = systemPrompt
+		}
 		return nil
 	}); err != nil {
 		s.logger.Error("month prompt save failed", "error", err)
-		http.Error(w, "Der Planungsprompt konnte nicht gespeichert werden.", http.StatusInternalServerError)
+		http.Error(w, "Die Planungsprompts konnten nicht gespeichert werden.", http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -104,10 +120,11 @@ func (s *Server) handleMonthGenerate(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusForbidden, "Im privaten Modus ist die KI-Planung gesperrt.")
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
+	r.Body = http.MaxBytesReader(w, r.Body, 256<<10)
 	var in struct {
-		Month  string `json:"month"`
-		Prompt string `json:"prompt"`
+		Month        string  `json:"month"`
+		Prompt       string  `json:"prompt"`
+		SystemPrompt *string `json:"systemPrompt"`
 	}
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
@@ -125,9 +142,16 @@ func (s *Server) handleMonthGenerate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in.Prompt = strings.TrimSpace(in.Prompt)
-	if err := validateMonthPrompt(in.Prompt); err != nil {
+	if err := validateMonthPrompt(in.Prompt, "Planungsprompt"); err != nil {
 		writeJSONError(w, http.StatusBadRequest, err.Error())
 		return
+	}
+	if in.SystemPrompt != nil {
+		*in.SystemPrompt = strings.TrimSpace(*in.SystemPrompt)
+		if err := validateMonthPrompt(*in.SystemPrompt, "Systemprompt"); err != nil {
+			writeJSONError(w, http.StatusBadRequest, err.Error())
+			return
+		}
 	}
 	if !s.monthAI.generating.CompareAndSwap(false, true) {
 		writeJSONError(w, http.StatusConflict, "Eine KI-Planung läuft bereits. Bitte warte auf das Ergebnis.")
@@ -148,17 +172,18 @@ func (s *Server) handleMonthGenerate(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusServiceUnavailable, err.Error())
 		return
 	}
+	var prompt, systemPrompt string
 	if err := s.store.Mutate(func(d *models.Data) error {
 		d.Settings.MonthPlanningPrompt = in.Prompt
+		if in.SystemPrompt != nil {
+			d.Settings.MonthPlanningSystemPrompt = *in.SystemPrompt
+		}
+		prompt, systemPrompt = monthPrompt(*d), monthSystemPrompt(*d)
 		return nil
 	}); err != nil {
 		s.logger.Error("month prompt save failed", "error", err)
-		writeJSONError(w, http.StatusInternalServerError, "Der Planungsprompt konnte nicht gespeichert werden.")
+		writeJSONError(w, http.StatusInternalServerError, "Die Planungsprompts konnten nicht gespeichert werden.")
 		return
-	}
-	prompt := in.Prompt
-	if prompt == "" {
-		prompt = forecast.DefaultMonthPlanningPrompt
 	}
 	message, err := json.Marshal(struct {
 		Instructions string                  `json:"instructions"`
@@ -169,7 +194,7 @@ func (s *Server) handleMonthGenerate(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusInternalServerError, "Die Planungsdaten konnten nicht aufbereitet werden.")
 		return
 	}
-	answer, err := ai.Ask(r.Context(), cfg, forecast.MonthPlanningSystemPrompt, string(message), s.logger)
+	answer, err := ai.Ask(r.Context(), cfg, systemPrompt, string(message), s.logger)
 	if err != nil {
 		s.logger.Error("month ai request failed", "error", err)
 		writeJSONError(w, http.StatusBadGateway, err.Error())
@@ -206,7 +231,7 @@ func (s *Server) handleMonthGenerate(w http.ResponseWriter, r *http.Request) {
 		delete(s.monthAI.previews, oldest)
 	}
 	s.monthAI.previews[token] = monthAIPreview{
-		Context: context, Plan: proposal, Revision: revision, Prompt: prompt,
+		Context: context, Plan: proposal, Revision: revision, Prompt: prompt, SystemPrompt: systemPrompt,
 		Deployment: cfg.Deployment, Created: time.Now().UTC(),
 	}
 	s.monthAI.mu.Unlock()

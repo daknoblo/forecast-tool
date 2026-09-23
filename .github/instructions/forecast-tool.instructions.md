@@ -56,7 +56,7 @@ collects every requirement stated so far as the binding reference.
   `storage.normalize` via `mergeEntries`: one value per (date, projectId),
   actual wins) and is never written again.
 - `Settings` (global): year (= active fiscal year), federalState,
-  weeklyTargetHours, fiscalYearStartMonth, dashboardRange, monthPlanningPrompt,
+  weeklyTargetHours, fiscalYearStartMonth, dashboardRange, monthPlanningPrompt, monthPlanningSystemPrompt,
   `ai` (AISettings), `utilization`
   (UtilizationSettings).
 - `UtilizationSettings` (global, in `Settings.Utilization`): the utilization
@@ -524,9 +524,16 @@ collects every requirement stated so far as the binding reference.
   84 days of actual daily entries (through yesterday), assignment continuity,
   weekly project totals, exact editable/immutable hours, windows, holidays and
   vacation capacity. Never include credentials or unrelated settings.
-  `Settings.MonthPlanningPrompt` (max 8,000 runes, blank = default) is separately
-  saved through `/month/prompt`; display it under the estimation details, with
-  noneditable system rules available for inspection.
+  `Settings.MonthPlanningPrompt` and `Settings.MonthPlanningSystemPrompt`
+  (each max 8,000 runes, blank = respective default) are saved together through
+  `/month/prompt` in the existing data document and editable under the estimation
+  details. Generation sends/persists both fields; an omitted system prompt keeps
+  the saved value for older clients. The settings API supports partial updates
+  for both. Never expose real custom prompts in private mode.
+  The system prompt explicitly distinguishes historical-only projects from
+  planning targets: only positive `weeks.projects.editableHours` for the exact
+  project/week authorize allocations. Historical bookings never create forecast
+  hours. Server-side validation remains independent of both editable prompts.
 - Use the shared activity indicator in the header before "Privat", not a local
   loading spinner/banner. Keep it visible and static when idle; animate only
   during requests/navigation, respecting reduced-motion preferences.

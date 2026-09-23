@@ -30,12 +30,13 @@ func ValidYear(y int) bool {
 // Per-fiscal-year values (target hours, vacation, standard tasks) live in
 // Data.FiscalYears instead, keyed by the FY anchor year.
 type Settings struct {
-	Year                 int     `json:"year"`         // currently active FY anchor year
-	FederalState         string  `json:"federalState"` // e.g. "BY", "BW", "BE" ...
-	WeeklyTargetHours    float64 `json:"weeklyTargetHours"`
-	FiscalYearStartMonth int     `json:"fiscalYearStartMonth"` // 1-12; 7 = July (default). 1 == calendar year
-	DashboardRange       string  `json:"dashboardRange"`
-	MonthPlanningPrompt  string  `json:"monthPlanningPrompt,omitempty"`
+	Year                      int     `json:"year"`         // currently active FY anchor year
+	FederalState              string  `json:"federalState"` // e.g. "BY", "BW", "BE" ...
+	WeeklyTargetHours         float64 `json:"weeklyTargetHours"`
+	FiscalYearStartMonth      int     `json:"fiscalYearStartMonth"` // 1-12; 7 = July (default). 1 == calendar year
+	DashboardRange            string  `json:"dashboardRange"`
+	MonthPlanningPrompt       string  `json:"monthPlanningPrompt,omitempty"`
+	MonthPlanningSystemPrompt string  `json:"monthPlanningSystemPrompt,omitempty"`
 
 	// AI holds the selected deployment and legacy manual endpoint for analysis
 	// and planning previews. Foundry identity comes from the environment.
@@ -384,6 +385,9 @@ func (d Data) CurrentFY() FiscalYearSettings {
 func Validate(d Data) error {
 	if len([]rune(d.Settings.MonthPlanningPrompt)) > MaxMonthPlanningPrompt {
 		return fmt.Errorf("Der Planungsprompt darf höchstens %d Zeichen enthalten", MaxMonthPlanningPrompt)
+	}
+	if len([]rune(d.Settings.MonthPlanningSystemPrompt)) > MaxMonthPlanningPrompt {
+		return fmt.Errorf("Der Systemprompt darf höchstens %d Zeichen enthalten", MaxMonthPlanningPrompt)
 	}
 	for month, savedAt := range d.SavedMonthPlans {
 		if date, err := time.Parse("2006-01", month); err != nil || !ValidYear(date.Year()) {
