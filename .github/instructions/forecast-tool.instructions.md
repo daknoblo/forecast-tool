@@ -551,8 +551,10 @@ collects every requirement stated so far as the binding reference.
   vacation capacity. Never include credentials or unrelated settings.
   `Settings.MonthPlanningPrompt` and `Settings.MonthPlanningSystemPrompt`
   (each max 8,000 runes, blank = respective default) are saved together through
-  `/month/prompt` in the existing data document and editable under the estimation
-  details. Generation sends/persists both fields; an omitted system prompt keeps
+  `/month/prompt` in the existing data document and editable under **Prompts**.
+  This section and nested details start expanded; both textareas fit their full
+  content on load, input, viewport resize and reopening, shrinking as well as growing.
+  Generation sends/persists both fields; an omitted system prompt keeps
   the saved value for older clients. The settings API supports partial updates
   for both. Never expose real custom prompts in private mode.
   The system prompt explicitly distinguishes historical-only projects from
@@ -563,8 +565,14 @@ collects every requirement stated so far as the binding reference.
   dependency: paragraphs, lists, emphasis and line breaks. Never enable raw HTML;
   links/images must render as text, without navigation or remote resource loads.
   Append `MonthPlanningExplanationFormat` to every system message (also custom
-  prompts), requesting one bullet per planned project with a bold project name
-  and separate general notes. Keep the outer response strict JSON. Show this
+  prompts), requesting only decisions: one short bullet per planned project with
+  a bold project name, chosen dates/time spans and hours. No historical reasoning,
+  rules, uncertainty discussion, workload statistics or general disclaimers.
+  Keep actionable unallocated reasons in `unallocated.reason`.
+  Title the preview **Planungsübersicht**, without the history/expiry paragraph
+  above or save-scope paragraph below the buttons; retain errors and explicit
+  save/discard behavior, including all expiry/freshness checks.
+  Keep the outer response strict JSON. Show this
   additional presentation instruction in the UI without changing saved prompts.
   Existing plain-text explanations remain supported; do not guess project
   boundaries by splitting arbitrary prose.

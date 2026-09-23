@@ -123,12 +123,14 @@ only renders the docs and the demo snapshot.
   **“Planung mit KI regenerieren”** explicitly sends the last 84 days of actual
   daily bookings, project/assignment metadata, weekly forecast totals and
   holiday/vacation availability to the configured AI deployment. The editable,
-  globally saved planning prompt under **“Wie entsteht die Schätzung?”** asks for real
+  globally saved planning prompt under **“Prompts”** asks for real
   booking patterns such as four 2-hour blocks rather than five 1.6-hour blocks.
   Both the planning prompt and system prompt/response format are editable there,
   saved in the existing data document as `settings.monthPlanningPrompt` and
   `settings.monthPlanningSystemPrompt` (8,000 characters each; empty uses the
   respective built-in default). Changes apply to new previews, not saved entries.
+  The prompt section and its nested details start expanded. Both textareas grow
+  and shrink with their content, including after editing, resizing or reopening.
   History also includes occasional projects without forecast hours; it supplies
   patterns only, never new planning totals. Only positive `editableHours` for the
   exact project/week permit new allocations.
@@ -148,9 +150,14 @@ only renders the docs and the demo snapshot.
   settings are part of the planning context.
   Results first appear as an **unsaved preview**.
   The explanation renders Markdown paragraphs, lists and emphasis.
-  Every request adds a presentation instruction for one bullet per project with
-  a bold project name, including when custom prompts are saved. This instruction
+  The **“Planungsübersicht”** requests only the chosen days/time spans and hours:
+  one short bullet per project with a bold project name, no historical rationale,
+  planning rules or general disclaimers. The presentation instruction is appended
+  to every request, including when custom prompts are saved. This instruction
   is visible in the prompt details and does not modify those saved prompts.
+  Existing previews retain their original text until regenerated. Preview expiry
+  and save-scope notes are omitted from the card; expiry/freshness validation,
+  actionable errors and the explicit save/discard controls remain unchanged.
   Raw HTML is disabled; links and images are rendered as text without loading
   external resources. Existing plain-text explanations remain readable.
   Only **“Forecast speichern”**

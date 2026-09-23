@@ -52,7 +52,6 @@ func (s *Server) handleMonth(w http.ResponseWriter, r *http.Request) {
 			page["CanSave"] = len(preview.Plan.Unallocated) == 0
 			page["Explanation"] = preview.Plan.Explanation
 			page["Deployment"] = preview.Deployment
-			page["ContextFrom"], page["ContextTo"] = preview.Context.HistoryFrom, preview.Context.HistoryTo
 		}
 	}
 	s.render(w, r, "month.html", page)

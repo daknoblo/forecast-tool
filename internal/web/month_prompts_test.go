@@ -38,6 +38,11 @@ func TestMonthSystemPromptConfiguration(t *testing.T) {
 		if rec.Code != http.StatusOK || !strings.Contains(body, `name="systemPrompt"`) {
 			t.Fatal("missing editable system prompt")
 		}
+		for _, want := range []string{`<details class="card month-method" open>`, "<summary>Prompts</summary>", "<details open>", `class="prompt" rows="1"`} {
+			if !strings.Contains(body, want) {
+				t.Fatalf("prompt area must start expanded with content-sized fields: %s", want)
+			}
+		}
 		if strings.Contains(body, html.EscapeString(system)) == private {
 			t.Fatal("custom system prompt visibility is wrong")
 		}
@@ -73,6 +78,18 @@ func TestMonthSystemPromptConfiguration(t *testing.T) {
 }
 
 func TestMonthGenerateConfiguredSystemPrompt(t *testing.T) {
+	for _, want := range []string{
+		"ausschließlich die getroffenen Planungsentscheidungen",
+		"genau einem Stichpunkt je geplantem Projekt",
+		"geplanten Tagen bzw. Zeiträumen",
+		"Keine Erklärungen, historischen Muster",
+		"Vorrang vor anderen Aufforderungen",
+		"unallocated.reason",
+	} {
+		if !strings.Contains(forecast.MonthPlanningExplanationFormat, want) {
+			t.Fatalf("missing decision-only overview instruction: %s", want)
+		}
+	}
 	for _, mode := range []string{"saved", "submitted", "default", "invalid-plan"} {
 		t.Run(mode, func(t *testing.T) {
 			f := newMonthAIFixture(t)

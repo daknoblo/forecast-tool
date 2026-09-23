@@ -14,21 +14,21 @@
   {{if .PlanningError}}<p id="month-planning-error" class="msg error" role="alert">{{.PlanningError}}</p>{{end}}
 </section>
 
-<details class="card month-method">
-  <summary>Wie entsteht die Schätzung?</summary>
+<details class="card month-method" open>
+  <summary>Prompts</summary>
   {{if .Private}}<p class="hint">KI-Planung und Speichern sind im privaten Modus gesperrt.</p>
   {{else if not .AIReady}}<p class="hint">Für die KI-Planung zuerst einen <a href="/settings#ai">KI-Endpoint und ein Deployment auswählen</a>.</p>{{end}}
   <form method="post" action="/month/prompt" class="form-stack month-prompt-form" data-autosave>
     <label for="month-prompt">Planungsprompt
-      <textarea id="month-prompt" name="prompt" class="prompt" rows="12" maxlength="{{.PromptLimit}}"{{if .Private}} disabled{{end}}>{{.Prompt}}</textarea>
+      <textarea id="month-prompt" name="prompt" class="prompt" rows="1" maxlength="{{.PromptLimit}}"{{if .Private}} disabled{{end}}>{{.Prompt}}</textarea>
     </label>
     <label for="month-system-prompt">Systemprompt und Antwortformat
-      <textarea id="month-system-prompt" name="systemPrompt" class="prompt" rows="16" maxlength="{{.PromptLimit}}"{{if .Private}} disabled{{end}}>{{.SystemPrompt}}</textarea>
+      <textarea id="month-system-prompt" name="systemPrompt" class="prompt" rows="1" maxlength="{{.PromptLimit}}"{{if .Private}} disabled{{end}}>{{.SystemPrompt}}</textarea>
     </label>
     <span class="save-status" data-save-status data-save-quiet hidden role="status"></span>
   </form>
-  <details>
-    <summary>Zusätzliche Darstellungsvorgabe für die Erläuterung</summary>
+  <details open>
+    <summary>Zusätzliche Darstellungsvorgabe für die Planungsübersicht</summary>
     <p class="hint">Diese Vorgabe wird bei jeder Anfrage an den Systemprompt angehängt, ohne deine gespeicherten Prompts zu verändern:</p>
     <p class="hint">{{.ExplanationFormat}}</p>
   </details>
@@ -39,16 +39,14 @@
 
 {{if .Preview}}
 <section class="card month-preview">
-  <h2>KI-Vorschau prüfen</h2>
+  <h2>Planungsübersicht</h2>
   {{if .Explanation}}<div class="month-explanation">{{monthExplanation .Explanation}}</div>{{end}}
-  <p class="hint">Historie: {{.ContextFrom}} bis {{.ContextTo}}. Die Vorschau ist 30 Minuten gültig und geht bei einem Serverneustart verloren. Änderungen an den Planungsdaten erfordern eine neue Vorschau.</p>
   {{if not .CanSave}}<p class="msg error">Die Wochenstunden sind nicht vollständig verteilbar. Passe den Wochen-Forecast oder die Projektzeiträume an und regeneriere die Planung. Es werden keine Stunden verworfen.</p>{{end}}
   <form method="post" action="/month/save" id="month-save" class="form-row">
     <input type="hidden" name="preview" value="{{.Preview}}">
     <button type="submit" class="btn primary"{{if not .CanSave}} disabled{{end}}>Forecast speichern</button>
     <a class="btn" href="/month?month={{.Plan.Month}}">Vorschau verwerfen</a>
   </form>
-  <p class="hint">Speichern ersetzt ausschließlich die Projektbuchungen ab heute in {{.Plan.Label}} durch diese Tagesverteilung.</p>
 </section>
 {{end}}
 
@@ -120,6 +118,19 @@
   var status = document.getElementById('month-ai-status');
   var planningError = document.getElementById('month-planning-error');
   var busy = false;
+  function resizePrompts() {
+    [prompt, systemPrompt].forEach(function (field) {
+      if (!field.offsetWidth) return;
+      field.style.height = 'auto';
+      field.style.height = (field.scrollHeight + field.offsetHeight - field.clientHeight) + 'px';
+    });
+  }
+  [prompt, systemPrompt].forEach(function (field) {
+    field.addEventListener('input', resizePrompts);
+  });
+  document.querySelector('.month-method').addEventListener('toggle', resizePrompts);
+  window.addEventListener('resize', resizePrompts);
+  resizePrompts();
   function show(message, error) {
     status.hidden = false;
     status.className = 'msg' + (error ? ' error' : '');

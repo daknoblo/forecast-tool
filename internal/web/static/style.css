@@ -34,6 +34,7 @@ table.foundry-config td:last-child { overflow-wrap: anywhere; }
   .activity.busy .activity-spinner { animation: none; }
 }
 .form-stack.month-prompt-form { max-width: none; margin-top: 1rem; }
+.month-prompt-form .prompt { resize: none; overflow-y: hidden; }
 .month-explanation { overflow-wrap: anywhere; line-height: 1.6; }
 .month-explanation p, .month-explanation ul, .month-explanation ol { margin: 0.65rem 0; }
 .month-explanation ul, .month-explanation ol { padding-left: 1.5rem; }

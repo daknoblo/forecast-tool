@@ -153,8 +153,13 @@ func TestMonthAIPreviewThenExplicitSave(t *testing.T) {
 	}
 	rec := httptest.NewRecorder()
 	f.server.Handler().ServeHTTP(rec, httptest.NewRequest("GET", location, nil))
-	if rec.Code != 200 || !strings.Contains(rec.Body.String(), "KI-Vorschau prüfen") || !strings.Contains(rec.Body.String(), f.plan.Explanation) {
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), "Planungsübersicht") || !strings.Contains(rec.Body.String(), f.plan.Explanation) {
 		t.Fatalf("preview: %d %s", rec.Code, rec.Body.String())
+	}
+	for _, removed := range []string{"KI-Vorschau prüfen", "Historie:", "Die Vorschau ist 30 Minuten gültig", "Speichern ersetzt ausschließlich"} {
+		if strings.Contains(rec.Body.String(), removed) {
+			t.Fatalf("obsolete preview text still shown: %s", removed)
+		}
 	}
 	if strings.Count(rec.Body.String(), `class="month-event estimated"`) != 4 {
 		t.Fatal("preview did not render four two-hour blocks")
