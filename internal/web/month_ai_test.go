@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"regexp"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -205,6 +206,15 @@ func TestMonthAIUnallocatedPreviewCannotBeSaved(t *testing.T) {
 	location, token := f.generate(t)
 	rec := httptest.NewRecorder()
 	f.server.Handler().ServeHTTP(rec, httptest.NewRequest("GET", location, nil))
+	warning := regexp.MustCompile(`(?s)<div class="msg error month-unallocated"[^>]*>(.*?)</div>`).FindStringSubmatch(rec.Body.String())
+	if len(warning) != 2 || !strings.Contains(warning[1], "Kein passender Block.") ||
+		!strings.Contains(warning[1], "Projekt Pattern") || !strings.Contains(warning[1], "FYW") ||
+		!strings.Contains(warning[1], "2 h") {
+		t.Fatal("unallocated reasons must appear with project, week and hours in the red warning")
+	}
+	if strings.Contains(rec.Body.String(), "Freie Tage bzw. Projektzeitraum reichen nicht aus.") {
+		t.Fatal("AI result must not claim a capacity constraint that was not verified")
+	}
 	for _, text := range []string{`class="btn primary" disabled>Forecast speichern`, "Kein passender Block.", "2 h nicht verteilbar"} {
 		if !strings.Contains(rec.Body.String(), text) {
 			t.Errorf("unallocated preview missing %q", text)

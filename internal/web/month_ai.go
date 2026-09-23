@@ -1,6 +1,7 @@
 package web
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/json"
@@ -24,13 +25,14 @@ const monthPreviewTTL = 30 * time.Minute
 var errMonthPreviewStale = errors.New("Die Planungsdaten haben sich geändert oder die Vorschau ist abgelaufen. Bitte neu planen.")
 
 type monthAIPreview struct {
-	Context      forecast.MonthAIContext
-	Plan         forecast.MonthAIPlan
-	Revision     [32]byte
-	Prompt       string
-	SystemPrompt string
-	Deployment   string
-	Created      time.Time
+	Context       forecast.MonthAIContext
+	Plan          forecast.MonthAIPlan
+	Revision      [32]byte
+	Prompt        string
+	SystemPrompt  string
+	Deployment    string
+	ModelResponse string
+	Created       time.Time
 }
 
 type monthAIState struct {
@@ -203,12 +205,18 @@ func (s *Server) handleMonthGenerate(w http.ResponseWriter, r *http.Request) {
 	proposal, err := forecast.DecodeMonthAIPlan(context, answer)
 	if err != nil {
 		s.logger.Warn("month ai response rejected", "error", err)
-		writeJSONError(w, http.StatusBadGateway, "Die KI-Planung wurde verworfen: "+err.Error())
+		s.writeMonthResponseError(w, http.StatusBadGateway, "Die KI-Planung wurde verworfen: "+err.Error(), answer)
+		return
+	}
+	var formatted bytes.Buffer
+	if err := json.Indent(&formatted, []byte(answer), "", "  "); err != nil {
+		s.logger.Error("month ai response formatting failed", "error", err)
+		s.writeMonthResponseError(w, http.StatusBadGateway, "Die KI-Antwort konnte nicht aufbereitet werden.", answer)
 		return
 	}
 	_, current, err := s.monthSource(s.store.Snapshot(), month, time.Now().UTC())
 	if err != nil || current != revision {
-		writeJSONError(w, http.StatusConflict, errMonthPreviewStale.Error())
+		s.writeMonthResponseError(w, http.StatusConflict, errMonthPreviewStale.Error(), formatted.String())
 		return
 	}
 	token := rand.Text()
@@ -233,6 +241,7 @@ func (s *Server) handleMonthGenerate(w http.ResponseWriter, r *http.Request) {
 	s.monthAI.previews[token] = monthAIPreview{
 		Context: context, Plan: proposal, Revision: revision, Prompt: prompt, SystemPrompt: systemPrompt,
 		Deployment: cfg.Deployment, Created: time.Now().UTC(),
+		ModelResponse: formatted.String(),
 	}
 	s.monthAI.mu.Unlock()
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -240,6 +249,14 @@ func (s *Server) handleMonthGenerate(w http.ResponseWriter, r *http.Request) {
 		"previewURL": "/month?month=" + url.QueryEscape(in.Month) + "&preview=" + url.QueryEscape(token),
 	}); err != nil {
 		s.logger.Error("month preview response failed", "error", err)
+	}
+}
+
+func (s *Server) writeMonthResponseError(w http.ResponseWriter, status int, message, answer string) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(map[string]string{"error": message, "modelResponse": answer}); err != nil {
+		s.logger.Error("month rejected response encoding failed", "error", err)
 	}
 }
 

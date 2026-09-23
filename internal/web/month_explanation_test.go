@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -86,9 +87,10 @@ func TestMonthPreviewRendersExplanationMarkdown(t *testing.T) {
 	rec := httptest.NewRecorder()
 	f.server.Handler().ServeHTTP(rec, httptest.NewRequest("GET", location, nil))
 	body := rec.Body.String()
-	if rec.Code != http.StatusOK || !strings.Contains(body, `<div class="month-explanation"><p>Vorschau.</p>`) ||
-		!strings.Contains(body, "<li><strong>Projekt Pattern</strong>: Vier Blöcke mit je zwei Stunden.</li>") ||
-		strings.Contains(body, "**Projekt Pattern**") {
-		t.Fatalf("preview explanation was not rendered as Markdown: %d %s", rec.Code, body)
+	overview := regexp.MustCompile(`(?s)<div class="month-explanation">(.*?)</div>`).FindStringSubmatch(body)
+	if rec.Code != http.StatusOK || len(overview) != 2 || !strings.Contains(overview[1], "<p>Vorschau.</p>") ||
+		!strings.Contains(overview[1], "<li><strong>Projekt Pattern</strong>: Vier Blöcke mit je zwei Stunden.</li>") ||
+		strings.Contains(overview[1], "**Projekt Pattern**") {
+		t.Fatalf("preview explanation was not rendered as Markdown: %d %v", rec.Code, overview)
 	}
 }

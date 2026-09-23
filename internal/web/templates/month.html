@@ -27,6 +27,10 @@
     </label>
     <span class="save-status" data-save-status data-save-quiet hidden role="status"></span>
   </form>
+  <div id="month-response-field" class="form-stack month-response-field"{{if not .ModelResponse}} hidden{{end}}>
+    <label for="month-response" id="month-response-label">KI-Antwort dieser Vorschau (JSON zum Kopieren)</label>
+    <textarea id="month-response" class="prompt month-response" rows="1" readonly spellcheck="false">{{.ModelResponse}}</textarea>
+  </div>
   <details open>
     <summary>Zusätzliche Darstellungsvorgabe für die Planungsübersicht</summary>
     <p class="hint">Diese Vorgabe wird bei jeder Anfrage an den Systemprompt angehängt, ohne deine gespeicherten Prompts zu verändern:</p>
@@ -41,7 +45,16 @@
 <section class="card month-preview">
   <h2>Planungsübersicht</h2>
   {{if .Explanation}}<div class="month-explanation">{{monthExplanation .Explanation}}</div>{{end}}
-  {{if not .CanSave}}<p class="msg error">Die Wochenstunden sind nicht vollständig verteilbar. Passe den Wochen-Forecast oder die Projektzeiträume an und regeneriere die Planung. Es werden keine Stunden verworfen.</p>{{end}}
+  {{if not .CanSave}}
+  <div class="msg error month-unallocated" role="alert">
+    <p>Die KI hat nicht alle Wochenstunden zugeordnet. Speichern ist deshalb gesperrt; es werden keine Stunden verworfen. Gründe laut KI:</p>
+    <ul>
+      {{range .Plan.Weeks}}{{$week := .}}{{range .Pending}}
+      <li><strong>{{.Name}} · FYW{{$week.FYWeek}} · {{hours .Hours}} h:</strong> <span class="month-unallocated-reason">{{.Basis}}</span></li>
+      {{end}}{{end}}
+    </ul>
+  </div>
+  {{end}}
   <form method="post" action="/month/save" id="month-save" class="form-row">
     <input type="hidden" name="preview" value="{{.Preview}}">
     <button type="submit" class="btn primary"{{if not .CanSave}} disabled{{end}}>Forecast speichern</button>
@@ -99,7 +112,7 @@
       {{if gt .Unallocated 0.0}}
       <div class="month-warning"><strong>{{hours .Unallocated}} h nicht verteilbar</strong>
         {{range .Pending}}<div title="{{.Basis}}">{{.Name}}: {{hours .Hours}} h</div>{{end}}
-        <small>Freie Tage bzw. Projektzeitraum reichen nicht aus. Diese Stunden bleiben Bestandteil des Wochen-Forecasts.</small>
+        <small>{{if $.Preview}}Die KI hat diese Stunden nicht zugeordnet. Gründe stehen in der Planungsübersicht.{{else}}Freie Tage bzw. Projektzeitraum reichen nicht aus.{{end}} Diese Stunden bleiben Bestandteil des Wochen-Forecasts.</small>
       </div>
       {{end}}
     </th>
@@ -114,12 +127,14 @@
   var generate = document.getElementById('month-generate');
   var prompt = document.getElementById('month-prompt');
   var systemPrompt = document.getElementById('month-system-prompt');
+  var modelResponse = document.getElementById('month-response');
+  var responseField = document.getElementById('month-response-field');
   var save = document.getElementById('month-save');
   var status = document.getElementById('month-ai-status');
   var planningError = document.getElementById('month-planning-error');
   var busy = false;
   function resizePrompts() {
-    [prompt, systemPrompt].forEach(function (field) {
+    [prompt, systemPrompt, modelResponse].forEach(function (field) {
       if (!field.offsetWidth) return;
       field.style.height = 'auto';
       field.style.height = (field.scrollHeight + field.offsetHeight - field.clientHeight) + 'px';
@@ -144,7 +159,16 @@
       var result;
       try { result = await response.json(); }
       catch (_) { throw new Error('Die Serverantwort konnte nicht gelesen werden. Bitte erneut versuchen.'); }
-      if (!response.ok) throw new Error(result.error || 'Die Planung konnte nicht verarbeitet werden.');
+      if (!response.ok) {
+        if (typeof result.modelResponse === 'string') {
+          modelResponse.value = result.modelResponse;
+          document.getElementById('month-response-label').textContent = 'KI-Antwort der fehlgeschlagenen Anfrage (zum Kopieren)';
+          responseField.hidden = false;
+          document.querySelector('.month-method').open = true;
+          resizePrompts();
+        }
+        throw new Error(result.error || 'Die Planung konnte nicht verarbeitet werden.');
+      }
       return result;
     } finally {
       endActivity();

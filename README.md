@@ -132,6 +132,12 @@ only renders the docs and the demo snapshot.
   The prompt section starts collapsed; its nested details are already expanded
   so one click reveals all contents. Both textareas grow
   and shrink with their content, including after editing, resizing or reopening.
+  An additional read-only, content-sized text field shows the model's complete
+  planning response, indented as JSON for copying and diagnosis. It is outside
+  the prompt form and never becomes configuration or stored application data.
+  Valid responses live with their temporary preview; rejected responses are
+  shown on the current page with the error (unparseable output stays verbatim).
+  Private mode and expired previews never expose the response.
   History also includes occasional projects without forecast hours; it supplies
   patterns only, never new planning totals. Only positive `editableHours` for the
   exact project/week permit new allocations.
@@ -152,13 +158,17 @@ only renders the docs and the demo snapshot.
   Results first appear as an **unsaved preview**.
   The explanation renders Markdown paragraphs, lists and emphasis.
   The **“Planungsübersicht”** requests only the chosen days/time spans and hours:
-  one short bullet per project with a bold project name, no historical rationale,
+  one bullet per project with a bold project name and two or three concise
+  sentences covering planned totals, dates and block sizes, no historical rationale,
   planning rules or general disclaimers. The presentation instruction is appended
   to every request, including when custom prompts are saved. This instruction
   is visible in the prompt details and does not modify those saved prompts.
   Existing previews retain their original text until regenerated. Preview expiry
   and save-scope notes are omitted from the card; expiry/freshness validation,
   actionable errors and the explicit save/discard controls remain unchanged.
+  For unallocated hours, the red warning lists the model's reason alongside the
+  project, fiscal week and hours. These are explicitly model-reported reasons,
+  not proof that capacity or project dates make allocation impossible.
   Raw HTML is disabled; links and images are rendered as text without loading
   external resources. Existing plain-text explanations remain readable.
   Only **“Forecast speichern”**

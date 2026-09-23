@@ -34,7 +34,12 @@ table.foundry-config td:last-child { overflow-wrap: anywhere; }
   .activity.busy .activity-spinner { animation: none; }
 }
 .form-stack.month-prompt-form { max-width: none; margin-top: 1rem; }
-.month-prompt-form .prompt { resize: none; overflow-y: hidden; }
+.month-method .prompt { resize: none; overflow-y: hidden; }
+.form-stack.month-response-field { max-width: none; margin-top: 1rem; }
+.month-response-field[hidden] { display: none; }
+.month-method .month-response { font-family: ui-monospace, monospace; }
+.month-unallocated li { margin: 0.4rem 0; overflow-wrap: anywhere; }
+.month-unallocated-reason { white-space: pre-line; }
 .month-explanation { overflow-wrap: anywhere; line-height: 1.6; }
 .month-explanation p, .month-explanation ul, .month-explanation ol { margin: 0.65rem 0; }
 .month-explanation ul, .month-explanation ol { padding-left: 1.5rem; }

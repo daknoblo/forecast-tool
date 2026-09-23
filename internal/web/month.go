@@ -51,6 +51,7 @@ func (s *Server) handleMonth(w http.ResponseWriter, r *http.Request) {
 			page["SystemPrompt"] = preview.SystemPrompt
 			page["CanSave"] = len(preview.Plan.Unallocated) == 0
 			page["Explanation"] = preview.Plan.Explanation
+			page["ModelResponse"] = preview.ModelResponse
 			page["Deployment"] = preview.Deployment
 		}
 	}

@@ -558,6 +558,14 @@ collects every requirement stated so far as the binding reference.
   Generation sends/persists both fields; an omitted system prompt keeps
   the saved value for older clients. The settings API supports partial updates
   for both. Never expose real custom prompts in private mode.
+  Show the complete model planning response in a read-only, content-sized
+  textarea under Prompts, outside the autosaved form and without a form name.
+  Preserve accepted response content with JSON indentation in the bounded
+  temporary preview, never in application data. Return rejected output with
+  the generation error for inspection on the current page (invalid JSON stays
+  verbatim); insert it with `.value`, never as HTML, and label it as failed.
+  Respect private mode and preview expiry; do not include credentials, transport
+  headers or unrelated configuration. Opening Prompts reveals the full output.
   The system prompt explicitly distinguishes historical-only projects from
   planning targets: only positive `weeks.projects.editableHours` for the exact
   project/week authorize allocations. Historical bookings never create forecast
@@ -566,10 +574,15 @@ collects every requirement stated so far as the binding reference.
   dependency: paragraphs, lists, emphasis and line breaks. Never enable raw HTML;
   links/images must render as text, without navigation or remote resource loads.
   Append `MonthPlanningExplanationFormat` to every system message (also custom
-  prompts), requesting only decisions: one short bullet per planned project with
-  a bold project name, chosen dates/time spans and hours. No historical reasoning,
+  prompts), requesting only decisions: one bullet per planned project with
+  a bold project name and two or three concise sentences covering planned totals,
+  chosen dates/time spans, block sizes and relevant differences between weeks.
+  No historical reasoning,
   rules, uncertainty discussion, workload statistics or general disclaimers.
-  Keep actionable unallocated reasons in `unallocated.reason`.
+  Keep actionable unallocated reasons in `unallocated.reason`, and show these
+  explicitly as model-reported reasons in the red warning with project, FY week
+  and hours. Do not assert that capacity or project dates caused the issue merely
+  because the model left hours unallocated; retain the local estimator's warning.
   Title the preview **Planungsübersicht**, without the history/expiry paragraph
   above or save-scope paragraph below the buttons; retain errors and explicit
   save/discard behavior, including all expiry/freshness checks.

@@ -82,6 +82,7 @@ func TestMonthGenerateConfiguredSystemPrompt(t *testing.T) {
 		"ausschließlich die getroffenen Planungsentscheidungen",
 		"genau einem Stichpunkt je geplantem Projekt",
 		"geplanten Tagen bzw. Zeiträumen",
+		"zwei bis drei kurzen, vollständigen Sätzen pro Projekt",
 		"Keine Erklärungen, historischen Muster",
 		"Vorrang vor anderen Aufforderungen",
 		"unallocated.reason",
