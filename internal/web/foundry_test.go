@@ -102,6 +102,7 @@ func TestSettingsFoundryPresentation(t *testing.T) {
 				t.Fatal("settings still contain automatic-save hints")
 			}
 			for _, removed := range []string{
+				"Befüllt",
 				"Microsoft Foundry · Entra-ID", "Die Anmeldung erfolgt per Client-Secret",
 				"Erforderlich sind Leserechte", "automatische Aktualisierung nach 5 Minuten",
 				`href="/goal#chat"`, `href="https://github.com/daknoblo/forecast-tool#chat-with-your-data"`,
@@ -119,9 +120,9 @@ func TestSettingsFoundryPresentation(t *testing.T) {
 				t.Fatal("settings exposed the secret")
 			}
 			if tc.enabled && !tc.private {
-				status := "<code>Nicht gesetzt</code>"
+				status := `<code class="secret-status">Nicht gesetzt</code>`
 				if tc.secretSet {
-					status = "<code>Befüllt</code>"
+					status = `<code class="secret-status ok">gesetzt</code>`
 				}
 				for _, want := range []string{
 					`class="kv tokens foundry-config"`,
@@ -181,20 +182,22 @@ func TestSettingsSecretPresenceFields(t *testing.T) {
 			for label, set := range map[string]bool{"Lese-Token": tc.read, "Schreib-Token": tc.write} {
 				_, rest, found := strings.Cut(body, "<td>"+label+"</td>")
 				row, _, _ := strings.Cut(rest, "</tr>")
-				status := "Nicht gesetzt"
+				status := `<code class="secret-status">Nicht gesetzt</code>`
 				if set {
-					status = "Befüllt"
+					status = `<code class="secret-status ok">gesetzt</code>`
 				}
-				if !found || !strings.Contains(row, "<code>"+status+"</code>") || strings.Contains(row, "FORECAST_API_") {
-					t.Errorf("%s must show only its presence in the grey field", label)
+				if !found || !strings.Contains(row, status) || strings.Contains(row, "FORECAST_API_") {
+					t.Errorf("%s must show only its presence with green styling when set", label)
 				}
 			}
-			keyStatus := "Nicht gesetzt"
+			keyStatus := `<code class="secret-status">Nicht gesetzt</code>`
 			if tc.key {
-				keyStatus = "Befüllt"
+				keyStatus = `<code class="secret-status ok">gesetzt</code>`
 			}
-			if !strings.Contains(body, `<code class="secret-status">`+keyStatus+"</code>") {
-				t.Fatal("manual API key must show only its presence in the grey field")
+			_, keyRest, keyFound := strings.Cut(body, "<label>API-Key")
+			keyField, _, _ := strings.Cut(keyRest, "</label>")
+			if !keyFound || !strings.Contains(keyField, keyStatus) {
+				t.Fatal("manual API key must show only its presence with green styling when set")
 			}
 		})
 	}

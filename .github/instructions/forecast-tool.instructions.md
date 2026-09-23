@@ -854,8 +854,8 @@ collects every requirement stated so far as the binding reference.
 - Settings show the discovered endpoint and supported chat deployment dropdown;
   discovered identity values use the same compact `kv tokens` table as API
   access (label, grey-backed value/status), not separate panels or an extra
-  environment-variable-name column. Secrets and API tokens show only "Befüllt"
-  or "Nicht gesetzt" inside the grey field.
+  environment-variable-name column. Secrets and API tokens show only "gesetzt"
+  in a green field when present, or "Nicht gesetzt" in a grey field when absent.
   Keep the card concise: no extra provider heading, setup prose, chat link or
   documentation link. Preserve errors, empty-state and private-mode hints.
   The client secret

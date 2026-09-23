@@ -133,7 +133,7 @@
     </tr>
     <tr>
       <td>Client-Secret</td>
-      <td><code>{{if .Foundry.SecretSet}}Befüllt{{else}}Nicht gesetzt{{end}}</code></td>
+      <td><code class="secret-status{{if .Foundry.SecretSet}} ok{{end}}">{{if .Foundry.SecretSet}}gesetzt{{else}}Nicht gesetzt{{end}}</code></td>
     </tr>
     <tr>
       <td>Erkannter Endpoint</td>
@@ -172,7 +172,7 @@
       <input type="text" name="aiApiVersion" value="{{.Settings.AI.APIVersion}}" placeholder="2024-10-21"{{if .Private}} disabled{{end}}>
     </label>
     <label>API-Key
-      <span><code class="secret-status">{{if .AIKeySet}}Befüllt{{else}}Nicht gesetzt{{end}}</code></span>
+      <span><code class="secret-status{{if .AIKeySet}} ok{{end}}">{{if .AIKeySet}}gesetzt{{else}}Nicht gesetzt{{end}}</code></span>
     </label>
     <p class="hint">API-Key über <code>{{.AIKeyEnv}}</code> setzen.{{if .AIKeyInStore}} Es liegt noch ein veralteter Key in der Datendatei – ändere ein Feld in dieser Karte (z. B. die API-Version neu eintragen und das Feld verlassen), um ihn zu entfernen, und rotiere den Schlüssel.{{end}}</p>
     <span class="save-status" data-save-status data-save-quiet hidden role="status"></span>
@@ -186,11 +186,11 @@
   <table class="kv tokens">
     <tr>
       <td>Lese-Token</td>
-      <td><code>{{if .APIReadSet}}Befüllt{{else}}Nicht gesetzt{{end}}</code></td>
+      <td><code class="secret-status{{if .APIReadSet}} ok{{end}}">{{if .APIReadSet}}gesetzt{{else}}Nicht gesetzt{{end}}</code></td>
     </tr>
     <tr>
       <td>Schreib-Token</td>
-      <td><code>{{if .APIWriteSet}}Befüllt{{else}}Nicht gesetzt{{end}}</code></td>
+      <td><code class="secret-status{{if .APIWriteSet}} ok{{end}}">{{if .APIWriteSet}}gesetzt{{else}}Nicht gesetzt{{end}}</code></td>
     </tr>
   </table>
   <p class="hint">Die Tokens werden <strong>nicht</strong> in der Datendatei gespeichert, sondern über Umgebungsvariablen bereitgestellt (z.&nbsp;B. als Docker-Secret bzw. <code>environment</code>-Eintrag in <code>docker-compose.yml</code>). Der Lese-Token erlaubt nur GET-Zugriffe, der Schreib-Token zusätzlich Änderungen. Ist keiner gesetzt, ist die API deaktiviert.</p>

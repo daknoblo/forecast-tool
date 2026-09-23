@@ -220,7 +220,7 @@ table.week.span .hcell { width: 100%; max-width: 70px; padding: 0.45rem 0.35rem;
 .msg.ok { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
 .badge { display: inline-block; border-radius: 8px; padding: 0.3rem 0.6rem; font-size: 0.9rem; border: 1px solid; white-space: nowrap; }
 .badge.error { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
-.badge.ok { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
+.badge.ok, .secret-status.ok, table.kv code.secret-status.ok { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
 
 .prompt {
   width: 100%;
