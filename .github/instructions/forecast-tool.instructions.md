@@ -853,9 +853,11 @@ collects every requirement stated so far as the binding reference.
   same-account pagination; bearer inference goes only to the verified v1 URL.
 - Settings show the discovered endpoint and supported chat deployment dropdown;
   discovered identity values use the same compact `kv tokens` table as API
-  access (label, environment variable, value/status), not separate panels.
-  Keep the card concise: no extra provider heading or setup prose; link to the
-  documentation instead. Preserve errors, empty-state and private-mode hints.
+  access (label, grey-backed value/status), not separate panels or an extra
+  environment-variable-name column. Secrets and API tokens show only "Befüllt"
+  or "Nicht gesetzt" inside the grey field.
+  Keep the card concise: no extra provider heading, setup prose, chat link or
+  documentation link. Preserve errors, empty-state and private-mode hints.
   The client secret
   is represented only by a set/unset boolean, never by its value or length.
   Deployment selection and the refresh button share a wrapping row.

@@ -72,8 +72,8 @@ func TestSettingsFoundryPresentation(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv("AZURE_RESOURCE_ID", "test-resource")
-			t.Setenv("AZURE_TENANT_ID", "")
-			t.Setenv("AZURE_CLIENT_ID", "")
+			t.Setenv("AZURE_TENANT_ID", "test-tenant")
+			t.Setenv("AZURE_CLIENT_ID", "test-client")
 			secret := ""
 			if tc.secretSet {
 				secret = "secret-must-never-appear-in-html"
@@ -101,7 +101,13 @@ func TestSettingsFoundryPresentation(t *testing.T) {
 			if strings.Contains(strings.ToLower(body), "automatisch gespeichert") {
 				t.Fatal("settings still contain automatic-save hints")
 			}
-			for _, removed := range []string{"Microsoft Foundry · Entra-ID", "Die Anmeldung erfolgt per Client-Secret", "Erforderlich sind Leserechte", "automatische Aktualisierung nach 5 Minuten"} {
+			for _, removed := range []string{
+				"Microsoft Foundry · Entra-ID", "Die Anmeldung erfolgt per Client-Secret",
+				"Erforderlich sind Leserechte", "automatische Aktualisierung nach 5 Minuten",
+				`href="/goal#chat"`, `href="https://github.com/daknoblo/forecast-tool#chat-with-your-data"`,
+				"<code>AZURE_RESOURCE_ID</code>", "<code>AZURE_TENANT_ID</code>",
+				"<code>AZURE_CLIENT_ID</code>", "<code>AZURE_CLIENT_SECRET</code>",
+			} {
 				if strings.Contains(body, removed) {
 					t.Errorf("settings still contain redundant text: %s", removed)
 				}
@@ -113,26 +119,82 @@ func TestSettingsFoundryPresentation(t *testing.T) {
 				t.Fatal("settings exposed the secret")
 			}
 			if tc.enabled && !tc.private {
-				status := `<span class="badge error">Nicht gesetzt</span>`
+				status := "<code>Nicht gesetzt</code>"
 				if tc.secretSet {
-					status = `<span class="badge ok">Befüllt</span>`
+					status = "<code>Befüllt</code>"
 				}
 				for _, want := range []string{
 					`class="kv tokens foundry-config"`,
 					"<td>Azure-Ressource</td>", "<td>Tenant-ID</td>", "<td>Client-ID</td>",
 					"<td>Erkannter Endpoint</td>", "<td>Client-Secret</td>", "<td>" + status + "</td>",
-					"<code>AZURE_RESOURCE_ID</code>", "<code>AZURE_TENANT_ID</code>",
-					"<code>AZURE_CLIENT_ID</code>", "<code>AZURE_CLIENT_SECRET</code>",
+					"<code>test-resource</code>", "<code>test-tenant</code>", "<code>test-client</code>",
 					`class="form-row foundry-controls"`, `form="foundry-refresh"`,
 					`action="/settings/ai/refresh" id="foundry-refresh"`,
 				} {
 					if !strings.Contains(body, want) {
 						t.Errorf("settings missing %s", want)
 					}
+					endpoint := mock.snapshot.Endpoint
+					if tc.discoveryError {
+						endpoint = "Nicht verfügbar"
+					}
+					if !strings.Contains(body, "<code>"+endpoint+"</code>") {
+						t.Fatal("endpoint is not shown in the value field")
+					}
 				}
 			}
 			if tc.private && (strings.Contains(body, "<td>Client-Secret</td>") || srv.foundrySettings(req, "").SecretSet) {
 				t.Fatal("private mode exposed secret presence")
+			}
+		})
+	}
+}
+
+func TestSettingsSecretPresenceFields(t *testing.T) {
+	srv, _, _ := foundryTestServer(t)
+	srv.foundry = newFoundryState()
+	for _, tc := range []struct {
+		name             string
+		read, write, key bool
+	}{
+		{name: "empty"},
+		{name: "all set", read: true, write: true, key: true},
+		{name: "read only", read: true},
+		{name: "write only", write: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for name, set := range map[string]bool{
+				"FORECAST_API_READ_TOKEN": tc.read, "FORECAST_API_WRITE_TOKEN": tc.write, aiAPIKeyEnv: tc.key,
+			} {
+				value := ""
+				if set {
+					value = name + "-secret-must-stay-hidden"
+				}
+				t.Setenv(name, value)
+			}
+			rec := httptest.NewRecorder()
+			srv.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/settings", nil))
+			body := rec.Body.String()
+			if rec.Code != http.StatusOK || strings.Contains(body, "-secret-must-stay-hidden") {
+				t.Fatal("settings failed to render or exposed a secret")
+			}
+			for label, set := range map[string]bool{"Lese-Token": tc.read, "Schreib-Token": tc.write} {
+				_, rest, found := strings.Cut(body, "<td>"+label+"</td>")
+				row, _, _ := strings.Cut(rest, "</tr>")
+				status := "Nicht gesetzt"
+				if set {
+					status = "Befüllt"
+				}
+				if !found || !strings.Contains(row, "<code>"+status+"</code>") || strings.Contains(row, "FORECAST_API_") {
+					t.Errorf("%s must show only its presence in the grey field", label)
+				}
+			}
+			keyStatus := "Nicht gesetzt"
+			if tc.key {
+				keyStatus = "Befüllt"
+			}
+			if !strings.Contains(body, `<code class="secret-status">`+keyStatus+"</code>") {
+				t.Fatal("manual API key must show only its presence in the grey field")
 			}
 		})
 	}

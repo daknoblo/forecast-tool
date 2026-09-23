@@ -121,27 +121,23 @@
   <table class="kv tokens foundry-config">
     <tr>
       <td>Azure-Ressource</td>
-      <td><code>AZURE_RESOURCE_ID</code></td>
-      <td>{{if .Foundry.ResourceID}}{{.Foundry.ResourceID}}{{else}}Nicht gesetzt{{end}}</td>
+      <td><code>{{if .Foundry.ResourceID}}{{.Foundry.ResourceID}}{{else}}Nicht gesetzt{{end}}</code></td>
     </tr>
     <tr>
       <td>Tenant-ID</td>
-      <td><code>AZURE_TENANT_ID</code></td>
-      <td>{{if .Foundry.TenantID}}{{.Foundry.TenantID}}{{else}}Nicht gesetzt{{end}}</td>
+      <td><code>{{if .Foundry.TenantID}}{{.Foundry.TenantID}}{{else}}Nicht gesetzt{{end}}</code></td>
     </tr>
     <tr>
       <td>Client-ID</td>
-      <td><code>AZURE_CLIENT_ID</code></td>
-      <td>{{if .Foundry.ClientID}}{{.Foundry.ClientID}}{{else}}Nicht gesetzt{{end}}</td>
+      <td><code>{{if .Foundry.ClientID}}{{.Foundry.ClientID}}{{else}}Nicht gesetzt{{end}}</code></td>
     </tr>
     <tr>
       <td>Client-Secret</td>
-      <td><code>AZURE_CLIENT_SECRET</code></td>
-      <td>{{if .Foundry.SecretSet}}<span class="badge ok">Befüllt</span>{{else}}<span class="badge error">Nicht gesetzt</span>{{end}}</td>
+      <td><code>{{if .Foundry.SecretSet}}Befüllt{{else}}Nicht gesetzt{{end}}</code></td>
     </tr>
     <tr>
       <td>Erkannter Endpoint</td>
-      <td colspan="2">{{if .Foundry.Endpoint}}{{.Foundry.Endpoint}}{{else}}Nicht verfügbar{{end}}</td>
+      <td><code>{{if .Foundry.Endpoint}}{{.Foundry.Endpoint}}{{else}}Nicht verfügbar{{end}}</code></td>
     </tr>
   </table>
   {{if .Foundry.Error}}<p class="save-status error" role="alert">{{.Foundry.Error}}</p>{{end}}
@@ -176,14 +172,12 @@
       <input type="text" name="aiApiVersion" value="{{.Settings.AI.APIVersion}}" placeholder="2024-10-21"{{if .Private}} disabled{{end}}>
     </label>
     <label>API-Key
-      {{if .AIKeySet}}<span class="badge ok">aus Umgebungsvariable <code>{{.AIKeyEnv}}</code> geladen</span>
-      {{else}}<span class="badge error">nicht gesetzt</span>{{end}}
+      <span><code class="secret-status">{{if .AIKeySet}}Befüllt{{else}}Nicht gesetzt{{end}}</code></span>
     </label>
     <p class="hint">API-Key über <code>{{.AIKeyEnv}}</code> setzen.{{if .AIKeyInStore}} Es liegt noch ein veralteter Key in der Datendatei – ändere ein Feld in dieser Karte (z. B. die API-Version neu eintragen und das Feld verlassen), um ihn zu entfernen, und rotiere den Schlüssel.{{end}}</p>
     <span class="save-status" data-save-status data-save-quiet hidden role="status"></span>
   </form>
   {{end}}
-  <p class="hint"><a href="/goal#chat">Chat öffnen</a> · <a href="https://github.com/daknoblo/forecast-tool#chat-with-your-data">Dokumentation</a></p>
 </section>
 
 <section class="card">
@@ -192,13 +186,11 @@
   <table class="kv tokens">
     <tr>
       <td>Lese-Token</td>
-      <td><code>{{.APIReadEnv}}</code></td>
-      <td>{{if .APIReadSet}}<span class="badge ok">gesetzt</span>{{else}}<span class="badge error">nicht gesetzt</span>{{end}}</td>
+      <td><code>{{if .APIReadSet}}Befüllt{{else}}Nicht gesetzt{{end}}</code></td>
     </tr>
     <tr>
       <td>Schreib-Token</td>
-      <td><code>{{.APIWriteEnv}}</code></td>
-      <td>{{if .APIWriteSet}}<span class="badge ok">gesetzt</span>{{else}}<span class="badge error">nicht gesetzt</span>{{end}}</td>
+      <td><code>{{if .APIWriteSet}}Befüllt{{else}}Nicht gesetzt{{end}}</code></td>
     </tr>
   </table>
   <p class="hint">Die Tokens werden <strong>nicht</strong> in der Datendatei gespeichert, sondern über Umgebungsvariablen bereitgestellt (z.&nbsp;B. als Docker-Secret bzw. <code>environment</code>-Eintrag in <code>docker-compose.yml</code>). Der Lese-Token erlaubt nur GET-Zugriffe, der Schreib-Token zusätzlich Änderungen. Ist keiner gesetzt, ist die API deaktiviert.</p>

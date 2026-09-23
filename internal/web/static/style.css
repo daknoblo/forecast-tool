@@ -150,8 +150,9 @@ table.grid.compact th, table.grid.compact td { padding: 0.35rem 0.75rem; }
 table.kv { border-collapse: collapse; }
 table.kv td { padding: 0.3rem 0.75rem 0.3rem 0; vertical-align: top; }
 table.kv td:first-child { color: var(--muted); white-space: nowrap; }
-table.kv code { background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 0.1rem 0.35rem; font-size: 0.85rem; }
-/* token rows: label, env var and status each in their own aligned column */
+table.kv code, .secret-status { background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 0.1rem 0.35rem; font-size: 0.85rem; }
+table.tokens code { display: inline-block; max-width: 100%; overflow-wrap: anywhere; }
+/* Configuration rows pair labels with values or secret-presence status. */
 table.tokens td { vertical-align: middle; padding-top: 0.25rem; padding-bottom: 0.25rem; }
 
 table.week th.day, table.week td.day { text-align: center; min-width: 76px; }
