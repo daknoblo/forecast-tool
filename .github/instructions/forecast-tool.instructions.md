@@ -852,10 +852,16 @@ collects every requirement stated so far as the binding reference.
   the Azure identity SDK, verified ARM account/deployment discovery and bounded,
   same-account pagination; bearer inference goes only to the verified v1 URL.
 - Settings show the discovered endpoint and supported chat deployment dropdown;
+  discovered identity values have labelled read-only panels. The client secret
+  is represented only by a set/unset boolean, never by its value or length.
+  Deployment selection and the refresh button share a wrapping row.
   `POST /settings/ai/refresh` refreshes the five-minute runtime catalog cache.
   Private mode blocks discovery and refresh. Only the deployment selection is
   persisted, using the existing field. Manual endpoint configuration is retained
   but ignored in identity mode. Discovery failures discard the cached catalog.
+- Settings forms keep auto-save but hide idle and successful save hints.
+  In-progress and failed saves remain visible through the shared auto-save
+  status handler; other pages retain their existing status pills.
 - The inference client supports classic Azure URLs and explicit `/openai/v1`
   bases (model in JSON, no dated API version). Foundry reasoning behavior follows
   canonical model metadata, not deployment aliases. Do not reflect upstream
@@ -993,6 +999,11 @@ collects every requirement stated so far as the binding reference.
 
 ## Working conventions (for the agent)
 
+- After completing and validating requested changes, automatically commit them
+  and publish the next patch release unless the user explicitly says otherwise.
+  Push the commit and an annotated version tag through the existing release
+  workflow, then verify CI and publication before reporting the release ready.
+  Include only changes belonging to the task; preserve unrelated work.
 - Before committing: `gofmt`, `go vet ./...`, `go build ./...` and
   `go test ./...` must be green.
 - Then run a local smoke test (server with a temporary `FORECAST_DATA_DIR`) and

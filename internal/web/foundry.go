@@ -27,6 +27,7 @@ type foundrySource interface {
 
 type foundryState struct {
 	enabled                        bool
+	secretSet                      bool
 	resourceID, tenantID, clientID string
 	setupErr                       error
 	source                         foundrySource
@@ -43,6 +44,7 @@ func newFoundryState() *foundryState {
 	}
 	state := &foundryState{
 		enabled:    identity.ResourceID != "" || identity.TenantID != "" || identity.ClientID != "" || identity.ClientSecret != "",
+		secretSet:  identity.ClientSecret != "",
 		resourceID: identity.ResourceID, tenantID: identity.TenantID, clientID: identity.ClientID,
 		gate: make(chan struct{}, 1),
 	}
@@ -81,7 +83,7 @@ func (f *foundryState) catalog(ctx context.Context, force bool) (foundry.Snapsho
 }
 
 type foundryView struct {
-	Enabled, SelectedPresent                 bool
+	Enabled, SelectedPresent, SecretSet      bool
 	ResourceID, TenantID, ClientID, Endpoint string
 	Error, RefreshedAt                       string
 	Deployments                              []foundry.Deployment
@@ -96,6 +98,7 @@ func (s *Server) foundrySettings(r *http.Request, selected string) foundryView {
 		return view
 	}
 	view.ResourceID, view.TenantID, view.ClientID = s.foundry.resourceID, s.foundry.tenantID, s.foundry.clientID
+	view.SecretSet = s.foundry.secretSet
 	catalog, err := s.foundry.catalog(r.Context(), false)
 	if err != nil {
 		s.logger.Warn("foundry discovery failed", "error", err)

@@ -57,6 +57,79 @@ func foundryTestServer(t *testing.T) (*Server, *storage.Store, *mockFoundry) {
 	return srv, store, mock
 }
 
+func TestSettingsFoundryPresentation(t *testing.T) {
+	srv, _, mock := foundryTestServer(t)
+	for _, tc := range []struct {
+		name                        string
+		enabled, secretSet, private bool
+		discoveryError              bool
+	}{
+		{name: "manual"},
+		{name: "foundry set", enabled: true, secretSet: true},
+		{name: "foundry unset", enabled: true},
+		{name: "foundry error", enabled: true, secretSet: true, discoveryError: true},
+		{name: "private", enabled: true, secretSet: true, private: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("AZURE_RESOURCE_ID", "test-resource")
+			t.Setenv("AZURE_TENANT_ID", "")
+			t.Setenv("AZURE_CLIENT_ID", "")
+			secret := ""
+			if tc.secretSet {
+				secret = "secret-must-never-appear-in-html"
+			}
+			t.Setenv("AZURE_CLIENT_SECRET", secret)
+			srv.foundry = newFoundryState()
+			if srv.foundry.secretSet != tc.secretSet {
+				t.Fatal("secret presence does not match the environment")
+			}
+			srv.foundry.enabled = tc.enabled
+			if !tc.discoveryError {
+				srv.foundry.setupErr = nil
+				srv.foundry.source = mock
+			}
+			req := httptest.NewRequest("GET", "/settings", nil)
+			if tc.private {
+				req.AddCookie(&http.Cookie{Name: privateCookie, Value: "1"})
+			}
+			rec := httptest.NewRecorder()
+			srv.Handler().ServeHTTP(rec, req)
+			body := rec.Body.String()
+			if rec.Code != http.StatusOK {
+				t.Fatalf("settings status = %d", rec.Code)
+			}
+			if strings.Contains(strings.ToLower(body), "automatisch gespeichert") {
+				t.Fatal("settings still contain automatic-save hints")
+			}
+			if strings.Count(body, "data-save-quiet hidden") != strings.Count(body, "data-autosave>") {
+				t.Fatal("settings forms must retain hidden auto-save feedback")
+			}
+			if secret != "" && strings.Contains(body, secret) {
+				t.Fatal("settings exposed the secret")
+			}
+			if tc.enabled && !tc.private {
+				status := `<span class="badge error">Nicht gesetzt</span>`
+				if tc.secretSet {
+					status = `<span class="badge ok">Befüllt</span>`
+				}
+				for _, want := range []string{
+					"<dt>Azure-Ressource</dt>", "<dt>Tenant-ID</dt>", "<dt>Client-ID</dt>",
+					"<dt>Erkannter Endpoint</dt>", "<dt>Client-Secret</dt><dd>" + status,
+					`class="form-row foundry-controls"`, `form="foundry-refresh"`,
+					`action="/settings/ai/refresh" id="foundry-refresh"`,
+				} {
+					if !strings.Contains(body, want) {
+						t.Errorf("settings missing %s", want)
+					}
+				}
+			}
+			if tc.private && (strings.Contains(body, "<dt>Client-Secret</dt>") || srv.foundrySettings(req, "").SecretSet) {
+				t.Fatal("private mode exposed secret presence")
+			}
+		})
+	}
+}
+
 func TestFoundrySettingsAndSelection(t *testing.T) {
 	srv, store, mock := foundryTestServer(t)
 	if err := store.Mutate(func(d *models.Data) error {

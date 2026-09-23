@@ -70,7 +70,8 @@
 
     function setStatus(state, msg) {
       if (!statusEl) return;
-      statusEl.textContent = msg;
+      statusEl.hidden = statusEl.hasAttribute('data-save-quiet') && state === 'ok';
+      statusEl.textContent = statusEl.hidden ? '' : msg;
       statusEl.className = 'save-status ' + state;
     }
 
