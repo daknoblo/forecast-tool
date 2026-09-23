@@ -38,9 +38,9 @@ func TestMonthSystemPromptConfiguration(t *testing.T) {
 		if rec.Code != http.StatusOK || !strings.Contains(body, `name="systemPrompt"`) {
 			t.Fatal("missing editable system prompt")
 		}
-		for _, want := range []string{`<details class="card month-method" open>`, "<summary>Prompts</summary>", "<details open>", `class="prompt" rows="1"`} {
+		for _, want := range []string{`<details class="card month-method">`, "<summary>Prompts</summary>", "<details open>", `class="prompt" rows="1"`} {
 			if !strings.Contains(body, want) {
-				t.Fatalf("prompt area must start expanded with content-sized fields: %s", want)
+				t.Fatalf("prompt area must start collapsed with expanded contents and content-sized fields: %s", want)
 			}
 		}
 		if strings.Contains(body, html.EscapeString(system)) == private {

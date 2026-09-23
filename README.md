@@ -129,7 +129,8 @@ only renders the docs and the demo snapshot.
   saved in the existing data document as `settings.monthPlanningPrompt` and
   `settings.monthPlanningSystemPrompt` (8,000 characters each; empty uses the
   respective built-in default). Changes apply to new previews, not saved entries.
-  The prompt section and its nested details start expanded. Both textareas grow
+  The prompt section starts collapsed; its nested details are already expanded
+  so one click reveals all contents. Both textareas grow
   and shrink with their content, including after editing, resizing or reopening.
   History also includes occasional projects without forecast hours; it supplies
   patterns only, never new planning totals. Only positive `editableHours` for the

@@ -14,7 +14,7 @@
   {{if .PlanningError}}<p id="month-planning-error" class="msg error" role="alert">{{.PlanningError}}</p>{{end}}
 </section>
 
-<details class="card month-method" open>
+<details class="card month-method">
   <summary>Prompts</summary>
   {{if .Private}}<p class="hint">KI-Planung und Speichern sind im privaten Modus gesperrt.</p>
   {{else if not .AIReady}}<p class="hint">Für die KI-Planung zuerst einen <a href="/settings#ai">KI-Endpoint und ein Deployment auswählen</a>.</p>{{end}}

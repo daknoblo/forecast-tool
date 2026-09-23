@@ -552,7 +552,8 @@ collects every requirement stated so far as the binding reference.
   `Settings.MonthPlanningPrompt` and `Settings.MonthPlanningSystemPrompt`
   (each max 8,000 runes, blank = respective default) are saved together through
   `/month/prompt` in the existing data document and editable under **Prompts**.
-  This section and nested details start expanded; both textareas fit their full
+  This section starts collapsed, with nested details already expanded so one
+  click reveals all contents. Both textareas fit their full
   content on load, input, viewport resize and reopening, shrinking as well as growing.
   Generation sends/persists both fields; an omitted system prompt keeps
   the saved value for older clients. The settings API supports partial updates
