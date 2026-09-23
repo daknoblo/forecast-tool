@@ -25,13 +25,13 @@ table.foundry-config td:last-child { overflow-wrap: anywhere; }
 .month-heading h1 { margin-bottom: 0.35rem; }
 .month-title-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
 .month-title-row button { flex-shrink: 0; }
-.month-generate-controls { display: flex; align-items: center; gap: 0.6rem; }
-.month-loading:not([hidden]) { display: inline-flex; align-items: center; }
-.month-spinner { width: 1.1rem; height: 1.1rem; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: month-spin 0.8s linear infinite; }
-.month-loading-text { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-@keyframes month-spin { to { transform: rotate(360deg); } }
+.activity { display: inline-flex; align-items: center; flex-shrink: 0; }
+.activity-spinner { width: 1.1rem; height: 1.1rem; border: 2px solid var(--line); border-top-color: var(--muted); border-radius: 50%; }
+.activity.busy .activity-spinner { border-top-color: var(--accent); animation: activity-spin 0.8s linear infinite; }
+.activity-text { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@keyframes activity-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
-  .month-spinner { animation: none; }
+  .activity.busy .activity-spinner { animation: none; }
 }
 .form-stack.month-prompt-form { max-width: none; margin-top: 1rem; }
 .month-system-prompt, .month-explanation { white-space: pre-wrap; overflow-wrap: anywhere; }

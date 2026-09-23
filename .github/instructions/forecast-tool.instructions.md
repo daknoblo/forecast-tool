@@ -527,10 +527,17 @@ collects every requirement stated so far as the binding reference.
   `Settings.MonthPlanningPrompt` (max 8,000 runes, blank = default) is separately
   saved through `/month/prompt`; display it under the estimation details, with
   noneditable system rules available for inspection.
-- While regenerating, show an accessible loading spinner beside the button
-  instead of a loading banner; respect reduced-motion preferences. Hide stale
-  preview errors on retry, stop the spinner on completion/failure, and keep
-  request errors visible. Disable duplicate generation while pending.
+- Use the shared activity indicator in the header before "Privat", not a local
+  loading spinner/banner. Keep it visible and static when idle; animate only
+  during requests/navigation, respecting reduced-motion preferences.
+  `beginActivity()` returns an idempotent completion callback; pair calls with
+  `finally` and track concurrent operations independently. Connect monthly
+  generation/saving, all autosaves, weekly cell writes and goal chat; native
+  same-tab forms/navigation are tracked centrally, excluding canceled actions,
+  hash-only links, exports and new tabs. FY changes use `requestSubmit()`.
+  Reset navigation state on `pageshow` for browser back/forward restoration.
+  Hide stale preview errors on retry and keep request errors visible. Disable
+  duplicate generation while pending.
 - Parse and validate AI JSON strictly: known IDs, unique positive finite entries,
   allowed days/windows (including no full-day vacation), and exact
   editable totals per project/ISO week. Preserve inactive projects' existing

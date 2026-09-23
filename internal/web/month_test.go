@@ -74,9 +74,7 @@ func TestMonthLoadingIndicator(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, required := range []string{
-		`id="month-loading" class="month-loading" role="status" hidden`,
-		`class="month-spinner" aria-hidden="true"`,
-		"loading.hidden = false;", "loading.hidden = true;",
+		"var endActivity = window.beginActivity();", "endActivity();",
 		"generate.setAttribute('aria-busy', 'true');", "generate.removeAttribute('aria-busy');",
 		"if (planningError) planningError.hidden = true;",
 	} {
@@ -84,8 +82,8 @@ func TestMonthLoadingIndicator(t *testing.T) {
 			t.Fatalf("missing loading lifecycle: %s", required)
 		}
 	}
-	if strings.Contains(string(b), "show('KI plant den Monat.") {
-		t.Fatal("generation still displays a loading banner")
+	if strings.Contains(string(b), "show('KI plant den Monat.") || strings.Contains(string(b), "month-loading") {
+		t.Fatal("generation still displays a local loading indicator")
 	}
 }
 

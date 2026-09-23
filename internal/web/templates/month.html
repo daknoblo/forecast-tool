@@ -5,13 +5,7 @@
       <h1>Monatsplanung</h1>
       <p class="muted">Projektstunden als Tagesblöcke · Feiertage in {{.Settings.FederalState}} · Urlaub auf einen Blick</p>
     </div>
-    <div class="month-generate-controls">
-      <button type="button" class="btn primary" id="month-generate" data-month="{{.Plan.Month}}"{{if not .CanGenerate}} disabled{{end}}>Planung mit KI regenerieren</button>
-      <span id="month-loading" class="month-loading" role="status" hidden title="KI plant den Monat. Das kann bis zu zwei Minuten dauern.">
-        <span class="month-spinner" aria-hidden="true"></span>
-        <span class="month-loading-text">KI plant den Monat. Bestehende Buchungen bleiben unverändert.</span>
-      </span>
-    </div>
+    <button type="button" class="btn primary" id="month-generate" data-month="{{.Plan.Month}}"{{if not .CanGenerate}} disabled{{end}}>Planung mit KI regenerieren</button>
   </div>
   <div class="month-nav" aria-label="Monat wählen">
     {{if .Plan.Prev}}<a class="btn" href="/month?month={{.Plan.Prev}}" aria-label="Vorheriger Monat">‹</a>{{end}}
@@ -121,7 +115,6 @@
   var prompt = document.getElementById('month-prompt');
   var save = document.getElementById('month-save');
   var status = document.getElementById('month-ai-status');
-  var loading = document.getElementById('month-loading');
   var planningError = document.getElementById('month-planning-error');
   var busy = false;
   function show(message, error) {
@@ -130,13 +123,18 @@
     status.textContent = message;
   }
   async function send(path, options) {
-    var response = await fetch(path, options);
-    if (response.status === 204) return {};
-    var result;
-    try { result = await response.json(); }
-    catch (_) { throw new Error('Die Serverantwort konnte nicht gelesen werden. Bitte erneut versuchen.'); }
-    if (!response.ok) throw new Error(result.error || 'Die Planung konnte nicht verarbeitet werden.');
-    return result;
+    var endActivity = window.beginActivity();
+    try {
+      var response = await fetch(path, options);
+      if (response.status === 204) return {};
+      var result;
+      try { result = await response.json(); }
+      catch (_) { throw new Error('Die Serverantwort konnte nicht gelesen werden. Bitte erneut versuchen.'); }
+      if (!response.ok) throw new Error(result.error || 'Die Planung konnte nicht verarbeitet werden.');
+      return result;
+    } finally {
+      endActivity();
+    }
   }
   generate.addEventListener('click', async function () {
     if (busy || generate.disabled) return;
@@ -149,7 +147,6 @@
     status.hidden = true;
     status.textContent = '';
     if (planningError) planningError.hidden = true;
-    loading.hidden = false;
     generate.setAttribute('aria-busy', 'true');
     try {
       var result = await send('/month/generate', {
@@ -164,7 +161,6 @@
       if (saveButton) saveButton.disabled = saveDisabled;
       busy = false;
     } finally {
-      loading.hidden = true;
       generate.removeAttribute('aria-busy');
     }
   });

@@ -236,6 +236,7 @@
         status.textContent = 'Wird ausgewertet…';
         status.className = 'chat-status busy';
         answer.hidden = true;
+        var endActivity = window.beginActivity();
         fetch('/goal/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'fetch' },
@@ -258,7 +259,7 @@
           send.disabled = false;
           status.textContent = 'Auswertung fehlgeschlagen.';
           status.className = 'chat-status error';
-        });
+        }).finally(endActivity);
       });
     })();
   </script>

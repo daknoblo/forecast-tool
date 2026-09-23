@@ -70,6 +70,12 @@ only renders the docs and the demo snapshot.
   forecast), automatic totals, and buttons to clear single days or whole weeks
 - **Auto-save**: edits in the forecast grid are persisted in the background
   (`POST /week/cells`); the page is never reloaded while typing
+- **Activity indicator**: the always-visible ring before “Privat” in the header
+  animates during data requests, saves and same-tab navigation. It covers monthly
+  AI planning, goal chat, forecast cells, settings/project autosaves and form
+  actions such as deployment refresh. Concurrent requests keep it active until
+  all finish; errors retain their existing messages. Reduced-motion preferences
+  disable rotation while the active colour still indicates pending work.
 - **Monthly planning** (`/month`): a Monday–Friday calendar beside Forecast,
   with public holidays, vacation, project blocks and weekly capacity balances.
   Past days always show stored entries; today and future days initially show a

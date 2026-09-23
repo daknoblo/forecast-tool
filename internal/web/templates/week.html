@@ -262,6 +262,7 @@
   }
   function postCells(cells) {
     inflight++;
+    var endActivity = window.beginActivity();
     setStatus('saving', 'Speichert\u2026');
     fetch('/week/cells', {
       method: 'POST',
@@ -275,7 +276,7 @@
     }).catch(function () {
       inflight--;
       setStatus('error', 'Fehler beim Speichern');
-    });
+    }).finally(endActivity);
   }
   // Build a payload from inputs: empty -> 0 (delete), invalid -> skipped.
   window.saveCells = function (inputs) {
