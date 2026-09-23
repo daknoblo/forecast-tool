@@ -211,6 +211,41 @@ func TestMonthAIUnallocatedPreviewCannotBeSaved(t *testing.T) {
 	}
 }
 
+func TestMonthAIOverloadRequiresExplicitConfirmation(t *testing.T) {
+	f := newMonthAIFixture(t)
+	if err := f.store.Mutate(func(d *models.Data) error {
+		d.Entries[0].Hours = 12
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	f.plan.Entries = []models.Entry{{Date: f.plan.Entries[0].Date, ProjectID: "p", Hours: 12}}
+	f.endpoint(t, func(*http.Request) string { answer, _ := json.Marshal(f.plan); return string(answer) })
+	location, token := f.generate(t)
+	rec := httptest.NewRecorder()
+	f.server.Handler().ServeHTTP(rec, httptest.NewRequest("GET", location, nil))
+	for _, required := range []string{"Auslastung bitte prüfen", `name="confirmOverload" value="yes" required`, "über dem historischen Richtwert"} {
+		if !strings.Contains(rec.Body.String(), required) {
+			t.Fatalf("preview missing %q", required)
+		}
+	}
+	before := f.store.Snapshot()
+	for _, confirmation := range []string{"", "&confirmOverload=no"} {
+		rec = monthRequest(f.server.Handler(), "/month/save", "application/x-www-form-urlencoded", "preview="+token+confirmation)
+		if rec.Code != http.StatusConflict || !reflect.DeepEqual(before, f.store.Snapshot()) {
+			t.Fatal("unconfirmed overload changed stored data")
+		}
+	}
+	rec = monthRequest(f.server.Handler(), "/month/save", "application/x-www-form-urlencoded", "preview="+token+"&confirmOverload=yes")
+	if rec.Code != http.StatusNoContent || f.store.Snapshot().SavedMonthPlans[f.month] == "" {
+		t.Fatalf("confirmed overload not saved: %d %s", rec.Code, rec.Body.String())
+	}
+	reopened, err := storage.New(f.store.Path())
+	if err != nil || !reflect.DeepEqual(f.store.Snapshot(), reopened.Snapshot()) {
+		t.Fatal("confirmed forecast did not persist")
+	}
+}
+
 func TestMonthAIConcurrentGenerationAndSourceChange(t *testing.T) {
 	f := newMonthAIFixture(t)
 	entered, release := make(chan struct{}), make(chan struct{})

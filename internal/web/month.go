@@ -46,6 +46,8 @@ func (s *Server) handleMonth(w http.ResponseWriter, r *http.Request) {
 			page["Preview"] = token
 			page["Prompt"] = preview.Prompt
 			page["CanSave"] = len(preview.Plan.Unallocated) == 0
+			page["Warnings"] = forecast.MonthAIWarnings(preview.Context, preview.Plan)
+			page["Workload"] = preview.Context.Workload
 			page["Explanation"] = preview.Plan.Explanation
 			page["Deployment"] = preview.Deployment
 			page["ContextFrom"], page["ContextTo"] = preview.Context.HistoryFrom, preview.Context.HistoryTo

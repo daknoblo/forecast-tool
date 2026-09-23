@@ -528,12 +528,24 @@ collects every requirement stated so far as the binding reference.
   saved through `/month/prompt`; display it under the estimation details, with
   noneditable system rules available for inspection.
 - Parse and validate AI JSON strictly: known IDs, unique positive finite entries,
-  allowed days/windows, 8-hour daily capacity reduced by vacation, and exact
+  allowed days/windows (including no full-day vacation), and exact
   editable totals per project/ISO week. Preserve inactive projects' existing
   hours too. Unlike local estimation, AI may replace only non-vacation entries
   from today onward **inside the displayed month/FY**. Never move past,
   vacation or adjacent-month entries. Unallocated hours appear in the preview
   and prohibit saving; never discard them or silently fall back.
+- AI workload is **advisory, not capped at 8 hours**. Send all raw historical
+  bookings including overtime. Derive a reference from the nearest-rank 90th
+  percentile of positive total project hours on weekdays without holidays or
+  vacation, at least 8 hours (fallback 8); also expose median and observed-day
+  count. Subtract immutable hours from this reference for partial vacation.
+  Explain `availableHours` as regular capacity, `suggestedHours` as advisory;
+  neither is a hard limit or reason by itself to leave hours unallocated.
+  List every proposed day above regular available capacity, distinguish values
+  above the historical reference, and require explicit `confirmOverload=yes`
+  on save when warnings exist, checked server-side against fresh context.
+  Existing daily/weekly overtime badges and the local non-AI estimator retain
+  the 8-hour baseline. This is not a legal working-time approval.
 - Drafts are server-held, bounded to eight, expire after 30 minutes/restart, and
   must match source data (including original daily positions and today).
   `/month/save` accepts only an opaque draft token, checks freshness and applies

@@ -101,7 +101,18 @@ only renders the docs and the demo snapshot.
   globally saved prompt under **“Wie entsteht die Schätzung?”** asks for real
   booking patterns such as four 2-hour blocks rather than five 1.6-hour blocks.
   Immutable system rules and strict server-side validation enforce project/week
-  totals, project windows, holidays and the 8-hour day. No credentials or unrelated
+  totals, project windows, holidays and full-day vacation. Eight hours remains the
+  regular capacity, **not a hard AI planning limit**. Actual historical overtime
+  is included in the context. A reference derived from the 90th percentile of
+  positive daily project totals on non-holiday weekdays without vacation
+  (at least 8 hours; 8 hours without history) guides plausible distributions.
+  The preview shows the observation count, median and reference, reduced by
+  partial vacation. Higher values remain allowed: all proposed days exceeding
+  regular available capacity are listed, unusual values above the historical
+  reference are flagged separately, and an explicit checkbox confirmation is
+  required before saving, enforced server-side. This is not a legal working-time
+  approval. The local non-AI estimator and regular capacity/overtime indicators
+  retain their existing 8-hour baseline. No credentials or unrelated
   settings are part of the planning context.
   Results first appear as an **unsaved preview**. Only **“Forecast speichern”**
   replaces future non-vacation entries in the displayed month, including today.

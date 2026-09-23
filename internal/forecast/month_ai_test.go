@@ -228,7 +228,7 @@ func TestMonthAIRejectsInvalidStructuredPlans(t *testing.T) {
 		"zero":             func(p *MonthAIPlan) { p.Entries[0].Hours = 0 },
 		"NaN":              func(p *MonthAIPlan) { p.Entries[0].Hours = math.NaN() },
 		"infinity":         func(p *MonthAIPlan) { p.Entries[0].Hours = math.Inf(1) },
-		"overcapacity":     func(p *MonthAIPlan) { p.Entries[0].Hours = 9 },
+		"increased hours":  func(p *MonthAIPlan) { p.Entries[0].Hours = 9 },
 		"missing hours":    func(p *MonthAIPlan) { p.Entries[0].Hours = 1 },
 		"rounding drift":   func(p *MonthAIPlan) { p.Entries[0].Hours -= 1e-7 },
 		"long explanation": func(p *MonthAIPlan) { p.Explanation = strings.Repeat("x", 16001) },
@@ -252,7 +252,7 @@ func TestMonthAIRejectsInvalidStructuredPlans(t *testing.T) {
 }
 
 func TestMonthAIHolidayVacationWindowAndSharedCapacity(t *testing.T) {
-	for _, test := range []string{"holiday", "vacation", "window", "shared capacity"} {
+	for _, test := range []string{"holiday", "vacation", "full vacation", "window", "shared capacity"} {
 		t.Run(test, func(t *testing.T) {
 			d := monthTestData()
 			date, today := "2026-07-06", "2026-07-01"
@@ -261,6 +261,8 @@ func TestMonthAIHolidayVacationWindowAndSharedCapacity(t *testing.T) {
 				date, today = "2026-05-01", "2026-05-01"
 			case "vacation":
 				d.Entries = append(d.Entries, models.Entry{Date: date, ProjectID: "v", Hours: 4})
+			case "full vacation":
+				d.Entries = append(d.Entries, models.Entry{Date: date, ProjectID: "v", Hours: 8})
 			case "window":
 				d.Projects[0].StartDate = "2026-07-07"
 			case "shared capacity":
@@ -273,10 +275,77 @@ func TestMonthAIHolidayVacationWindowAndSharedCapacity(t *testing.T) {
 			if test == "shared capacity" {
 				plan.Entries = append(plan.Entries, models.Entry{Date: date, ProjectID: "p2", Hours: 3})
 			}
-			if err := ValidateMonthAIPlan(ctx, plan); err == nil {
-				t.Fatal("unavailable date/capacity accepted")
+			if test == "vacation" || test == "shared capacity" {
+				if err := ValidateMonthAIPlan(ctx, plan); err != nil {
+					t.Fatal("overload should be a warning:", err)
+				}
+				warnings := MonthAIWarnings(ctx, plan)
+				if len(warnings) != 1 || !warnings[0].Unusual {
+					t.Fatal("overload missing warning")
+				}
+			} else if err := ValidateMonthAIPlan(ctx, plan); err == nil {
+				t.Fatal("unavailable date accepted")
 			}
 		})
+	}
+
+}
+
+func TestMonthAIHistoricalWorkloadIsOrientationNotLimit(t *testing.T) {
+	d, _, _ := monthAIFixture(t)
+	d.Projects = append(d.Projects, models.Project{ID: "other", FiscalYear: 2026})
+	d.Entries = []models.Entry{
+		{Date: "2026-06-22", ProjectID: "p", Hours: 8},
+		{Date: "2026-06-22", ProjectID: "other", Hours: 4},
+		{Date: "2026-06-23", ProjectID: "p", Hours: 10},
+		{Date: "2026-06-24", ProjectID: "p", Hours: 6},
+		{Date: "2026-06-24", ProjectID: "v", Hours: 4},
+		{Date: "2026-06-27", ProjectID: "p", Hours: 20},
+		{Date: "2026-07-06", ProjectID: "p", Hours: 26},
+		{Date: "2026-07-08", ProjectID: "v", Hours: 4},
+	}
+	ctx := monthAIContextForTest(t, d, "2026-07-01", "2026-07-06")
+	if ctx.Workload != (MonthAIWorkload{ObservedDays: 2, MedianHours: 11, P90Hours: 12, ReferenceHours: 12}) {
+		t.Fatalf("wrong historical orientation: %+v", ctx.Workload)
+	}
+	plan := MonthAIPlan{Entries: []models.Entry{
+		{Date: "2026-07-06", ProjectID: "p", Hours: 11},
+		{Date: "2026-07-07", ProjectID: "p", Hours: 15},
+	}}
+	if err := ValidateMonthAIPlan(ctx, plan); err != nil {
+		t.Fatal("historical reference became a hard limit:", err)
+	}
+	warnings := MonthAIWarnings(ctx, plan)
+	if len(warnings) != 2 || warnings[0].Unusual || !warnings[1].Unusual || warnings[0].ReferenceHours != 12 {
+		t.Fatalf("wrong overload warnings: %+v", warnings)
+	}
+	for _, day := range ctx.Days {
+		if day.Date == "2026-07-08" && (day.SuggestedHours != 8 || day.AvailableHours != 4) {
+			t.Fatalf("partial vacation not deducted: %+v", day)
+		}
+	}
+	raw, err := json.Marshal(ctx)
+	if err != nil || !strings.Contains(string(raw), `"hours":20`) || !strings.Contains(string(raw), `"referenceHours":12`) {
+		t.Fatal("raw historical overtime or derived orientation absent from AI context")
+	}
+	if err := ApplyMonthAIPlan(&d, ctx, plan); err != nil {
+		t.Fatal(err)
+	}
+	stored := BuildStoredMonthPlan(d, holidays.Get(2026, "SN"), monthTestDate("2026-07-01"), monthTestDate("2026-07-06"))
+	var found bool
+	for _, week := range stored.Weeks {
+		for _, day := range week.Days {
+			if day.Date == "2026-07-07" {
+				found = day.Total == 15 && day.Over == 7 && day.Capacity == 8
+			}
+		}
+	}
+	if !found {
+		t.Fatal("saved overtime disappeared or regular capacity changed")
+	}
+	_, fallback, ordinary := monthAIFixture(t)
+	if fallback.Workload.ReferenceHours != 8 || fallback.Workload.ObservedDays != 0 || len(MonthAIWarnings(fallback, ordinary)) != 0 {
+		t.Fatal("incorrect no-history fallback")
 	}
 }
 
