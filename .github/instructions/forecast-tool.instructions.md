@@ -110,6 +110,8 @@ collects every requirement stated so far as the binding reference.
   `forecast.FiscalYear(year, startMonth)`.
 - **H1 = the first 6 FY months**, **H2 = the last 6 FY months**.
 - Week and quarter views are FY-relative (a week index across the year boundary).
+- Display fiscal-week identifiers as `FYW10`, never `W10`, across calendar,
+  forecast grid, dashboard and weekly tables. ISO calendar weeks remain `KW`.
 - Quarters are ordered from the FY start (e.g. Jul–Sep, Oct–Dec, Jan–Mar, Apr–Jun).
 - Projects always belong to exactly one fiscal year (never across); a project
   running into another FY is created anew there, so projects must be re-created
@@ -434,7 +436,7 @@ collects every requirement stated so far as the binding reference.
   rendered by `weeklyutilization` in `partials.html` with `YearSummary` as its
   context.** Both handlers supply `Summary`; there is no separate goal-specific
   table or weekly forecast/actual split. Columns in
-  this order: Woche (link `W1 · KW27` plus the grey `.weekrange` Mon–Fri range
+  this order: Woche (link `FYW1 · KW27` plus the grey `.weekrange` Mon–Fri range
   from `WeekTotal.RangeLabel`, e.g. "Mo. 29.06.2026 – Fr. 03.07.2026", on **one**
   line) · "Soll Stunden" · "Gebuchte Stunden" · Status (directly next to the
   hours) · Auslastung (`.weekutil`, 28rem wide, bar + percentage in a `.barrow`
@@ -518,6 +520,13 @@ collects every requirement stated so far as the binding reference.
   No weekday header row: every day displays its full weekday and date on the
   left, total/capacity and a yellow overtime badge on the right. Project tiles
   are one line with a bold name and hours, without booked/estimated wording.
+  The right-hand week summary has no date-range subtitle. Order its rows:
+  Kapazität, Urlaub, one project-coloured row per non-vacation project with
+  hours in that week, Gesamt gebucht, Verfügbar. Include complete FY-clipped
+  weeks, weekend and unallocated hours in the project totals, including inactive
+  projects' existing entries. AI previews retain the original weekly totals even
+  when hours remain unallocated. Use a yellow overload badge beside the FYW
+  identifier only above weekly capacity; available hours remain floored at zero.
 - **Explicit AI planning:** the top-right regenerate button posts the displayed
   current/future month and editable prompt to `/month/generate`, using the
   configured AI deployment/credentials. `MonthAIContext` includes the previous

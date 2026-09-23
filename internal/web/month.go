@@ -80,6 +80,7 @@ func (s *Server) previewMonthPlan(d models.Data, month, now time.Time, preview m
 	for i := range plan.Weeks {
 		week := &plan.Weeks[i]
 		week.Stored, week.Work, week.Free, week.Over = original.Weeks[i].Stored, original.Weeks[i].Work, original.Weeks[i].Free, original.Weeks[i].Over
+		week.Projects = original.Weeks[i].Projects
 		for j := range week.Days {
 			day := &week.Days[j]
 			day.Stored = original.Weeks[i].Days[j].Stored

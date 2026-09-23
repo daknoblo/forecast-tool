@@ -85,17 +85,22 @@
     {{end}}
     {{end}}
     <th scope="row" class="month-week">
-      <a href="/week/{{.FYWeek}}?weeks=1"><strong>KW {{.ISOWeek}} · W{{.FYWeek}}</strong></a>
-      <small class="muted">{{.Label}}</small>
-      <dl>
-        <dt>Gespeichert</dt><dd>{{hours .Stored}} h</dd>
-        <dt>Projektstunden</dt><dd>{{hours .Work}} h</dd>
-        <dt>Urlaub</dt><dd>{{hours .Vacation}} h</dd>
-        <dt>Kapazität</dt><dd>{{hours .Capacity}} h</dd>
-        <dt>Freier Saldo</dt><dd>{{hours .Free}} h</dd>
+      <div class="month-week-heading">
+        <a href="/week/{{.FYWeek}}?weeks=1"><strong>KW {{.ISOWeek}} · FYW{{.FYWeek}}</strong></a>
+        {{if gt .Over 0.0}}<span class="month-over" title="{{hours .Over}} h über Wochenkapazität">(+{{hours .Over}} h)</span>{{end}}
+      </div>
+      <dl class="month-week-summary">
+        <div class="month-summary-row"><dt>Kapazität:</dt><dd>{{hours .Capacity}} h</dd></div>
+        <div class="month-summary-row"><dt>Urlaub</dt><dd>{{hours .Vacation}} h</dd></div>
+        {{range .Projects}}
+        <div class="month-summary-row month-project-total" style="--project-color: {{if .Color}}{{.Color}}{{else}}#64748b{{end}}">
+          <dt>{{.Name}}</dt><dd>{{hours .Hours}} h</dd>
+        </div>
+        {{end}}
+        <div class="month-summary-row month-summary-total"><dt>Gesamt gebucht</dt><dd>{{hours .Stored}} h</dd></div>
+        <div class="month-summary-row"><dt>Verfügbar</dt><dd>{{hours .Free}} h</dd></div>
       </dl>
       {{if gt .WeekendStored 0.0}}<p class="muted">Davon am Wochenende gespeichert: {{hours .WeekendStored}} h (in der Wochensumme enthalten).</p>{{end}}
-      {{if gt .Over 0.0}}<p class="month-warning">{{hours .Over}} h über Wochenkapazität</p>{{end}}
       {{if gt .Unallocated 0.0}}
       <div class="month-warning"><strong>{{hours .Unallocated}} h nicht verteilbar</strong>
         {{range .Pending}}<div title="{{.Basis}}">{{.Name}}: {{hours .Hours}} h</div>{{end}}

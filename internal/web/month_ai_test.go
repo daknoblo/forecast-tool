@@ -204,6 +204,9 @@ func TestMonthAIUnallocatedPreviewCannotBeSaved(t *testing.T) {
 		if !strings.Contains(rec.Body.String(), text) {
 			t.Errorf("unallocated preview missing %q", text)
 		}
+		if !strings.Contains(rec.Body.String(), "<dt>Projekt Pattern</dt><dd>8 h</dd>") {
+			t.Fatal("preview project summary must include allocated and unallocated hours")
+		}
 	}
 	rec = monthRequest(f.server.Handler(), "/month/save", "application/x-www-form-urlencoded", "preview="+token)
 	if rec.Code != http.StatusConflict || !reflect.DeepEqual(before, f.store.Snapshot().Entries) {

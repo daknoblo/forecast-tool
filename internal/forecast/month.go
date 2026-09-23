@@ -34,6 +34,7 @@ type MonthWeek struct {
 	Over, Unallocated                      float64
 	WeekendStored                          float64
 	Pending                                []MonthEvent
+	Projects                               []MonthEvent
 }
 
 type MonthPlan struct {
@@ -95,6 +96,7 @@ func buildMonthPlan(d models.Data, cal *holidays.Calendar, month, now time.Time,
 			Label: monday.Format("02.01.") + " – " + monday.AddDate(0, 0, 6).Format("02.01."),
 		}
 		remaining := make(map[string]float64)
+		projectHours := make(map[string]float64)
 		for i := 0; i < 7; i++ {
 			date := monday.AddDate(0, 0, i)
 			iso := date.Format("2006-01-02")
@@ -118,6 +120,7 @@ func buildMonthPlan(d models.Data, cal *holidays.Calendar, month, now time.Time,
 						day.Vacation += h
 					} else {
 						w.Work += h
+						projectHours[p.ID] += h
 					}
 					if estimate && !day.Past && !p.IsVacation() {
 						remaining[p.ID] += h
@@ -137,6 +140,11 @@ func buildMonthPlan(d models.Data, cal *holidays.Calendar, month, now time.Time,
 		}
 		if estimate {
 			distributeMonthWeek(&w, projects, remaining, histories)
+		}
+		for _, p := range projects {
+			if h := projectHours[p.ID]; h > 0 {
+				w.Projects = append(w.Projects, monthEvent(p, h, false, "", ""))
+			}
 		}
 		w.Free = math.Max(0, w.Capacity-w.Stored)
 		w.Over = math.Max(0, w.Stored-w.Capacity)

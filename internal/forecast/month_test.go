@@ -31,6 +31,56 @@ func monthTestData() models.Data {
 	return d
 }
 
+func TestMonthWeeklyProjectTotals(t *testing.T) {
+	d := monthTestData()
+	d.Settings.Year = 2027
+	d.Settings.FiscalYearStartMonth = 7
+	d.Projects[0].FiscalYear = 2027
+	d.Projects[0].Color = "#123456"
+	d.Projects[1].FiscalYear = 2027
+	d.Projects = append(d.Projects, models.Project{
+		ID: "q", Name: "Inactive", Color: "#654321", FiscalYear: 2027,
+	})
+	d.Entries = []models.Entry{
+		{Date: "2026-06-29", ProjectID: "p", Hours: 99},
+		{Date: "2026-07-01", ProjectID: "p", Hours: 8},
+		{Date: "2026-07-02", ProjectID: "p", Hours: 6},
+		{Date: "2026-07-04", ProjectID: "p", Hours: 2},
+		{Date: "2026-07-03", ProjectID: "q", Hours: 10},
+		{Date: "2026-07-03", ProjectID: "v", Hours: 8},
+		{Date: "2026-07-06", ProjectID: "q", Hours: 60},
+	}
+	now := monthTestDate("2026-07-02")
+	for _, estimate := range []bool{false, true} {
+		plan := buildMonthPlan(d, holidays.Get(2027, "SN"), now, now, estimate)
+		week := plan.Weeks[0]
+		if week.FYWeek != 1 || week.Capacity != 24 || week.Stored != 34 || week.Vacation != 8 ||
+			week.Over != 10 || week.Free != 0 || week.WeekendStored != 2 {
+			t.Fatalf("wrong boundary week summary: %+v", week)
+		}
+		totals := map[string]float64{}
+		var sum float64
+		for _, p := range week.Projects {
+			if p.Vacation || p.Color == "" {
+				t.Fatal("project summary includes vacation or loses color")
+			}
+			totals[p.ProjectID] = p.Hours
+			sum += p.Hours
+		}
+		if !reflect.DeepEqual(totals, map[string]float64{"p": 16, "q": 10}) || sum+week.Vacation != week.Stored {
+			t.Fatalf("project totals disagree with complete week: %v", totals)
+		}
+		overloaded := plan.Weeks[1]
+		if len(overloaded.Projects) != 1 || overloaded.Projects[0].Hours != 60 ||
+			(estimate && overloaded.Unallocated != 20) {
+			t.Fatalf("unallocated hours missing from project total: %+v", overloaded)
+		}
+		if len(plan.Weeks[2].Projects) != 0 || plan.Weeks[2].Free != 40 || plan.Weeks[2].Over != 0 {
+			t.Fatal("empty week has unexpected totals")
+		}
+	}
+}
+
 func monthTestWeek(t *testing.T, plan MonthPlan, monday string) MonthWeek {
 	t.Helper()
 	for _, w := range plan.Weeks {

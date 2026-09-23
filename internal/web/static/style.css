@@ -44,9 +44,9 @@ table.foundry-config td:last-child { overflow-wrap: anywhere; }
 .month-method { font-size: 0.85rem; line-height: 1.6; }
 .month-method summary { cursor: pointer; font-weight: 600; }
 .month-scroll { overflow-x: auto; }
-.month-calendar { width: 100%; min-width: 1250px; table-layout: fixed; border-collapse: collapse; background: var(--panel); font-size: 0.8rem; }
+.month-calendar { width: 100%; min-width: 1300px; table-layout: fixed; border-collapse: collapse; background: var(--panel); font-size: 0.8rem; }
 .month-calendar caption { text-align: left; padding: 0 0 0.7rem; }
-.month-week-column { width: 170px; }
+.month-week-column { width: 220px; }
 .month-calendar td, .month-calendar th { border: 1px solid var(--line); vertical-align: top; padding: 0.4rem; height: 120px; text-align: left; font-weight: normal; }
 .month-day.adjacent { background: #f8fafc; }
 .month-day.adjacent .month-date { color: var(--muted); }
@@ -63,9 +63,14 @@ table.foundry-config td:last-child { overflow-wrap: anywhere; }
 .month-day-total { display: inline-flex; align-items: center; gap: 0.2rem; margin-left: auto; font-variant-numeric: tabular-nums; }
 .month-over { color: #92400e; background: #fef3c7; border-radius: 3px; padding: 0.1rem 0.2rem; }
 .month-week { background: #f8fafc; }
-.month-week > small { display: block; margin-top: 0.3rem; }
-.month-week dl { display: grid; grid-template-columns: 1fr auto; gap: 0.25rem; }
-.month-week dd { margin: 0; font-weight: 600; }
+.month-week-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.3rem; font-size: 0.75rem; }
+.month-week-heading a, .month-week-heading .month-over { white-space: nowrap; }
+.month-week-summary { display: grid; gap: 0.3rem; margin: 0.65rem 0 0; }
+.month-summary-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 0.5rem; padding: 0.2rem 0.4rem; }
+.month-summary-row dt { overflow-wrap: anywhere; }
+.month-summary-row dd { margin: 0; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.month-project-total { border-left: 4px solid var(--project-color); border-radius: 4px; background: color-mix(in srgb, var(--project-color) 16%, var(--panel)); }
+.month-summary-total { border-top: 1px solid var(--line); margin-top: 0.2rem; padding-top: 0.5rem; font-weight: 600; }
 .month-warning { color: #9a3412; background: #fff7ed; border-radius: 4px; padding: 0.3rem; margin-top: 0.4rem; font-size: 0.75rem; overflow-wrap: anywhere; }
 
 body {
