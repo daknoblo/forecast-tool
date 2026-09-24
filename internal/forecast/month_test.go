@@ -157,9 +157,9 @@ func TestMonthAbsenceReducesCapacityWithoutDoubleCounting(t *testing.T) {
 	if !reflect.DeepEqual(before, d.Entries) {
 		t.Fatal("monthly calculations mutated entries")
 	}
-	// Weekly views retain their existing vacation-as-booking semantics.
-	week := BuildWeek(d, cal, FYWeekIndexOf(2026, 1, monthTestDate("2026-04-27")))
-	if week.ProjectTotals["v"] != 20 || week.Total != 30 {
+	// Dashboard weekly totals still include vacation and weekend bookings.
+	week := BuildYearSummary(d, cal).WeekTotals[FYWeekIndexOf(2026, 1, monthTestDate("2026-04-27"))-1]
+	if week.Hours != 38 {
 		t.Fatalf("monthly change leaked into weekly calculation: %+v", week)
 	}
 }

@@ -10,63 +10,9 @@ import (
 	"github.com/daknoblo/forecast-tool/internal/models"
 )
 
-// DayCell holds the hours for a single day across all projects. There is a
-// single hours value per project; whether it counts as "booked" or "forecast"
-// is derived from the day's date (Past marks a booked, i.e. before-today, day).
-type DayCell struct {
-	Date         string             // YYYY-MM-DD
-	WeekdayName  string             // Mo, Di, ...
-	InYear       bool               // belongs to the configured fiscal year
-	IsHoliday    bool               // public holiday
-	HolidayName  string             // holiday label, if any
-	HolidayHours float64            // auto-booked hours for a weekday holiday (8h)
-	MonthEnd     bool               // the next displayed weekday is in a new month
-	Past         bool               // the day lies before today (booked, not forecast)
-	Hours        map[string]float64 // projectID -> hours
-	Total        float64            // hours sum over projects
-}
-
-// WeekView aggregates a single fiscal-year week (Mon-Fri).
-type WeekView struct {
-	Year           int
-	Week           int // 1-based fiscal-year week index
-	ISOWeek        int
-	Label          string
-	RangeLabel     string
-	Days           []DayCell
-	ProjectTotals  map[string]float64 // projectID -> hours over the week
-	Total          float64            // hours sum over all projects (status/utilization basis)
-	HolidayHours   float64
-	TargetHours    float64
-	UtilizationPct float64
-	Status         models.UtilStatus // booking traffic-light for this week
-	PrevWeek       int
-	NextWeek       int
-}
-
-var weekdayNames = []string{"Mo", "Di", "Mi", "Do", "Fr"}
-
 // HolidayDayHours is the number of hours a public holiday on a weekday
 // automatically contributes towards the fiscal-year goal.
 const HolidayDayHours = 8.0
-
-// MondayOfISOWeek returns the Monday (00:00 UTC) of the given ISO week.
-func MondayOfISOWeek(year, week int) time.Time {
-	jan4 := time.Date(year, time.January, 4, 0, 0, 0, 0, time.UTC)
-	iso := int(jan4.Weekday())
-	if iso == 0 {
-		iso = 7
-	}
-	week1Monday := jan4.AddDate(0, 0, -(iso - 1))
-	return week1Monday.AddDate(0, 0, (week-1)*7)
-}
-
-// WeeksInYear returns the number of ISO weeks (52 or 53) in the given year.
-func WeeksInYear(year int) int {
-	dec28 := time.Date(year, time.December, 28, 0, 0, 0, 0, time.UTC)
-	_, w := dec28.ISOWeek()
-	return w
-}
 
 // normMonth clamps a fiscal-year start month into 1..12, defaulting to July.
 func normMonth(startMonth int) int {
@@ -180,89 +126,6 @@ func knownProjects(ps []models.Project) map[string]bool {
 	return set
 }
 
-// BuildWeek assembles the Mon-Fri view for one fiscal-year week.
-func BuildWeek(d models.Data, cal *holidays.Calendar, week int) WeekView {
-	return buildWeek(d, cal, week, hoursIndex(d.Entries), todayISO())
-}
-
-// buildWeek is the shared implementation of BuildWeek. It takes the pre-built
-// hours index and today's date so a multi-week span does not have to rebuild
-// them for every single week.
-func buildWeek(d models.Data, cal *holidays.Calendar, week int, hidx map[string]float64, today string) WeekView {
-	year := d.Settings.Year
-	startMonth := d.Settings.FiscalYearStartMonth
-	monday := FYWeekMonday(year, startMonth, week)
-	fyStart, fyEnd := FiscalYear(year, startMonth)
-
-	_, isoWeek := monday.ISOWeek()
-	friday := monday.AddDate(0, 0, 4)
-	wv := WeekView{
-		Year:          year,
-		Week:          week,
-		ISOWeek:       isoWeek,
-		Label:         fmt.Sprintf("FYW%d · KW %02d", week, isoWeek),
-		RangeLabel:    monday.Format("02.01.") + "–" + friday.Format("02.01.2006"),
-		ProjectTotals: map[string]float64{},
-		TargetHours:   d.Settings.WeeklyTargetHours,
-		PrevWeek:      week - 1,
-		NextWeek:      week + 1,
-	}
-
-	for i := 0; i < 5; i++ {
-		day := monday.AddDate(0, 0, i)
-		iso := day.Format("2006-01-02")
-		inYear := !day.Before(fyStart) && !day.After(fyEnd)
-		// Mark a month boundary on the right edge of the last weekday of a month.
-		// On Friday, look ahead to Monday so a month ending on the weekend is
-		// still drawn after Friday.
-		next := day.AddDate(0, 0, 1)
-		if i == 4 {
-			next = day.AddDate(0, 0, 3)
-		}
-		cell := DayCell{
-			Date:        iso,
-			WeekdayName: weekdayNames[i],
-			InYear:      inYear,
-			IsHoliday:   cal.IsHoliday(iso),
-			HolidayName: cal.Name(iso),
-			MonthEnd:    next.Month() != day.Month(),
-			Past:        iso < today,
-			Hours:       map[string]float64{},
-		}
-		if cell.IsHoliday {
-			cell.HolidayHours = HolidayDayHours
-			if inYear {
-				wv.HolidayHours += HolidayDayHours
-			}
-		}
-		// Days outside the fiscal year stay visible and editable, but their hours
-		// belong to the neighbouring FY: counting them here would book the old
-		// year's hours onto this one.
-		for _, p := range d.Projects {
-			h := hidx[iso+"|"+p.ID]
-			if h == 0 {
-				continue
-			}
-			cell.Hours[p.ID] = h
-			cell.Total += h
-			if inYear {
-				wv.ProjectTotals[p.ID] += h
-			}
-		}
-		if inYear {
-			wv.Total += cell.Total
-		}
-		wv.Days = append(wv.Days, cell)
-	}
-
-	wv.Total = round1(wv.Total)
-	wv.Status = d.Settings.ClassifyUtilization(wv.Total)
-	if wv.TargetHours > 0 {
-		wv.UtilizationPct = round1(wv.Total / wv.TargetHours * 100)
-	}
-	return wv
-}
-
 // formatDayDot turns an ISO date (YYYY-MM-DD) into German DD.MM.YYYY.
 func formatDayDot(iso string) string {
 	t, err := time.Parse("2006-01-02", iso)
@@ -280,133 +143,6 @@ var shortWeekdays = []string{"So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"}
 // "Mo. 01.07.2027".
 func formatDayWithWeekday(t time.Time) string {
 	return shortWeekdays[int(t.Weekday())] + ". " + t.Format("02.01.2006")
-}
-
-// SpanView aggregates several consecutive fiscal-year weeks into one Mon-Fri
-// grid so wide screens can show as many days as fit at once.
-type SpanView struct {
-	StartWeek      int
-	EndWeek        int
-	Weeks          int
-	MaxWeek        int
-	PrevStart      int
-	NextStart      int
-	RangeLabel     string
-	Blocks         []WeekView         // one entry per visible week (for header grouping)
-	Days           []DayCell          // all days flattened across the visible weeks
-	ProjectTotals  map[string]float64 // projectID -> hours over the span
-	Total          float64
-	HolidayHours   float64
-	TargetHours    float64 // weekly target * number of visible weeks
-	UtilizationPct float64
-}
-
-// BuildSpan assembles a Mon-Fri grid spanning `weeks` consecutive fiscal-year
-// weeks starting at startWeek. The start is clamped so the span stays within the
-// fiscal year where possible.
-func BuildSpan(d models.Data, cal *holidays.Calendar, startWeek, weeks int) SpanView {
-	year := d.Settings.Year
-	startMonth := d.Settings.FiscalYearStartMonth
-	max := FYWeeks(year, startMonth)
-	if weeks < 1 {
-		weeks = 1
-	}
-	if weeks > max {
-		weeks = max
-	}
-	if startWeek < 1 {
-		startWeek = 1
-	}
-	if startWeek > max {
-		startWeek = max
-	}
-	if startWeek+weeks-1 > max {
-		startWeek = max - weeks + 1
-		if startWeek < 1 {
-			startWeek = 1
-		}
-	}
-
-	sv := SpanView{
-		StartWeek:     startWeek,
-		EndWeek:       startWeek + weeks - 1,
-		Weeks:         weeks,
-		MaxWeek:       max,
-		ProjectTotals: map[string]float64{},
-	}
-	// Build the hours index once for the whole span instead of once per week.
-	hidx := hoursIndex(d.Entries)
-	today := todayISO()
-	for i := 0; i < weeks; i++ {
-		wv := buildWeek(d, cal, startWeek+i, hidx, today)
-		sv.Blocks = append(sv.Blocks, wv)
-		sv.Days = append(sv.Days, wv.Days...)
-		for pid, h := range wv.ProjectTotals {
-			sv.ProjectTotals[pid] += h
-		}
-		sv.Total += wv.Total
-		sv.HolidayHours += wv.HolidayHours
-	}
-	sv.Total = round1(sv.Total)
-	sv.HolidayHours = round1(sv.HolidayHours)
-	sv.TargetHours = round1(d.Settings.WeeklyTargetHours * float64(weeks))
-	if sv.TargetHours > 0 {
-		sv.UtilizationPct = round1(sv.Total / sv.TargetHours * 100)
-	}
-	sv.PrevStart = startWeek - weeks
-	if sv.PrevStart < 1 {
-		sv.PrevStart = 1
-	}
-	sv.NextStart = startWeek + weeks
-	if len(sv.Days) > 0 {
-		sv.RangeLabel = formatDayDot(sv.Days[0].Date) + "–" + formatDayDot(sv.Days[len(sv.Days)-1].Date)
-	}
-	return sv
-}
-
-// SpanBurn is the combined burn rate of the projects whose booking window
-// overlaps a visible date span (used above the forecast grid).
-type SpanBurn struct {
-	PerWeek    float64
-	PerWorkday float64
-	Items      []SpanBurnItem
-}
-
-// SpanBurnItem is one project's burn rate contributing to a SpanBurn.
-type SpanBurnItem struct {
-	Name       string
-	Color      string
-	PerWeek    float64
-	PerWorkday float64
-}
-
-// BuildSpanBurn sums the per-project burn rates (from a year summary) of the
-// active projects whose booking window overlaps the inclusive [spanStart,
-// spanEnd] date range (ISO YYYY-MM-DD). ISO strings compare lexicographically.
-// Vacation is left out: it is time off, not billable work, so it must not raise
-// the rate the grid is measured against.
-func BuildSpanBurn(ps []ProjectSummary, spanStart, spanEnd string) SpanBurn {
-	var sb SpanBurn
-	for _, p := range ps {
-		if !p.Project.Active || p.Project.IsVacation() {
-			continue
-		}
-		// no overlap if the window ends before the span or starts after it
-		if p.EndDate < spanStart || p.StartDate > spanEnd {
-			continue
-		}
-		sb.Items = append(sb.Items, SpanBurnItem{
-			Name:       p.Project.Name,
-			Color:      p.Project.Color,
-			PerWeek:    p.BurnPerWeek,
-			PerWorkday: p.BurnPerWorkday,
-		})
-		sb.PerWeek += p.BurnPerWeek
-		sb.PerWorkday += p.BurnPerWorkday
-	}
-	sb.PerWeek = round1(sb.PerWeek)
-	sb.PerWorkday = round1(sb.PerWorkday)
-	return sb
 }
 
 // FYHours is the share of an assignment's hours that falls into one fiscal
@@ -507,6 +243,7 @@ type YearSummary struct {
 type WeekTotal struct {
 	Week           int // fiscal-year week index
 	ISOWeek        int
+	Month          string // YYYY-MM of the first in-FY day, for calendar navigation
 	Label          string
 	RangeLabel     string  // Mon-Fri range, e.g. "Mo. 01.07.2027 – Fr. 05.07.2027"
 	Hours          float64 // all hours in this week (booked + forecast)
@@ -838,11 +575,16 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 		}
 		monday := FYWeekMonday(year, startMonth, w)
 		_, isoWeek := monday.ISOWeek()
+		first := monday
+		if first.Before(fyStart) {
+			first = fyStart
+		}
 		hrs := round1(weekSum[w])
 		ys.WeekTotals = append(ys.WeekTotals, WeekTotal{
 			Week:           w,
 			ISOWeek:        isoWeek,
-			Label:          fmt.Sprintf("FYW%d · KW%02d", w, isoWeek),
+			Month:          first.Format("2006-01"),
+			Label:          fmt.Sprintf("FYW %d · KW%02d", w, isoWeek),
 			RangeLabel:     formatDayWithWeekday(monday) + " – " + formatDayWithWeekday(monday.AddDate(0, 0, 4)),
 			Hours:          hrs,
 			TargetHours:    d.Settings.WeeklyTargetHours,

@@ -41,6 +41,10 @@ func TestDataIsValidDeterministicAndLeavesTheBaseAlone(t *testing.T) {
 		Color: "#2563eb", Active: true, FiscalYear: base.Settings.Year,
 	}}
 	base.Entries = []models.Entry{{Date: "2026-10-15", ProjectID: "real", Hours: 8}}
+	base.ForecastAccuracy = map[int]models.ForecastAccuracy{
+		2027: {Percentage: 87.65, AsOf: "2026-10-15", FiscalYearStartMonth: 7},
+		2026: {Percentage: 12.34, AsOf: "2026-07-01", FiscalYearStartMonth: 7},
+	}
 
 	d := Data(testDay, base)
 	if err := models.Validate(d); err != nil {
@@ -48,6 +52,10 @@ func TestDataIsValidDeterministicAndLeavesTheBaseAlone(t *testing.T) {
 	}
 	if len(base.Projects) != 1 || len(base.Entries) != 1 {
 		t.Error("Data modified the document it was built from")
+	}
+	if len(d.ForecastAccuracy) != 1 || d.ForecastAccuracy[2027].Percentage != 90 ||
+		len(base.ForecastAccuracy) != 2 || base.ForecastAccuracy[2027].Percentage != 87.65 {
+		t.Fatal("sample accuracy leaks or modifies real values")
 	}
 	for _, p := range d.Projects {
 		if p.Name == "Echt" {
@@ -146,8 +154,7 @@ func TestSampleFillsAnyFiscalYear(t *testing.T) {
 	}
 }
 
-// Inactive projects are hidden from the forecast grid, so hours planned on them
-// would make the grid rows and the day totals disagree.
+// Inactive sample projects illustrate completed work without new forecast hours.
 func TestInactiveProjectsCarryNoForecast(t *testing.T) {
 	d := build(t, testDay)
 	inactive := map[string]string{}

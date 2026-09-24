@@ -50,7 +50,7 @@
     <p>Die KI hat nicht alle Wochenstunden zugeordnet. Speichern ist deshalb gesperrt; es werden keine Stunden verworfen. Gründe laut KI:</p>
     <ul>
       {{range .Plan.Weeks}}{{$week := .}}{{range .Pending}}
-      <li><strong>{{.Name}} · FYW{{$week.FYWeek}} · {{hours .Hours}} h:</strong> <span class="month-unallocated-reason">{{.Basis}}</span></li>
+      <li><strong>{{.Name}} · FYW {{$week.FYWeek}} · {{hours .Hours}} h:</strong> <span class="month-unallocated-reason">{{.Basis}}</span></li>
       {{end}}{{end}}
     </ul>
   </div>
@@ -92,7 +92,7 @@
     {{end}}
     <th scope="row" class="month-week">
       <div class="month-week-heading">
-        <a href="/week/{{.FYWeek}}?weeks=1"><strong>KW {{.ISOWeek}} · FYW{{.FYWeek}}</strong></a>
+        <strong id="fyw-{{.FYWeek}}">KW {{.ISOWeek}} · FYW {{.FYWeek}}</strong>
         {{if gt .Over 0.0}}<span class="month-over" title="{{hours .Over}} h über Wochenkapazität">(+{{hours .Over}} h)</span>{{end}}
       </div>
       <dl class="month-week-summary">

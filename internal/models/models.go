@@ -227,9 +227,9 @@ func ProjectsForFY(ps []Project, year int) []Project {
 
 // VacationSystem marks the auto-managed, non-deletable vacation project of a
 // fiscal year. Apart from its budget (derived from the configured vacation
-// days) it behaves like any other project: it is editable, bookable in the
-// forecast grid and counts towards the weekly utilization. Only the FY goal
-// ignores it.
+// days) it behaves like any other project: it is editable and its imported
+// hours count towards weekly utilization, but not the FY goal. Monthly planning
+// treats those hours as an absence that reduces bookable capacity.
 const VacationSystem = "vacation"
 
 // VacationColor is the fixed colour of the vacation project so it is visually
@@ -320,11 +320,12 @@ type Entry struct {
 
 // Data is the full persisted document.
 type Data struct {
-	Settings        Settings                   `json:"settings"`
-	FiscalYears     map[int]FiscalYearSettings `json:"fiscalYears"`
-	Projects        []Project                  `json:"projects"`
-	Entries         []Entry                    `json:"entries"`
-	SavedMonthPlans map[string]string          `json:"savedMonthPlans,omitempty"`
+	Settings         Settings                   `json:"settings"`
+	FiscalYears      map[int]FiscalYearSettings `json:"fiscalYears"`
+	Projects         []Project                  `json:"projects"`
+	Entries          []Entry                    `json:"entries"`
+	SavedMonthPlans  map[string]string          `json:"savedMonthPlans,omitempty"`
+	ForecastAccuracy map[int]ForecastAccuracy   `json:"forecastAccuracy,omitempty"`
 }
 
 const MaxMonthPlanningPrompt = 8000
@@ -383,6 +384,14 @@ func (d Data) CurrentFY() FiscalYearSettings {
 // used before persisting data that was edited directly as JSON, so bad input
 // is rejected instead of corrupting the store.
 func Validate(d Data) error {
+	for year, accuracy := range d.ForecastAccuracy {
+		if !ValidYear(year) {
+			return fmt.Errorf("Ungültiges Fiskaljahr der Forecast Accuracy: %d", year)
+		}
+		if err := accuracy.Validate(); err != nil {
+			return err
+		}
+	}
 	if len([]rune(d.Settings.MonthPlanningPrompt)) > MaxMonthPlanningPrompt {
 		return fmt.Errorf("Der Planungsprompt darf höchstens %d Zeichen enthalten", MaxMonthPlanningPrompt)
 	}

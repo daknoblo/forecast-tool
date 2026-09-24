@@ -143,7 +143,7 @@ func TestMonthWeeklySummaryLayout(t *testing.T) {
 		position = next
 	}
 	for _, want := range []string{
-		"FYW36", `title="10 h über Wochenkapazität">(+10 h)</span>`,
+		"FYW 36", `title="10 h über Wochenkapazität">(+10 h)</span>`,
 		`style="--project-color: #123456"`, `style="--project-color: #654321"`,
 		"<dt>Projekt Alpha</dt><dd>30 h</dd>", "<dt>Projekt Beta</dt><dd>12 h</dd>",
 		"<dt>Kapazität:</dt><dd>32 h</dd>", "<dt>Urlaub/Feiertage</dt><dd>8 h</dd>",
@@ -180,14 +180,17 @@ func TestFiscalWeekLabels(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	for _, path := range []string{"/", "/goal", "/week/1?weeks=1", "/month?month=2026-07"} {
+	for _, path := range []string{"/", "/goal", "/month?month=2026-07"} {
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, httptest.NewRequest("GET", path, nil))
-		if rec.Code != 200 || !strings.Contains(rec.Body.String(), "FYW1") {
+		if rec.Code != 200 || !strings.Contains(rec.Body.String(), "FYW 1") {
 			t.Fatalf("%s missing fiscal week identifier", path)
 		}
 		if regexp.MustCompile(`(?:>|· )W\s*\d`).MatchString(rec.Body.String()) {
 			t.Fatalf("%s still uses ambiguous W labels", path)
+		}
+		if regexp.MustCompile(`FYW\d`).MatchString(rec.Body.String()) {
+			t.Fatalf("%s must separate FYW and the number with a space", path)
 		}
 	}
 }

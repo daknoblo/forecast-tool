@@ -61,7 +61,6 @@ func TestBuildDemoDataIsValidAndDeterministic(t *testing.T) {
 func TestRewritePointsLinksAtTheSnapshot(t *testing.T) {
 	byURL := map[string]string{
 		"/":      "index.html",
-		"/week":  "week.html",
 		"/goal":  "goal.html",
 		"/month": "month.html",
 	}
@@ -69,7 +68,6 @@ func TestRewritePointsLinksAtTheSnapshot(t *testing.T) {
 	html := `<html><head></head><body>` +
 		`<link href="/static/style.css?v=abc123">` +
 		`<a href="/">Dashboard</a>` +
-		`<a href="/week/17?weeks=3">Forecast</a>` +
 		`<a href="/goal">Ziele</a>` +
 		`<a href="/month?month=2026-07&amp;view=stored">Gespeichert</a>` +
 		`<a href="/month?month=2026-07&amp;view=estimate">Schätzung</a>` +
@@ -82,7 +80,6 @@ func TestRewritePointsLinksAtTheSnapshot(t *testing.T) {
 	for _, want := range []string{
 		`href="static/style.css"`,
 		`href="index.html"`,
-		`href="week.html"`, // captured under another week number
 		`href="goal.html"`,
 		`href="month.html"`,
 		`href="#"`, // /export was not captured
@@ -103,16 +100,34 @@ func TestRewritePointsLinksAtTheSnapshot(t *testing.T) {
 	}
 }
 
-func TestNormalizeURLFoldsWeeksAndSortsQuery(t *testing.T) {
+func TestNormalizeURLSortsQuery(t *testing.T) {
 	cases := map[string]string{
-		"/":                  "/",
-		"/week/17":           "/week",
-		"/week/3?weeks=2":    "/week?weeks=2",
-		"/?soff=1&sankey=fy": "/?sankey=fy&soff=1",
+		"/":                                "/",
+		"/month?view=stored&month=2026-07": "/month?month=2026-07&view=stored",
+		"/?soff=1&sankey=fy":               "/?sankey=fy&soff=1",
 	}
 	for in, want := range cases {
 		if got := normalizeURL(in); got != want {
 			t.Errorf("normalizeURL(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+func TestDemoUsesMonthlyPlanningOnly(t *testing.T) {
+	var monthPage, monthShot bool
+	for _, page := range DemoPages() {
+		if strings.Contains(page.URL, "/week") || strings.HasPrefix(page.File, "week") {
+			t.Errorf("retired demo page: %+v", page)
+		}
+		monthPage = monthPage || page.URL == "/month"
+	}
+	for _, shot := range DemoShots() {
+		if strings.Contains(shot.Path, "/week") || shot.File == "forecast.png" {
+			t.Errorf("retired screenshot: %+v", shot)
+		}
+		monthShot = monthShot || shot.File == "month.png"
+	}
+	if !monthPage || !monthShot {
+		t.Fatal("monthly demo page or screenshot missing")
 	}
 }
