@@ -30,13 +30,16 @@ func ValidYear(y int) bool {
 // Per-fiscal-year values (target hours, vacation, standard tasks) live in
 // Data.FiscalYears instead, keyed by the FY anchor year.
 type Settings struct {
-	Year                 int     `json:"year"`         // currently active FY anchor year
-	FederalState         string  `json:"federalState"` // e.g. "BY", "BW", "BE" ...
-	WeeklyTargetHours    float64 `json:"weeklyTargetHours"`
-	FiscalYearStartMonth int     `json:"fiscalYearStartMonth"` // 1-12; 7 = July (default). 1 == calendar year
+	Year                      int     `json:"year"`         // currently active FY anchor year
+	FederalState              string  `json:"federalState"` // e.g. "BY", "BW", "BE" ...
+	WeeklyTargetHours         float64 `json:"weeklyTargetHours"`
+	FiscalYearStartMonth      int     `json:"fiscalYearStartMonth"` // 1-12; 7 = July (default). 1 == calendar year
+	DashboardRange            string  `json:"dashboardRange"`
+	MonthPlanningPrompt       string  `json:"monthPlanningPrompt,omitempty"`
+	MonthPlanningSystemPrompt string  `json:"monthPlanningSystemPrompt,omitempty"`
 
-	// AI holds the configuration for the remote AI endpoint used to update the
-	// JSON document from a natural-language prompt.
+	// AI holds the selected deployment and legacy manual endpoint for analysis
+	// and planning previews. Foundry identity comes from the environment.
 	AI AISettings `json:"ai"`
 
 	// Utilization configures the booking traffic-light thresholds and labels
@@ -54,7 +57,7 @@ type Settings struct {
 // variable, not stored here. APIKey is retained only for backward-compatible
 // reading of old documents and is no longer written.
 type AISettings struct {
-	Endpoint   string `json:"endpoint"`         // base URL, e.g. https://my-resource.openai.azure.com
+	Endpoint   string `json:"endpoint"`         // manual base URL; overridden by Foundry discovery
 	APIKey     string `json:"apiKey,omitempty"` // deprecated: prefer FORECAST_AI_API_KEY env var
 	Deployment string `json:"deployment"`       // deployment / model-router name
 	APIVersion string `json:"apiVersion"`       // e.g. 2024-10-21
@@ -224,9 +227,9 @@ func ProjectsForFY(ps []Project, year int) []Project {
 
 // VacationSystem marks the auto-managed, non-deletable vacation project of a
 // fiscal year. Apart from its budget (derived from the configured vacation
-// days) it behaves like any other project: it is editable, bookable in the
-// forecast grid and counts towards the weekly utilization. Only the FY goal
-// ignores it.
+// days) it behaves like any other project: it is editable and its imported
+// hours count towards weekly utilization, but not the FY goal. Monthly planning
+// treats those hours as an absence that reduces bookable capacity.
 const VacationSystem = "vacation"
 
 // VacationColor is the fixed colour of the vacation project so it is visually
@@ -317,11 +320,15 @@ type Entry struct {
 
 // Data is the full persisted document.
 type Data struct {
-	Settings    Settings                   `json:"settings"`
-	FiscalYears map[int]FiscalYearSettings `json:"fiscalYears"`
-	Projects    []Project                  `json:"projects"`
-	Entries     []Entry                    `json:"entries"`
+	Settings         Settings                   `json:"settings"`
+	FiscalYears      map[int]FiscalYearSettings `json:"fiscalYears"`
+	Projects         []Project                  `json:"projects"`
+	Entries          []Entry                    `json:"entries"`
+	SavedMonthPlans  map[string]string          `json:"savedMonthPlans,omitempty"`
+	ForecastAccuracy map[int]ForecastAccuracy   `json:"forecastAccuracy,omitempty"`
 }
+
+const MaxMonthPlanningPrompt = 8000
 
 // DefaultFiscalYearStartMonth is the month a fiscal year starts in unless the
 // user configures another one (7 = July).
@@ -336,6 +343,7 @@ func DefaultData(year int) Data {
 			FederalState:         "SN",
 			WeeklyTargetHours:    40,
 			FiscalYearStartMonth: DefaultFiscalYearStartMonth,
+			DashboardRange:       DefaultDashboardRange,
 			Utilization:          DefaultUtilization(),
 		},
 		FiscalYears: map[int]FiscalYearSettings{},
@@ -376,6 +384,28 @@ func (d Data) CurrentFY() FiscalYearSettings {
 // used before persisting data that was edited directly as JSON, so bad input
 // is rejected instead of corrupting the store.
 func Validate(d Data) error {
+	for year, accuracy := range d.ForecastAccuracy {
+		if !ValidYear(year) {
+			return fmt.Errorf("Ungültiges Fiskaljahr der Forecast Accuracy: %d", year)
+		}
+		if err := accuracy.Validate(); err != nil {
+			return err
+		}
+	}
+	if len([]rune(d.Settings.MonthPlanningPrompt)) > MaxMonthPlanningPrompt {
+		return fmt.Errorf("Der Planungsprompt darf höchstens %d Zeichen enthalten", MaxMonthPlanningPrompt)
+	}
+	if len([]rune(d.Settings.MonthPlanningSystemPrompt)) > MaxMonthPlanningPrompt {
+		return fmt.Errorf("Der Systemprompt darf höchstens %d Zeichen enthalten", MaxMonthPlanningPrompt)
+	}
+	for month, savedAt := range d.SavedMonthPlans {
+		if date, err := time.Parse("2006-01", month); err != nil || !ValidYear(date.Year()) {
+			return fmt.Errorf("Ungültiger Monat in savedMonthPlans")
+		}
+		if _, err := time.Parse(time.RFC3339, savedAt); err != nil {
+			return fmt.Errorf("Ungültiger Speicherzeitpunkt in savedMonthPlans")
+		}
+	}
 	if !ValidYear(d.Settings.Year) {
 		return fmt.Errorf("settings.year %d liegt außerhalb von %d–%d", d.Settings.Year, MinYear, MaxYear)
 	}
@@ -384,6 +414,9 @@ func Validate(d Data) error {
 	}
 	if d.Settings.WeeklyTargetHours < 0 {
 		return fmt.Errorf("settings.weeklyTargetHours darf nicht negativ sein")
+	}
+	if key := d.Settings.DashboardRange; key != "" && !ValidDashboardRange(key) {
+		return fmt.Errorf("settings.dashboardRange ist kein gültiger Dashboard-Zeitraum")
 	}
 	if ep := strings.TrimSpace(d.Settings.AI.Endpoint); ep != "" && !strings.HasPrefix(ep, "http://") && !strings.HasPrefix(ep, "https://") {
 		return fmt.Errorf("settings.ai.endpoint muss mit http:// oder https:// beginnen")

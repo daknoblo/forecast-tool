@@ -51,6 +51,7 @@
     </div>
   </div>
   {{if .FYChart}}<div class="mini-chart">{{.FYChart}}</div>{{end}}
+  <p class="hint">Die Ziel-Diagramme markieren das erste Erreichen der roten Ziellinie. Das Datum ist ein Näherungswert aus der gezeichneten Monatskurve, kein tagesgenauer Buchungstermin.</p>
 </section>
 
 <section class="card">
@@ -178,29 +179,7 @@
 </section>
 
 <section class="card">
-  <h2>Wochenauslastung</h2>
-  <table class="grid compact">
-    <thead>
-      <tr><th>Woche</th><th class="num">Forecast</th><th class="num">Ist gebucht</th><th class="num">Soll</th><th>Status</th><th>Auslastung</th></tr>
-    </thead>
-    <tbody>
-    {{range .WeekTotals}}
-      {{if le .Week $.LastPlannedWeek}}
-      <tr>
-        <td><a href="/week/{{.Week}}">{{.Label}}</a></td>
-        <td class="num">{{hours .Forecast}} h</td>
-        <td class="num ist">{{hours .Actual}} h</td>
-        <td class="num">{{hours .TargetHours}} h</td>
-        <td>{{template "utilstatus" .Status}}</td>
-        <td>
-          <div class="bar"><span style="width:{{barWidth .UtilizationPct}}%"></span></div>
-          <small>{{hours .UtilizationPct}} %</small>
-        </td>
-      </tr>
-      {{end}}
-    {{end}}
-    </tbody>
-  </table>
+  {{template "weeklyutilization" .Summary}}
 </section>
 
 <section class="card" id="arbeitszeit">
@@ -216,7 +195,7 @@
   {{if .Private}}
   <p class="hint">Im <strong>privaten Modus</strong> ist die Auswertung deaktiviert – sie würde deine echten Projektnamen und Stunden im Klartext an den KI-Endpoint senden, nicht die angezeigten Beispieldaten.</p>
   {{else if not .AIConfigured}}
-  <p class="hint">Es ist noch kein KI-Endpoint konfiguriert. Hinterlege Endpoint, Deployment und API-Version in den <a href="/settings">Einstellungen</a> und setze den API-Key über die Umgebungsvariable <code>{{.AIKeyEnv}}</code>.</p>
+  <p class="hint">Die KI-Anbindung ist noch nicht vollständig konfiguriert. Wähle in den <a href="/settings#ai">Einstellungen</a> ein Foundry-Deployment aus oder richte einen manuellen Endpoint mit API-Key ein. Zugangsdaten werden ausschließlich über die Server-Umgebung bereitgestellt.</p>
   {{else}}
   <p class="hint">Stelle Fragen zu deinen gebuchten und geplanten Stunden. An den KI-Endpoint geht eine kompakte Zusammenfassung des aktuellen Fiskaljahres (Projekte, Budgets, Stunden je Monat und Quartal) – nicht die Rohdatei.</p>
   <div class="chat" data-chat>
@@ -257,6 +236,7 @@
         status.textContent = 'Wird ausgewertet…';
         status.className = 'chat-status busy';
         answer.hidden = true;
+        var endActivity = window.beginActivity();
         fetch('/goal/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'fetch' },
@@ -279,7 +259,7 @@
           send.disabled = false;
           status.textContent = 'Auswertung fehlgeschlagen.';
           status.className = 'chat-status error';
-        });
+        }).finally(endActivity);
       });
     })();
   </script>

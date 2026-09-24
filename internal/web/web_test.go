@@ -3,6 +3,7 @@ package web
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -28,6 +29,82 @@ func newTestHandler(t *testing.T) http.Handler {
 		t.Fatalf("NewServer: %v", err)
 	}
 	return srv.Handler()
+}
+
+func TestDashboardDefaultRange(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "data.json")
+	store, err := storage.New(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv, err := NewServer(store, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := srv.Handler()
+	get := func(path string) string {
+		t.Helper()
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET %s: %d: %s", path, rec.Code, rec.Body.String())
+		}
+		return rec.Body.String()
+	}
+	checkRange := func(path, key string) {
+		t.Helper()
+		if body := get(path); !strings.Contains(body, `class="chip active" href="/?sankey=`+key+`"`) {
+			t.Fatalf("GET %s: expected active range %s", path, key)
+		}
+	}
+	post := func(form string, auto bool, want int) {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodPost, "/settings", strings.NewReader(form))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		if auto {
+			req.Header.Set("X-Requested-With", "fetch")
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != want {
+			t.Fatalf("POST settings: %d, want %d: %s", rec.Code, want, rec.Body.String())
+		}
+	}
+	checkRange("/", "4w")
+	for _, choice := range models.DashboardRanges {
+		t.Run(choice.Key, func(t *testing.T) {
+			post("dashboardRange="+choice.Key, true, http.StatusNoContent)
+			checkRange("/", choice.Key)
+			checkRange("/?sankey=", choice.Key)
+			checkRange("/?sankey=invalid", choice.Key)
+			if body := get("/settings"); !strings.Contains(body, `value="`+choice.Key+`" selected`) {
+				t.Fatal("saved range is not selected in settings")
+			}
+			reopened, err := storage.New(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := reopened.Snapshot().Settings.DashboardRange; got != choice.Key {
+				t.Fatalf("persisted range = %q, want %q", got, choice.Key)
+			}
+		})
+	}
+	post("dashboardRange=3m", false, http.StatusSeeOther)
+	checkRange("/?sankey=1w&soff=-1", "1w")
+	checkRange("/", "3m")
+	post("weekly=42", true, http.StatusNoContent)
+	checkRange("/", "3m")
+	for _, invalid := range []string{"", "invalid"} {
+		post("dashboardRange="+invalid+"&weekly=20", true, http.StatusBadRequest)
+		if got := store.Snapshot().Settings; got.DashboardRange != "3m" || got.WeeklyTargetHours != 42 {
+			t.Fatalf("invalid input changed settings: %+v", got)
+		}
+	}
+	// Blocking the temporary file forces a real persistence error.
+	if err := os.Mkdir(path+".tmp", 0o700); err != nil {
+		t.Fatal(err)
+	}
+	post("dashboardRange=6m", true, http.StatusInternalServerError)
 }
 
 func TestSecurityHeadersArePresent(t *testing.T) {
@@ -143,7 +220,7 @@ func TestPrivateModeShowsSampleDataInsteadOfTheRealOne(t *testing.T) {
 	}
 	h := srv.Handler()
 
-	for _, path := range []string{"/", "/projects", "/goal", "/week"} {
+	for _, path := range []string{"/", "/projects", "/goal", "/month"} {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		req.AddCookie(&http.Cookie{Name: privateCookie, Value: "1"})
 		rec := httptest.NewRecorder()
@@ -272,60 +349,6 @@ func TestWorkloadReachesDashboardAndGoal(t *testing.T) {
 	}
 	if !strings.Contains(body, `h geplant auf`) {
 		t.Error("the chart carries no forward-looking month")
-	}
-}
-
-func TestOutOfWindowCellsStayVisibleAndWritable(t *testing.T) {
-	store, err := storage.New(filepath.Join(t.TempDir(), "data.json"))
-	if err != nil {
-		t.Fatalf("storage.New: %v", err)
-	}
-	srv, err := NewServer(store, nil)
-	if err != nil {
-		t.Fatalf("NewServer: %v", err)
-	}
-	h := srv.Handler()
-
-	d := store.Snapshot()
-	_, fyEnd := forecast.FiscalYear(d.Settings.Year, d.Settings.FiscalYearStartMonth)
-	last := fyEnd.Format("2006-01-02")
-	// A window covering only the last FY day leaves week 1 outside of it.
-	if err := store.Mutate(func(d *models.Data) error {
-		d.Projects = append(d.Projects, models.Project{
-			ID: "p1", AssignmentID: "1", Name: "Alpha", BudgetHours: 10, Color: "#2563eb",
-			Active: true, FiscalYear: d.Settings.Year, StartDate: last, EndDate: last,
-		})
-		return nil
-	}); err != nil {
-		t.Fatalf("seed project: %v", err)
-	}
-	day := forecast.FYWeekMonday(d.Settings.Year, d.Settings.FiscalYearStartMonth, 1).Format("2006-01-02")
-
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/week/1", nil))
-	if rec.Code != http.StatusOK {
-		t.Fatalf("week status = %d, want 200", rec.Code)
-	}
-	if !strings.Contains(rec.Body.String(), `name="h_p1_`+day+`"`) {
-		t.Error("out-of-window day has no input in the forecast grid")
-	}
-
-	req := httptest.NewRequest(http.MethodPost, "/week/cells",
-		strings.NewReader(`{"cells":[{"date":"`+day+`","projectId":"p1","hours":4}]}`))
-	req.Header.Set("Content-Type", "application/json")
-	rec = httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"skipped":0`) {
-		t.Fatalf("out-of-window cell rejected: %d %s", rec.Code, rec.Body.String())
-	}
-	got := 0.0
-	for _, e := range store.Snapshot().Entries {
-		if e.Date == day && e.ProjectID == "p1" {
-			got = e.Hours
-		}
-	}
-	if got != 4 {
-		t.Errorf("persisted hours = %v, want 4", got)
 	}
 }
 
@@ -496,7 +519,7 @@ func TestProgressChartPercentAxis(t *testing.T) {
 	booked := []float64{50, 100}
 	projected := []float64{50, 150}
 
-	got := string(progressSVG(labels, booked, projected, 200, 1, false))
+	got := string(progressSVG(labels, booked, projected, 200, 1, false, time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)))
 	for _, want := range []string{">0 %<", ">100 %<"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("percentage axis is missing %q", want)
@@ -504,7 +527,7 @@ func TestProgressChartPercentAxis(t *testing.T) {
 	}
 
 	// Without a target a percentage has no basis.
-	if got := string(progressSVG(labels, booked, projected, 0, 1, false)); strings.Contains(got, " %<") {
+	if got := string(progressSVG(labels, booked, projected, 0, 1, false, time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC))); strings.Contains(got, " %<") {
 		t.Error("chart without a target must not draw a percentage axis")
 	}
 }
@@ -519,7 +542,7 @@ func TestProgressChartBookedEndsAtTotal(t *testing.T) {
 	projected := []float64{250, 400, 646} // cumulative incl. forecast
 	const target, todayPos = 359, 1.548   // mid-August
 
-	got := string(progressSVG(labels, booked, projected, target, todayPos, false))
+	got := string(progressSVG(labels, booked, projected, target, todayPos, false, time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)))
 
 	green := regexp.MustCompile(`<polyline fill="none" stroke="#16a34a" stroke-width="2.5" points="([^"]+)"`).FindStringSubmatch(got)
 	if green == nil {

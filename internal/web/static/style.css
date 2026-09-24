@@ -11,6 +11,80 @@
 
 * { box-sizing: border-box; }
 
+table.foundry-config { width: 100%; margin-bottom: 1rem; }
+table.foundry-config td:last-child { overflow-wrap: anywhere; }
+.form-stack.foundry-form { max-width: none; }
+.foundry-controls label { flex: 1 1 16rem; min-width: 0; max-width: 420px; }
+.foundry-controls select { width: 100%; }
+#ai > .save-status.error { white-space: normal; }
+@media (max-width: 760px) {
+  table.foundry-config tr { display: block; margin-bottom: 0.75rem; }
+  table.foundry-config td { display: block; }
+}
+
+.month-heading h1 { margin: 0; }
+.month-title-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+.month-title-row button { flex-shrink: 0; }
+.activity { display: inline-flex; align-items: center; flex-shrink: 0; }
+.activity-spinner { width: 1.1rem; height: 1.1rem; border: 2px solid var(--line); border-top-color: var(--muted); border-radius: 50%; }
+.activity.busy .activity-spinner { border-top-color: var(--accent); animation: activity-spin 0.8s linear infinite; }
+.activity-text { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@keyframes activity-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .activity.busy .activity-spinner { animation: none; }
+}
+.form-stack.month-prompt-form { max-width: none; margin-top: 1rem; }
+.month-method .prompt { resize: none; overflow-y: hidden; }
+.form-stack.month-response-field { max-width: none; margin-top: 1rem; }
+.month-response-field[hidden] { display: none; }
+.month-method .month-response { font-family: ui-monospace, monospace; }
+.month-unallocated li { margin: 0.4rem 0; overflow-wrap: anywhere; }
+.month-unallocated-reason { white-space: pre-line; }
+.month-explanation { overflow-wrap: anywhere; line-height: 1.6; }
+.month-explanation p, .month-explanation ul, .month-explanation ol { margin: 0.65rem 0; }
+.month-explanation ul, .month-explanation ol { padding-left: 1.5rem; }
+.month-explanation li + li { margin-top: 0.45rem; }
+.month-explanation > :first-child { margin-top: 0; }
+.month-explanation > :last-child { margin-bottom: 0; }
+.month-explanation pre { white-space: pre-wrap; }
+.month-explanation h1, .month-explanation h2, .month-explanation h3 { font-size: 1rem; margin: 0.8rem 0 0.4rem; }
+.month-heading #month-ai-status { margin-top: 1rem; }
+.month-heading button:disabled, .month-preview button:disabled { opacity: 0.5; cursor: not-allowed; }
+.month-heading p { margin: 0; }
+.month-nav { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 0.65rem; }
+.month-nav h2 { margin: 0 0.5rem; min-width: 10rem; text-align: center; }
+.month-method { font-size: 0.85rem; line-height: 1.6; }
+.month-method summary { cursor: pointer; font-weight: 600; }
+.month-scroll { overflow-x: auto; }
+.month-calendar { width: 100%; min-width: 1300px; table-layout: fixed; border-collapse: collapse; background: var(--panel); font-size: 0.8rem; }
+.month-calendar caption { text-align: left; padding: 0 0 0.7rem; }
+.month-week-column { width: 220px; }
+.month-calendar td, .month-calendar th { border: 1px solid var(--line); vertical-align: top; padding: 0.4rem; height: 120px; text-align: left; font-weight: normal; }
+.month-day.adjacent { background: #f8fafc; }
+.month-day.adjacent .month-date { color: var(--muted); }
+.month-day.holiday { background: var(--holiday); }
+.month-day.today { box-shadow: inset 0 3px var(--accent); }
+.month-date { display: flex; align-items: center; justify-content: space-between; gap: 0.25rem; margin-bottom: 0.4rem; font-weight: 600; font-size: 0.7rem; white-space: nowrap; }
+.month-date time[aria-current="date"] { color: var(--accent); }
+.month-holiday { color: #92400e; font-weight: 600; margin-bottom: 0.4rem; overflow-wrap: anywhere; }
+.month-event { display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; border: 1px solid #cbd5e1; border-left: 4px solid; border-radius: 4px; padding: 0.15rem 0.35rem; margin: 0.2rem 0; background: #f1f5f9; line-height: 1.35; }
+.month-event.estimated { border-top-style: dashed; border-right-style: dashed; border-bottom-style: dashed; background: #eff6ff; }
+.month-event.vacation { background: #e2e8f0; }
+.month-event strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.month-event span { flex-shrink: 0; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.month-day-total { display: inline-flex; align-items: center; gap: 0.2rem; margin-left: auto; font-variant-numeric: tabular-nums; }
+.month-over { color: #92400e; background: #fef3c7; border-radius: 3px; padding: 0.1rem 0.2rem; }
+.month-week { background: #f8fafc; }
+.month-week-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.3rem; font-size: 0.75rem; }
+.month-week-heading strong, .month-week-heading .month-over { white-space: nowrap; }
+.month-week-summary { display: grid; gap: 0.3rem; margin: 0.65rem 0 0; }
+.month-summary-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 0.5rem; padding: 0.2rem 0.4rem; }
+.month-summary-row dt { overflow-wrap: anywhere; }
+.month-summary-row dd { margin: 0; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.month-project-total { border-left: 4px solid var(--project-color); border-radius: 4px; background: color-mix(in srgb, var(--project-color) 16%, var(--panel)); }
+.month-summary-total { border-top: 1px solid var(--line); margin-top: 0.2rem; padding-top: 0.5rem; font-weight: 600; }
+.month-warning { color: #9a3412; background: #fff7ed; border-radius: 4px; padding: 0.3rem; margin-top: 0.4rem; font-size: 0.75rem; overflow-wrap: anywhere; }
+
 body {
   margin: 0;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -42,6 +116,11 @@ a:hover { text-decoration: underline; }
 .topbar .year .fyswitch label { font-weight: 600; color: var(--text); }
 .topbar .year .fyswitch select { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 0.2rem 0.4rem; font-variant-numeric: tabular-nums; }
 .topbar .year .state { padding-left: 0.25rem; }
+@media (max-width: 1100px) {
+  .topbar { flex-wrap: wrap; gap: 0.6rem; }
+  .topbar .brand { white-space: nowrap; }
+  .topbar nav { order: 3; width: 100%; overflow-x: auto; white-space: nowrap; padding-bottom: 0.25rem; }
+}
 
 main { max-width: 1188px; margin: 1.5rem auto; padding: 0 1.25rem; }
 main.wide { max-width: 90vw; width: 90vw; }
@@ -57,28 +136,31 @@ h2 { font-size: 1.1rem; margin: 1.5rem 0 0.75rem; }
   padding: 1rem 1.25rem;
   margin-bottom: 1rem;
 }
-.kpi { text-align: center; }
+/* Shared tracks align optional headings, figures, captions and metadata. */
+.cards:has(> .kpi) { row-gap: 0; }
+.kpi { display: grid; grid-template-rows: subgrid; grid-row: span 4; row-gap: 0; text-align: center; }
+.kpi-heading { grid-row: 1; align-self: end; color: var(--muted); font-size: 0.85rem; padding-bottom: 0.2rem; }
 /* Tile figures always stay in the normal text colour; only the "no data"
    placeholder is greyed out. The week link keeps its hover underline as the
    only hint that it is clickable. */
-.kpi-value { font-size: 1.8rem; font-weight: 700; }
+.kpi-value { grid-row: 2; align-self: center; font-size: 1.8rem; line-height: 1.2; font-weight: 700; }
 .kpi-value a { color: inherit; }
 .kpi-value.muted { color: var(--muted); }
 /* split tile: two figures of the same measure side by side, each with its own
    caption underneath, separated by a rule */
-.kpi-split { display: flex; align-items: stretch; justify-content: center; }
-.kpi-split > a { display: flex; flex-direction: column; align-items: center; padding: 0 0.65rem; white-space: nowrap; }
-.kpi-split > a + a { border-left: 1px solid var(--line); }
-.kpi-split .kpi-part { font-size: 1.35rem; line-height: 1.15; }
-.kpi-split small { font-size: 0.62rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
-.kpi-label { color: var(--muted); font-size: 0.85rem; }
+.kpi-split { grid-row: 2 / 4; align-self: stretch; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: subgrid; }
+.kpi-split > a, .kpi-split > div { grid-row: span 2; display: grid; grid-template-rows: subgrid; min-width: 0; padding: 0 0.25rem; }
+.kpi-split > a + a, .kpi-split > div + div { border-left: 1px solid var(--line); }
+.kpi-split .kpi-part { align-self: center; white-space: nowrap; }
+.kpi-label, .kpi-split small { align-self: start; color: var(--muted); font-size: 0.85rem; line-height: 1.5; font-weight: 400; }
+.kpi-label { grid-row: 3; }
 /* secondary KPI line, e.g. the cross-fiscal-year carry-over */
-.kpi-sub { color: var(--muted); font-size: 0.76rem; margin-top: 0.2rem; }
+.kpi-sub { grid-row: 4; color: var(--muted); font-size: 0.76rem; margin-top: 0.2rem; }
 /* dashboard KPI row: always split evenly across the full width */
-.kpi-row { grid-template-columns: repeat(7, minmax(0, 1fr)); }
-@media (max-width: 1600px) { .kpi-row { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
-@media (max-width: 1100px) { .kpi-row { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (max-width: 760px) { .kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.kpi-row { grid-template-columns: repeat(8, minmax(0, 1fr)); grid-auto-rows: minmax(1.4rem, auto) auto auto auto; }
+@media (max-width: 2400px) { .kpi-row { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 1280px) { .kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .kpi-row { grid-template-columns: 1fr; } }
 
 /* private ("presentation") mode: the toggle plus the banner that keeps the
    sample data from being mistaken for the real thing */
@@ -102,49 +184,16 @@ table.grid.compact th, table.grid.compact td { padding: 0.35rem 0.75rem; }
 table.kv { border-collapse: collapse; }
 table.kv td { padding: 0.3rem 0.75rem 0.3rem 0; vertical-align: top; }
 table.kv td:first-child { color: var(--muted); white-space: nowrap; }
-table.kv code { background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 0.1rem 0.35rem; font-size: 0.85rem; }
-/* token rows: label, env var and status each in their own aligned column */
+table.kv code, .secret-status { background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 0.1rem 0.35rem; font-size: 0.85rem; }
+table.tokens code { display: inline-block; max-width: 100%; overflow-wrap: anywhere; }
+/* Configuration rows pair labels with values or secret-presence status. */
 table.tokens td { vertical-align: middle; padding-top: 0.25rem; padding-bottom: 0.25rem; }
-
-table.week th.day, table.week td.day { text-align: center; min-width: 76px; }
-table.week .holiday { background: var(--holiday); }
-table.week tfoot td { background: #f8fafc; font-weight: 600; }
-.hcell { width: 64px; text-align: center; padding: 0.3rem; border: 1px solid var(--line); border-radius: 6px; }
-.hcell:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
-
-/* Wide multi-week editor */
-.table-scroll { width: 100%; overflow-x: auto; }
-table.week.span { table-layout: fixed; }
-table.week.span th, table.week.span td { padding: 0.45rem 0.3rem; border-right: 1px solid var(--line); }
-/* all forecast cells centred; only the project-name column stays left-aligned */
-table.week.span th, table.week.span td { text-align: center; }
-table.week.span th.pname, table.week.span td.pname { text-align: left; }
-table.week.span th.day, table.week.span td.day { min-width: 90px; }
-table.week.span td.pname, table.week.span th.pname { position: sticky; left: 0; z-index: 2; background: var(--panel); min-width: 240px; width: 240px; text-align: left; border-right: 2px solid var(--line); }
-table.week.span .budget-left { display: block; margin-top: 2px; font-weight: 400; color: var(--muted); font-size: 0.72rem; }
-table.week.span .budget-left strong { color: var(--text); }
-table.week.span .budget-left.negative, table.week.span .budget-left.negative strong { color: var(--danger); }
-table.week.span thead th.pname { background: #f8fafc; }
-table.week.span tfoot td.pname { background: #f8fafc; }
-table.week.span .weekgroup { text-align: center; border-left: 2px solid var(--line); border-right: 2px solid var(--line); white-space: nowrap; }
-table.week.span .weekgroup small { font-weight: 400; color: var(--muted); }
-/* Days of the neighbouring fiscal year: still bookable, but outside every sum
-   of this year - so they must be unmistakable, also against .past. */
-table.week.span th.day.outyear, table.week.span td.day.outyear,
-table.week.span th.day.outyear.past, table.week.span td.day.outyear.past {
-  background: repeating-linear-gradient(-45deg, #eef2f7, #eef2f7 5px, #e2e8f0 5px, #e2e8f0 10px);
-  color: var(--muted);
-}
-table.week.span td.day.outyear .hcell { background: #fff; color: var(--muted); font-style: italic; }
-.tag.otherfy { background: #64748b; }
-table.week.span .hcell { width: 100%; max-width: 70px; padding: 0.45rem 0.35rem; }
 
 .span-ctl { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; margin: 0.25rem 0 1rem; }
 .span-ctl-label { color: var(--muted); font-size: 0.85rem; margin-right: 0.25rem; }
 .span-ctl .chip { display: inline-block; min-width: 1.6rem; text-align: center; padding: 0.2rem 0.55rem; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 0.85rem; background: var(--panel); }
 .span-ctl .chip:hover { text-decoration: none; border-color: var(--accent); color: var(--text); }
 .span-ctl .chip.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
-.span-ctl .chip.auto { font-style: italic; }
 
 .tag { display: inline-block; font-size: 0.65rem; background: #f59e0b; color: #fff; padding: 0 0.3rem; border-radius: 4px; }
 
@@ -160,7 +209,6 @@ table.week.span .hcell { width: 100%; max-width: 70px; padding: 0.45rem 0.35rem;
 .btn.danger { background: #fee2e2; color: var(--danger); }
 .btn.danger:hover { background: #fecaca; }
 
-.actions { margin-top: 1rem; display: flex; align-items: center; gap: 1rem; }
 .hint { color: var(--muted); font-size: 0.85rem; }
 .fy-badge { font-size: 0.7em; vertical-align: middle; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 0.1em 0.6em; color: var(--muted); font-weight: 600; }
 .fy-badge.inactive { background: #fef3c7; border-color: #fcd34d; color: #92400e; }
@@ -171,7 +219,7 @@ table.week.span .hcell { width: 100%; max-width: 70px; padding: 0.45rem 0.35rem;
 .msg.ok { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
 .badge { display: inline-block; border-radius: 8px; padding: 0.3rem 0.6rem; font-size: 0.9rem; border: 1px solid; white-space: nowrap; }
 .badge.error { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
-.badge.ok { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
+.badge.ok, .secret-status.ok, table.kv code.secret-status.ok { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
 
 .prompt {
   width: 100%;
@@ -202,8 +250,6 @@ table.week.span .hcell { width: 100%; max-width: 70px; padding: 0.45rem 0.35rem;
   padding: 0.9rem 1.1rem;
 }
 
-.week-head { display: flex; align-items: center; justify-content: space-between; }
-.week-nav { display: flex; gap: 1rem; }
 
 .form-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 1rem; }
 .form-stack { display: flex; flex-direction: column; gap: 1rem; max-width: 420px; }
@@ -242,12 +288,6 @@ details form { margin-top: 0.75rem; }
 .foot .ver { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.95em; }
 .foot .ghlink svg { display: block; }
 
-/* booked (past) day cells in the week grid */
-table.week td.day.past, table.week th.day.past { background: #f8fafc; }
-table.week td.day.past.holiday, table.week th.day.past.holiday { background: var(--holiday); }
-.hcell.booked { color: #0e7490; background: #f6feff; }
-.tag.booked { background: #0891b2; }
-
 /* "Ist" (booked) accent colour in reports */
 small.ist, td.num.ist { color: #0e7490; }
 
@@ -278,22 +318,6 @@ small.ist, td.num.ist { color: #0e7490; }
 .util-high .util-dot { background: #f59e0b; }    /* orange, arrow up */
 .util-over .util-dot { background: #dc2626; }    /* red, X */
 
-/* centered sum column in the forecast grid */
-.grid .sumcol { text-align: center; }
-
-/* per-week status row + clear buttons in the forecast grid */
-.statusrow .statuscell { text-align: center; color: var(--muted); }
-.clearbtn {
-  display: inline-block; margin-left: 4px; padding: 0 5px;
-  border: 1px solid var(--line); border-radius: 4px; background: var(--panel);
-  color: var(--muted); font-size: 0.7rem; line-height: 1.4; cursor: pointer;
-}
-.clearbtn:hover { color: var(--danger); border-color: var(--danger); }
-
-/* out-of-window forecast cells stay editable, the hatching is only a hint */
-.grid td.day.closed { background: repeating-linear-gradient(135deg, #f3f4f6, #f3f4f6 6px, #eceef1 6px, #eceef1 12px); }
-.hcell.outside { border-style: dashed; border-color: #cbd5e1; background: transparent; }
-
 /* hours of an assignment split across fiscal years (date-based attribution) */
 .fy-split { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin: 0.75rem 0 0; padding: 0.6rem 0.8rem; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; }
 .fy-split-head { font-size: 0.8rem; font-weight: 600; color: var(--muted); margin-right: 0.25rem; }
@@ -313,35 +337,6 @@ small.ist, td.num.ist { color: #0e7490; }
   background: var(--line); color: var(--muted); font-size: 0.72rem;
 }
 .project-window .warn, .warn { color: var(--danger); }
-
-/* per-week sum columns + week / month separators in the forecast grid */
-table.week.span .weeksum { background: #f1f5f9; }
-table.week.span thead th.weeksum, table.week.span tfoot td.weeksum { background: #e9eef5; }
-table.week.span .weekstart { border-left: 3px solid #94a3b8; }
-table.week.span .grandsum { border-left: 3px solid #475569; background: #eef2f7; }
-table.week.span thead th.grandsum, table.week.span tfoot td.grandsum { background: #e2e8f0; }
-/* month boundary: coloured divider on the right edge of the last weekday */
-table.week.span .monthend { border-right: 3px solid #f59e0b; }
-
-/* wider project-name column, narrower per-week sum column (sized to content),
-   and a clearer horizontal separator between projects */
-table.week.span .weeksum { width: 58px; padding-left: 0.25rem; padding-right: 0.25rem; }
-table.week.span .grandsum { width: 66px; }
-table.week.span tbody td { border-bottom: 2px solid #cbd5e1; }
-
-/* centred daily totals in the forecast footer */
-table.week tfoot td.center { text-align: center; }
-
-/* burn-rate banner above the forecast grid */
-.burnbanner {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1.25rem;
-  margin: 0 0 1rem; padding: 0.5rem 0.8rem;
-  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
-}
-.burnbanner-total { font-size: 0.9rem; }
-.burnbanner-items { display: flex; flex-wrap: wrap; gap: 0.4rem 0.9rem; color: var(--muted); font-size: 0.82rem; }
-.burnchip { display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; }
-.burnchip .dot { width: 10px; height: 10px; }
 
 /* goal half-year cards + progress charts */
 .periods { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; }
@@ -392,7 +387,7 @@ table.week tfoot td.center { text-align: center; }
 .budgets th.carrycol, .budgets td.carrycol { white-space: nowrap; color: var(--muted); }
 .budgets th.utilcol, .budgets td.utilcol { width: 16rem; }
 
-/* dashboard weekly utilization table: wide bars, grey Mon-Fri date range */
+/* shared weekly utilization table: wide bars, grey Mon-Fri date range */
 .weekly th.weekutil, .weekly td.weekutil { width: 28rem; }
 .weekly th:first-child, .weekly td:first-child { white-space: nowrap; }
 .weekly .barrow { display: flex; align-items: center; gap: 0.6rem; }
@@ -406,27 +401,14 @@ table.week tfoot td.center { text-align: center; }
 .budgets .barrow small { width: 3.2rem; text-align: right; flex: none; font-variant-numeric: tabular-nums; }
 .budgets .muted { color: var(--muted); }
 
-/* forecast controls: centred visible-weeks selector flanked by nav buttons */
-.week-controls { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 0.5rem 1rem; margin: 0.25rem 0 1rem; }
-.week-controls .span-ctl { margin: 0; }
 .btn.nav-btn { text-decoration: none; }
 .btn.nav-btn:hover { text-decoration: none; }
 .btn.nav-btn.disabled { opacity: 0.4; pointer-events: none; cursor: default; }
 /* sankey nav buttons share the chip metrics of the range selector below them */
 .sankey-nav .btn { padding: 0.2rem 0.75rem; font-size: 0.85rem; line-height: normal; border: 1px solid var(--line); border-radius: 999px; }
 
-/* forecast auto-save status pill */
-.save-status-wrap { margin-top: 1rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+/* shared form save status */
 .save-status { font-size: 0.82rem; font-weight: 600; padding: 0.25rem 0.65rem; border-radius: 999px; border: 1px solid var(--line); white-space: nowrap; }
 .save-status.ok { color: #065f46; background: #ecfdf5; border-color: #a7f3d0; }
 .save-status.saving { color: #92400e; background: #fffbeb; border-color: #fde68a; }
 .save-status.error { color: #991b1b; background: #fef2f2; border-color: #fecaca; }
-
-/* spacer row decoupling the footer summary rows from the project rows */
-table.week.span tfoot tr.footspacer td { height: 14px; padding: 0; border: none; background: var(--bg); }
-
-/* vacation row: subtle tint to set it apart from real project rows */
-table.week.span tr.vacrow > td { background: #f4f3fb; }
-table.week.span tr.vacrow > td.pname { background: #ece9f8; }
-
-

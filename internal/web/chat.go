@@ -194,10 +194,10 @@ func (s *Server) handleGoalChat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	d := s.store.Snapshot()
-	cfg := effectiveAI(d.Settings.AI)
-	if !aiConfigured(cfg) {
-		writeJSONError(w, http.StatusServiceUnavailable,
-			"Es ist kein KI-Endpoint konfiguriert. Hinterlege Endpoint, Deployment und API-Version in den Einstellungen und setze den API-Key über die Umgebungsvariable "+aiAPIKeyEnv+".")
+	cfg, err := s.aiConfig(r.Context(), d.Settings.AI)
+	if err != nil {
+		s.logger.Warn("ai configuration unavailable", "error", err)
+		writeJSONError(w, http.StatusServiceUnavailable, err.Error())
 		return
 	}
 

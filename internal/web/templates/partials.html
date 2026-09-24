@@ -12,11 +12,15 @@
   <nav>
     <a href="/" class="{{if eq .Active "dashboard"}}active{{end}}">Dashboard</a>
     <a href="/projects" class="{{if eq .Active "projects"}}active{{end}}">Projekte</a>
-    <a href="/week" class="{{if eq .Active "week"}}active{{end}}">Forecast</a>
+    <a href="/month" class="{{if eq .Active "month"}}active{{end}}">Monatsplanung</a>
     <a href="/goal" class="{{if eq .Active "goal"}}active{{end}}">Ziele</a>
     <a href="/settings" class="{{if eq .Active "settings"}}active{{end}}">Einstellungen</a>
   </nav>
   <div class="year">
+    <span id="activity" class="activity" title="Keine laufenden Datenübertragungen" aria-busy="false">
+      <span class="activity-spinner" aria-hidden="true"></span>
+      <span class="activity-text" role="status">Keine laufenden Datenübertragungen</span>
+    </span>
     <form method="post" action="/private" class="privswitch">
       <button type="submit" class="privbtn{{if .Private}} on{{end}}" aria-pressed="{{if .Private}}true{{else}}false{{end}}"
               title="{{if .Private}}Privater Modus aktiv – angezeigt werden Beispieldaten. Klicken zum Ausschalten.{{else}}Privater Modus: echte Projekte und Stunden durch Beispieldaten ersetzen{{end}}">
@@ -30,7 +34,7 @@
     </form>
     <form method="post" action="/fy" class="fyswitch">
       <label for="fySelect">FY</label>
-      <select id="fySelect" name="year" onchange="this.form.submit()"{{if .Private}} disabled title="Im privaten Modus gesperrt"{{end}}>
+      <select id="fySelect" name="year" onchange="this.form.requestSubmit()"{{if .Private}} disabled title="Im privaten Modus gesperrt"{{end}}>
         {{range .FYYears}}<option value="{{.}}"{{if eq . $.Settings.Year}} selected{{end}}>{{.}}</option>{{end}}
       </select>
       <noscript><button type="submit">OK</button></noscript>
@@ -38,6 +42,57 @@
     <span class="state">{{.Settings.FederalState}}</span>
   </div>
 </header>
+<script>
+(function () {
+  var indicator = document.getElementById('activity');
+  var label = indicator.querySelector('[role="status"]');
+  var pending = new Set();
+  var navigating = false;
+  function render() {
+    var active = navigating || pending.size > 0;
+    var message = active ? 'Daten werden abgerufen oder gespeichert' : 'Keine laufenden Datenübertragungen';
+    indicator.classList.toggle('busy', active);
+    indicator.setAttribute('aria-busy', String(active));
+    indicator.title = message;
+    if (label.textContent !== message) label.textContent = message;
+  }
+  window.beginActivity = function () {
+    var token = {};
+    pending.add(token);
+    render();
+    return function () {
+      pending.delete(token);
+      render();
+    };
+  };
+  function navigation(event) {
+    // Wait for validation/cancellation and fetch-based handlers before tracking navigation.
+    setTimeout(function () {
+      if (!event.defaultPrevented) {
+        navigating = true;
+        render();
+      }
+    }, 0);
+  }
+  document.addEventListener('submit', function (event) {
+    var target = (event.submitter && event.submitter.formTarget) || event.target.target;
+    if (!target || target === '_self') navigation(event);
+  }, true);
+  document.addEventListener('click', function (event) {
+    if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    var link = event.target.closest('a[href]');
+    if (!link || link.hasAttribute('download') || (link.target && link.target !== '_self')) return;
+    var url = new URL(link.href, location.href);
+    if (url.origin !== location.origin || url.pathname === '/export') return;
+    if (url.pathname === location.pathname && url.search === location.search && url.hash) return;
+    navigation(event);
+  }, true);
+  window.addEventListener('pageshow', function () {
+    navigating = false;
+    render();
+  });
+})();
+</script>
 {{if .Private}}<div class="privnote" role="status">Privater Modus: Alle Projekte, Budgets und Stunden auf dieser Seite sind <strong>frei erfundene Beispieldaten</strong>. Deine echten Daten sind unverändert und werden erst wieder angezeigt, wenn du den Modus oben rechts ausschaltest.</div>{{end}}
 <main{{if .Wide}} class="wide"{{end}}>
 {{end}}
@@ -69,7 +124,8 @@
 
     function setStatus(state, msg) {
       if (!statusEl) return;
-      statusEl.textContent = msg;
+      statusEl.hidden = statusEl.hasAttribute('data-save-quiet') && state === 'ok';
+      statusEl.textContent = statusEl.hidden ? '' : msg;
       statusEl.className = 'save-status ' + state;
     }
 
@@ -78,6 +134,7 @@
       if (!field || !field.name) return;
       var reload = field.hasAttribute('data-reload');
       inflight++;
+      var endActivity = window.beginActivity();
       setStatus('saving', 'Speichert\u2026');
       // URLSearchParams posts as application/x-www-form-urlencoded, which is
       // what the form handlers parse.
@@ -94,7 +151,7 @@
       }).catch(function () {
         inflight--;
         setStatus('error', 'Fehler beim Speichern');
-      });
+      }).finally(endActivity);
     });
   });
 })();
@@ -103,4 +160,27 @@
 
 {{define "utilstatus"}}<span class="util util-{{.Key}}" title="{{.Label}} · {{hours .Hours}} h"><span class="util-dot">{{if eq .Key "min"}}↓{{else if eq .Key "optimal"}}OK{{else if eq .Key "high"}}↑{{else}}✕{{end}}</span><span class="util-label">{{.Label}}</span></span>{{end}}
 
-{{define "utildot"}}<span class="util util-{{.Key}}" title="{{.Label}} · {{hours .Hours}} h"><span class="util-dot">{{if eq .Key "min"}}↓{{else if eq .Key "optimal"}}OK{{else if eq .Key "high"}}↑{{else}}✕{{end}}</span></span>{{end}}
+{{define "weeklyutilization"}}
+<h2>Wochenauslastung</h2>
+<table class="grid compact weekly">
+  <thead><tr><th>Woche</th><th class="num">Soll Stunden</th><th class="num">Gebuchte Stunden</th><th>Status</th><th class="weekutil">Auslastung</th></tr></thead>
+  <tbody>
+  {{range .WeekTotals}}
+    {{if le .Week $.LastPlannedWeek}}
+    <tr>
+      <td><a href="/month?month={{.Month}}#fyw-{{.Week}}">{{.Label}}</a> <span class="weekrange">{{.RangeLabel}}</span></td>
+      <td class="num">{{hours .TargetHours}} h</td>
+      <td class="num">{{hours .Hours}} h</td>
+      <td>{{template "utilstatus" .Status}}</td>
+      <td class="weekutil">
+        <div class="barrow">
+          <div class="bar"><span style="width:{{barWidth .UtilizationPct}}%"></span></div>
+          <small>{{hours .UtilizationPct}} %</small>
+        </div>
+      </td>
+    </tr>
+    {{end}}
+  {{end}}
+  </tbody>
+</table>
+{{end}}

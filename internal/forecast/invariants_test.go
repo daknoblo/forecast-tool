@@ -369,11 +369,15 @@ func TestWeekTotalsPartitionTheYear(t *testing.T) {
 	startISO, endISO := start.Format("2006-01-02"), end.Format("2006-01-02")
 	want := entryHours(d, func(e models.Entry) bool { return e.Date >= startISO && e.Date <= endISO })
 
-	var sum, actual, forecast float64
+	var sum float64
 	last := 0
 	for _, wt := range ys.WeekTotals {
-		if !eq(wt.Actual+wt.Forecast, wt.Hours, 0.2) {
-			t.Errorf("week %d: %v booked + %v forecast != %v hours", wt.Week, wt.Actual, wt.Forecast, wt.Hours)
+		wantWeek := entryHours(d, func(e models.Entry) bool {
+			day, err := time.Parse("2006-01-02", e.Date)
+			return err == nil && FYWeekIndexOf(year, 7, day) == wt.Week
+		})
+		if !eq(wt.Hours, wantWeek, 0.1) {
+			t.Errorf("week %d: %v hours, want %v", wt.Week, wt.Hours, wantWeek)
 		}
 		if wt.TargetHours > 0 && !eq(wt.UtilizationPct, wt.Hours/wt.TargetHours*100, 0.2) {
 			t.Errorf("week %d: utilization %v != %v", wt.Week, wt.UtilizationPct, wt.Hours/wt.TargetHours*100)
@@ -382,8 +386,6 @@ func TestWeekTotalsPartitionTheYear(t *testing.T) {
 			t.Errorf("week %d: status classified %v hours, but the row shows %v", wt.Week, wt.Status.Hours, wt.Hours)
 		}
 		sum += wt.Hours
-		actual += wt.Actual
-		forecast += wt.Forecast
 		if wt.Hours > 0 {
 			last = wt.Week
 		}
@@ -391,85 +393,8 @@ func TestWeekTotalsPartitionTheYear(t *testing.T) {
 	if !eq(sum, want, float64(len(ys.WeekTotals))*0.05+0.1) {
 		t.Errorf("week totals sum to %v, want %v", sum, want)
 	}
-	if !eq(actual+forecast, sum, 1) {
-		t.Errorf("weekly booked %v + forecast %v != %v", actual, forecast, sum)
-	}
 	if ys.LastPlannedWeek != last {
 		t.Errorf("LastPlannedWeek = %d, want %d", ys.LastPlannedWeek, last)
-	}
-}
-
-// A span aggregates exactly the weeks it spans - no day may be dropped or
-// counted twice at the block boundaries.
-func TestSpanEqualsSumOfItsWeeks(t *testing.T) {
-	year := currentFY(7)
-	d := genData(year, 7, 7)
-	cal := calFor(d)
-
-	for _, weeks := range []int{1, 2, 4, 6} {
-		sv := BuildSpan(d, cal, 10, weeks)
-		if len(sv.Blocks) != weeks {
-			t.Fatalf("weeks=%d: %d blocks", weeks, len(sv.Blocks))
-		}
-		if len(sv.Days) != weeks*5 {
-			t.Fatalf("weeks=%d: %d days, want %d", weeks, len(sv.Days), weeks*5)
-		}
-		var want, holiday float64
-		perProject := map[string]float64{}
-		for i := 0; i < weeks; i++ {
-			wv := BuildWeek(d, cal, sv.StartWeek+i)
-			want += wv.Total
-			holiday += wv.HolidayHours
-			for pid, h := range wv.ProjectTotals {
-				perProject[pid] += h
-			}
-		}
-		if !eq(sv.Total, want, 0.2) {
-			t.Errorf("weeks=%d: span total %v != %v", weeks, sv.Total, want)
-		}
-		if !eq(sv.HolidayHours, holiday, 0.2) {
-			t.Errorf("weeks=%d: span holidays %v != %v", weeks, sv.HolidayHours, holiday)
-		}
-		for pid, h := range perProject {
-			if !eq(sv.ProjectTotals[pid], h, 0.2) {
-				t.Errorf("weeks=%d %s: span %v != %v", weeks, pid, sv.ProjectTotals[pid], h)
-			}
-		}
-		if !eq(sv.TargetHours, d.Settings.WeeklyTargetHours*float64(weeks), 0.1) {
-			t.Errorf("weeks=%d: target %v", weeks, sv.TargetHours)
-		}
-	}
-}
-
-// A single week must equal the sum of its five day cells, per project and in
-// total.
-func TestWeekEqualsSumOfItsDays(t *testing.T) {
-	year := currentFY(7)
-	d := genData(year, 7, 99)
-	cal := calFor(d)
-	for w := 1; w <= 8; w++ {
-		wv := BuildWeek(d, cal, w)
-		var total float64
-		perProject := map[string]float64{}
-		for _, c := range wv.Days {
-			var cellSum float64
-			for pid, h := range c.Hours {
-				cellSum += h
-				perProject[pid] += h
-			}
-			if !eq(cellSum, c.Total, 0.001) {
-				t.Errorf("week %d %s: cell total %v != %v", w, c.Date, c.Total, cellSum)
-			}
-			total += c.Total
-		}
-		if !eq(wv.Total, total, 0.1) {
-			t.Errorf("week %d: total %v != %v", w, wv.Total, total)
-		}
-		for pid, h := range perProject {
-			if !eq(wv.ProjectTotals[pid], h, 0.001) {
-				t.Errorf("week %d %s: %v != %v", w, pid, wv.ProjectTotals[pid], h)
-			}
-		}
 	}
 }
 

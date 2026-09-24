@@ -28,6 +28,11 @@ services:
       TZ: "Europe/Berlin"
       # Optional: API key for the AI endpoint, via host env or a .env file.
       # FORECAST_AI_API_KEY: "${FORECAST_AI_API_KEY}"
+      # Optional Foundry identity mode: all four are required when enabled.
+      AZURE_RESOURCE_ID: "${AZURE_RESOURCE_ID:-}"
+      AZURE_TENANT_ID: "${AZURE_TENANT_ID:-}"
+      AZURE_CLIENT_ID: "${AZURE_CLIENT_ID:-}"
+      AZURE_CLIENT_SECRET: "${AZURE_CLIENT_SECRET:-}"
       # Optional: bearer tokens for the JSON API (/api/v1, see docs/API.md).
       # FORECAST_API_READ_TOKEN: "${FORECAST_API_READ_TOKEN}"
       # FORECAST_API_WRITE_TOKEN: "${FORECAST_API_WRITE_TOKEN}"

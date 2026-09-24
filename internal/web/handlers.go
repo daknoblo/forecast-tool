@@ -39,8 +39,10 @@ var Version = "dev"
 
 // Server wires storage, templates and HTTP routing together.
 type Server struct {
-	store  *storage.Store
-	logger *slog.Logger
+	store   *storage.Store
+	logger  *slog.Logger
+	foundry *foundryState
+	monthAI monthAIState
 
 	tpl *template.Template
 
@@ -55,7 +57,8 @@ func NewServer(store *storage.Store, logger *slog.Logger) (*Server, error) {
 		logger = slog.Default()
 	}
 	funcs := template.FuncMap{
-		"hours": formatHours,
+		"hours":            formatHours,
+		"monthExplanation": renderMonthExplanation,
 		// hoursRaw marks a figure that goes into a form field rather than onto the
 		// page; same formatting, different intent.
 		"hoursRaw": formatHours,
@@ -63,19 +66,6 @@ func NewServer(store *storage.Store, logger *slog.Logger) (*Server, error) {
 		"version":  func() string { return Version },
 		"asset":    assetURL,
 		"pct":      func(f float64) string { return formatHours(f) + " %" },
-		"cellName": func(projectID, date string) string {
-			return "h_" + projectID + "_" + date
-		},
-		"cellHours": func(cell forecast.DayCell, projectID string) float64 {
-			return cell.Hours[projectID]
-		},
-		"weekTotal": func(totals map[string]float64, projectID string) float64 {
-			return totals[projectID]
-		},
-		"bookable": func(p models.Project, date string) bool {
-			return p.Bookable(date)
-		},
-		"add":      func(a, b int) int { return a + b },
 		"barWidth": barWidth,
 	}
 	tpl, err := template.New("").Funcs(funcs).ParseFS(templateFS, "templates/*.html")
@@ -89,6 +79,7 @@ func NewServer(store *storage.Store, logger *slog.Logger) (*Server, error) {
 	return &Server{
 		store:    store,
 		logger:   logger,
+		foundry:  newFoundryState(),
 		tpl:      tpl,
 		staticFS: http.StripPrefix("/static/", cacheForever(http.FileServer(http.FS(sub)))),
 	}, nil
@@ -101,10 +92,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /static/", s.staticFS)
 
 	mux.HandleFunc("GET /{$}", s.handleDashboard)
-	mux.HandleFunc("GET /week", s.handleWeekRedirect)
-	mux.HandleFunc("GET /week/{week}", s.handleWeek)
-	mux.HandleFunc("POST /week/cells", s.handleWeekCells)
-	mux.HandleFunc("POST /week/{week}", s.handleWeekSave)
+	mux.HandleFunc("GET /month", s.handleMonth)
+	mux.HandleFunc("POST /month/generate", s.handleMonthGenerate)
+	mux.HandleFunc("POST /month/save", s.handleMonthSave)
+	mux.HandleFunc("POST /month/prompt", s.handleMonthPrompt)
 	mux.HandleFunc("GET /projects", s.handleProjects)
 	mux.HandleFunc("POST /projects", s.handleProjectCreate)
 	mux.HandleFunc("POST /projects/{id}/update", s.handleProjectUpdate)
@@ -114,6 +105,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /goal/chat", s.handleGoalChat)
 	mux.HandleFunc("GET /settings", s.handleSettings)
 	mux.HandleFunc("POST /settings", s.handleSettingsSave)
+	mux.HandleFunc("POST /settings/ai/refresh", s.handleFoundryRefresh)
 	mux.HandleFunc("GET /export", s.handleExport)
 	mux.HandleFunc("POST /fy", s.handleSetActiveFY)
 	mux.HandleFunc("POST /private", s.handlePrivateToggle)
@@ -176,12 +168,18 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	projects := forecast.SortedProjects(d.Projects)
 	fyStart, fyEnd := forecast.FiscalYear(d.Settings.Year, d.Settings.FiscalYearStartMonth)
 	sankeyOffset, _ := strconv.Atoi(trim(r.URL.Query().Get("soff")))
-	sankey := forecast.BuildSankey(d, cal, r.URL.Query().Get("sankey"), sankeyOffset)
+	rangeKey := r.URL.Query().Get("sankey")
+	if !models.ValidDashboardRange(rangeKey) {
+		rangeKey = d.Settings.DashboardRange
+	}
+	sankey := forecast.BuildSankey(d, cal, rangeKey, sankeyOffset)
 	// Extra context for the KPI tooltips.
 	curWeek := forecast.CurrentFYWeek(d.Settings.Year, d.Settings.FiscalYearStartMonth)
 	curWeekRange := ""
+	curMonth := ""
 	if curWeek >= 1 && curWeek <= len(ys.WeekTotals) {
 		curWeekRange = ys.WeekTotals[curWeek-1].RangeLabel
+		curMonth = ys.WeekTotals[curWeek-1].Month
 	}
 	s.render(w, r, "dashboard.html", map[string]any{
 		"Active":         "dashboard",
@@ -194,10 +192,12 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		"WorkloadPlan":   workloadPlan,
 		"WorkloadLimit":  forecast.WorkdayLimitHours,
 		"WeekToDate":     forecast.BuildWeekToDate(d, cal),
+		"Accuracy":       forecast.BuildForecastAccuracy(d, time.Now().UTC()),
 		"Projects":       projects,
 		"ActiveProjects": len(activeProjects(projects)),
 		"CurrentWeek":    curWeek,
 		"CurrentRange":   curWeekRange,
+		"CurrentMonth":   curMonth,
 		"FYWeekCount":    len(ys.WeekTotals),
 		"FYStart":        fyStart.Format("02.01.2006"),
 		"FYEnd":          fyEnd.Format("02.01.2006"),
@@ -206,226 +206,6 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		"SankeySVG":      sankeySVG(sankey),
 		"FreeTimeSVG":    freeTimeSVG(sankey),
 	})
-}
-
-// --- Week views ---
-
-func (s *Server) handleWeekRedirect(w http.ResponseWriter, r *http.Request) {
-	d := s.store.Snapshot()
-	http.Redirect(w, r, "/week/"+strconv.Itoa(forecast.CurrentFYWeek(d.Settings.Year, d.Settings.FiscalYearStartMonth)), http.StatusFound)
-}
-
-func (s *Server) handleWeek(w http.ResponseWriter, r *http.Request) {
-	d := s.viewData(r)
-	cal := s.calendar(d)
-	// Built before narrowing the projects: the summary resolves the
-	// per-assignment carry-over across fiscal years itself.
-	ys := forecast.BuildYearSummary(d, cal)
-	d.Projects = models.ProjectsForFY(d.Projects, d.Settings.Year)
-	start := clampWeek(r.PathValue("week"), d.Settings)
-	weeks := spanWeeks(r)
-	sv := forecast.BuildSpan(d, cal, start, weeks)
-	projects := forecast.SortedProjects(activeProjects(d.Projects))
-	spanStart, spanEnd := "", ""
-	if len(sv.Days) > 0 {
-		spanStart = sv.Days[0].Date
-		spanEnd = sv.Days[len(sv.Days)-1].Date
-	}
-	burn := forecast.BuildSpanBurn(ys.Projects, spanStart, spanEnd)
-	budgetLeft := map[string]float64{}
-	for _, p := range ys.Projects {
-		budgetLeft[p.Project.ID] = round1(p.Remaining)
-	}
-	s.render(w, r, "week.html", map[string]any{
-		"Active":      "week",
-		"Wide":        true,
-		"Settings":    d.Settings,
-		"FYYears":     fyYears(d),
-		"Span":        sv,
-		"Burn":        burn,
-		"MaxWeek":     sv.MaxWeek,
-		"WeekChoices": []int{1, 2, 3, 4, 6, 8},
-		"Projects":    projects,
-		"AllProjects": forecast.SortedProjects(d.Projects),
-		"BudgetLeft":  budgetLeft,
-	})
-}
-
-func (s *Server) handleWeekSave(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad form", http.StatusBadRequest)
-		return
-	}
-	d := s.store.Snapshot()
-	start := clampWeek(r.PathValue("week"), d.Settings)
-	weeks := spanWeeks(r)
-	max := forecast.FYWeeks(d.Settings.Year, d.Settings.FiscalYearStartMonth)
-	if weeks > max {
-		weeks = max
-	}
-	if start+weeks-1 > max {
-		start = max - weeks + 1
-		if start < 1 {
-			start = 1
-		}
-	}
-
-	// Collect every Mon-Fri date across the visible span of weeks.
-	weekDates := map[string]bool{}
-	for wi := 0; wi < weeks; wi++ {
-		monday := forecast.FYWeekMonday(d.Settings.Year, d.Settings.FiscalYearStartMonth, start+wi)
-		for i := 0; i < 5; i++ {
-			weekDates[monday.AddDate(0, 0, i).Format("2006-01-02")] = true
-		}
-	}
-
-	type key struct{ date, project string }
-	newHours := map[key]float64{}
-	for name, vals := range r.Form {
-		if len(name) < 3 || name[:2] != "h_" {
-			continue
-		}
-		// h_{projectID}_{YYYY-MM-DD}
-		rest := name[2:]
-		if len(rest) < 11 {
-			continue
-		}
-		date := rest[len(rest)-10:]
-		projectID := rest[:len(rest)-11]
-		if !weekDates[date] {
-			continue
-		}
-		h, err := strconv.ParseFloat(normalizeNum(vals[0]), 64)
-		if err != nil || h < 0 {
-			continue
-		}
-		newHours[key{date, projectID}] = h
-	}
-
-	err := s.store.Update(func(data *models.Data) error {
-		known := make(map[string]bool, len(data.Projects))
-		for _, p := range data.Projects {
-			known[p.ID] = true
-		}
-		// Drop existing entries for this week, then re-add the non-zero values.
-		kept := data.Entries[:0]
-		for _, e := range data.Entries {
-			if !weekDates[e.Date] {
-				kept = append(kept, e)
-			}
-		}
-		data.Entries = append([]models.Entry(nil), kept...)
-		// stable order
-		keys := make([]key, 0, len(newHours))
-		for k := range newHours {
-			keys = append(keys, k)
-		}
-		sort.Slice(keys, func(i, j int) bool {
-			if keys[i].date != keys[j].date {
-				return keys[i].date < keys[j].date
-			}
-			return keys[i].project < keys[j].project
-		})
-		for _, k := range keys {
-			// A field naming a project that no longer exists would make the whole
-			// document fail validation on the next write.
-			if newHours[k] > 0 && known[k.project] {
-				data.Entries = append(data.Entries, models.Entry{
-					Date: k.date, ProjectID: k.project, Hours: newHours[k],
-				})
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		http.Error(w, "save failed", http.StatusInternalServerError)
-		return
-	}
-	http.Redirect(w, r, fmt.Sprintf("/week/%d?weeks=%d", start, weeks), http.StatusSeeOther) // #nosec G710 -- path built from integers only, not user-controlled
-}
-
-// cellIn is one auto-saved forecast cell from the week grid.
-type cellIn struct {
-	Date      string  `json:"date"`
-	ProjectID string  `json:"projectId"`
-	Hours     float64 `json:"hours"`
-}
-
-// handleWeekCells upserts a small batch of forecast cells from the week grid's
-// auto-save (so the page never reloads while the user types). Each cell is keyed
-// by (date, projectId); hours <= 0 clears the entry. Cells for unknown projects
-// are skipped and counted, never failing the batch. A date outside the project's
-// booking window is accepted - the window only drives the visual hint and the
-// "outside the window" warning. Writes go through store.Mutate (normalize +
-// validate + persist).
-func (s *Server) handleWeekCells(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-	var in struct {
-		Cells []cellIn `json:"cells"`
-	}
-	dec := json.NewDecoder(r.Body)
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&in); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "ung\u00fcltige Anfrage")
-		return
-	}
-	if len(in.Cells) == 0 || len(in.Cells) > 500 {
-		writeJSONError(w, http.StatusBadRequest, "keine oder zu viele Zellen")
-		return
-	}
-	type key struct{ date, pid string }
-	want := make(map[key]float64, len(in.Cells))
-	for _, c := range in.Cells {
-		date := validISODate(c.Date)
-		pid := trim(c.ProjectID)
-		if date == "" || pid == "" || c.Hours < 0 {
-			writeJSONError(w, http.StatusBadRequest, "ung\u00fcltige Zelle")
-			return
-		}
-		want[key{date, pid}] = c.Hours
-	}
-	skipped := 0
-	err := s.store.Mutate(func(d *models.Data) error {
-		projByID := make(map[string]models.Project, len(d.Projects))
-		for _, p := range d.Projects {
-			projByID[p.ID] = p
-		}
-		// Drop the entries we are replacing, then re-add the non-zero values.
-		kept := d.Entries[:0]
-		for _, e := range d.Entries {
-			if _, ok := want[key{e.Date, e.ProjectID}]; ok {
-				continue
-			}
-			kept = append(kept, e)
-		}
-		d.Entries = append([]models.Entry(nil), kept...)
-		ks := make([]key, 0, len(want))
-		for k := range want {
-			ks = append(ks, k)
-		}
-		sort.Slice(ks, func(i, j int) bool {
-			if ks[i].date != ks[j].date {
-				return ks[i].date < ks[j].date
-			}
-			return ks[i].pid < ks[j].pid
-		})
-		for _, k := range ks {
-			if _, ok := projByID[k.pid]; !ok {
-				skipped++
-				continue
-			}
-			if want[k] > 0 {
-				d.Entries = append(d.Entries, models.Entry{Date: k.date, ProjectID: k.pid, Hours: want[k]})
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		writeJSONError(w, http.StatusInternalServerError, "Speichern fehlgeschlagen")
-		return
-	}
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	_, _ = fmt.Fprintf(w, `{"ok":true,"skipped":%d}`, skipped)
 }
 
 // writeJSONError writes a minimal JSON error object with the given status code.
@@ -638,6 +418,7 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 		// "Today" as a fractional month index, so the curve switches from booked
 		// to projected exactly where the fiscal year currently stands.
 		pos := forecast.FYMonthProgress(d.Settings.Year, d.Settings.FiscalYearStartMonth)
+		start, _ := forecast.FiscalYear(d.Settings.Year, d.Settings.FiscalYearStartMonth)
 		clamp := func(v, max float64) float64 {
 			if v < 0 {
 				return 0
@@ -647,15 +428,15 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 			}
 			return v
 		}
-		fyChart = progressSVG(labels, cumulative(act), cumulative(proj), gs.TargetHours, pos, true)
+		fyChart = progressSVG(labels, cumulative(act), cumulative(proj), gs.TargetHours, pos, true, start)
 		h1Chart = progressSVG(labels[:6], cumulative(act[:6]), cumulative(proj[:6]),
-			round1(gs.TargetHours/2), clamp(pos, 6), false)
+			round1(gs.TargetHours/2), clamp(pos, 6), false, start)
 		h2Chart = progressSVG(labels[6:], cumulative(act[6:]), cumulative(proj[6:]),
-			round1(gs.TargetHours/2), clamp(pos-6, 6), false)
+			round1(gs.TargetHours/2), clamp(pos-6, 6), false, start.AddDate(0, 6, 0))
 		for q := 0; q < 4; q++ {
 			from, to := q*3, q*3+3
 			quarterCharts[q] = progressSVG(labels[from:to], cumulative(act[from:to]), cumulative(proj[from:to]),
-				round1(gs.TargetHours/4), clamp(pos-float64(from), 3), false)
+				round1(gs.TargetHours/4), clamp(pos-float64(from), 3), false, start.AddDate(0, from, 0))
 		}
 	}
 
@@ -675,8 +456,7 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 		"Settings":        d.Settings,
 		"FYYears":         fyYears(d),
 		"Goal":            gs,
-		"WeekTotals":      ys.WeekTotals,
-		"LastPlannedWeek": ys.LastPlannedWeek,
+		"Summary":         ys,
 		"FYChart":         fyChart,
 		"H1Chart":         h1Chart,
 		"H2Chart":         h2Chart,
@@ -689,7 +469,7 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 		"WorkloadDayMax":  forecast.LongDayHours,
 		"ChatPresets":     chatPresets,
 		"ChatPromptsJSON": template.JS(promptsJSON), // #nosec G203 -- JSON-encoded constants, no user input
-		"AIConfigured":    aiConfigured(effectiveAI(d.Settings.AI)),
+		"AIConfigured":    s.aiReady(d.Settings.AI),
 		"AIKeyEnv":        aiAPIKeyEnv,
 	})
 }
@@ -707,24 +487,26 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 	fyStart, fyEnd := forecast.FiscalYear(year, d.Settings.FiscalYearStartMonth)
 	capacity := forecast.BuildFYCapacity(d, s.calendar(d), year)
 	s.render(w, r, "settings.html", map[string]any{
-		"Active":       "settings",
-		"Settings":     d.Settings,
-		"FYYears":      fyYears(d),
-		"States":       holidays.States,
-		"Months":       monthOptions,
-		"DataPath":     s.store.Path(),
-		"DataSize":     formatBytes(s.store.FileSize()),
-		"FY":           fy,
-		"Capacity":     capacity,
-		"FYStart":      fyStart.Format("02.01.2006"),
-		"FYEnd":        fyEnd.Format("02.01.2006"),
-		"AIKeyEnv":     aiAPIKeyEnv,
-		"AIKeySet":     trim(os.Getenv(aiAPIKeyEnv)) != "",
-		"AIKeyInStore": trim(d.Settings.AI.APIKey) != "",
-		"APIReadEnv":   api.ReadTokenEnv,
-		"APIReadSet":   trim(os.Getenv(api.ReadTokenEnv)) != "",
-		"APIWriteEnv":  api.WriteTokenEnv,
-		"APIWriteSet":  trim(os.Getenv(api.WriteTokenEnv)) != "",
+		"Active":          "settings",
+		"Settings":        d.Settings,
+		"FYYears":         fyYears(d),
+		"States":          holidays.States,
+		"Months":          monthOptions,
+		"DashboardRanges": models.DashboardRanges,
+		"DataPath":        s.store.Path(),
+		"DataSize":        formatBytes(s.store.FileSize()),
+		"FY":              fy,
+		"Capacity":        capacity,
+		"FYStart":         fyStart.Format("02.01.2006"),
+		"FYEnd":           fyEnd.Format("02.01.2006"),
+		"AIKeyEnv":        aiAPIKeyEnv,
+		"AIKeySet":        trim(os.Getenv(aiAPIKeyEnv)) != "",
+		"AIKeyInStore":    trim(d.Settings.AI.APIKey) != "",
+		"Foundry":         s.foundrySettings(r, d.Settings.AI.Deployment),
+		"APIReadEnv":      api.ReadTokenEnv,
+		"APIReadSet":      trim(os.Getenv(api.ReadTokenEnv)) != "",
+		"APIWriteEnv":     api.WriteTokenEnv,
+		"APIWriteSet":     trim(os.Getenv(api.WriteTokenEnv)) != "",
 	})
 }
 
@@ -734,19 +516,7 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if trim(r.FormValue("section")) == "ai" {
-		endpoint := trim(r.FormValue("aiEndpoint"))
-		deployment := trim(r.FormValue("aiDeployment"))
-		apiVersion := trim(r.FormValue("aiApiVersion"))
-		_ = s.store.Update(func(d *models.Data) error {
-			d.Settings.AI.Endpoint = endpoint
-			d.Settings.AI.Deployment = deployment
-			d.Settings.AI.APIVersion = apiVersion
-			// The secret key is provided via FORECAST_AI_API_KEY and must never be
-			// stored in the data file; clear any legacy value on save.
-			d.Settings.AI.APIKey = ""
-			return nil
-		})
-		s.settingsSaved(w, r)
+		s.handleAISettingsSave(w, r)
 		return
 	}
 	if trim(r.FormValue("section")) == "utilization" {
@@ -791,10 +561,18 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	vacDays, vacErr := strconv.Atoi(trim(r.FormValue("vacationDays")))
 	holDays, holErr := strconv.Atoi(trim(r.FormValue("holidayDays")))
 	stdHours, stdErr := strconv.ParseFloat(normalizeNum(r.FormValue("standardTaskHours")), 64)
-	_ = s.store.Update(func(d *models.Data) error {
+	dashboardRange := trim(r.FormValue("dashboardRange"))
+	if r.PostForm.Has("dashboardRange") && !models.ValidDashboardRange(dashboardRange) {
+		http.Error(w, "Ungültiger Dashboard-Zeitraum", http.StatusBadRequest)
+		return
+	}
+	err := s.store.Update(func(d *models.Data) error {
 		// The hour configuration always belongs to the fiscal year selected in
 		// the header; this page has no year picker of its own.
 		target := d.Settings.Year
+		if r.PostForm.Has("dashboardRange") {
+			d.Settings.DashboardRange = dashboardRange
+		}
 		if state != "" {
 			d.Settings.FederalState = state
 		}
@@ -834,6 +612,11 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 		models.EnsureVacationProject(d, target)
 		return nil
 	})
+	if err != nil {
+		s.logger.Error("settings save failed", "error", err)
+		http.Error(w, "Einstellungen konnten nicht gespeichert werden", http.StatusInternalServerError)
+		return
+	}
 	s.settingsSaved(w, r)
 }
 
@@ -951,34 +734,6 @@ func activeProjects(ps []models.Project) []models.Project {
 	return out
 }
 
-func clampWeek(raw string, st models.Settings) int {
-	max := forecast.FYWeeks(st.Year, st.FiscalYearStartMonth)
-	w, err := strconv.Atoi(raw)
-	if err != nil {
-		return forecast.CurrentFYWeek(st.Year, st.FiscalYearStartMonth)
-	}
-	if w < 1 {
-		w = 1
-	}
-	if w > max {
-		w = max
-	}
-	return w
-}
-
-// spanWeeks parses the number of consecutive weeks to display from the request
-// query (?weeks=N), clamped to a sane range. Defaults to 1 when absent.
-func spanWeeks(r *http.Request) int {
-	n, err := strconv.Atoi(trim(r.URL.Query().Get("weeks")))
-	if err != nil || n < 1 {
-		return 1
-	}
-	if n > 52 {
-		n = 52
-	}
-	return n
-}
-
 func newID() string {
 	return strconv.FormatInt(time.Now().UnixNano(), 36)
 }
@@ -987,6 +742,9 @@ func newID() string {
 // dropdown: every configured year plus a small range around the active one.
 func fyYears(d models.Data) []int {
 	set := map[int]bool{}
+	for y := range d.ForecastAccuracy {
+		set[y] = true
+	}
 	for y := range d.FiscalYears {
 		set[y] = true
 	}

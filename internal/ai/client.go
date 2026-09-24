@@ -12,11 +12,18 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
-
-	"github.com/daknoblo/forecast-tool/internal/models"
 )
+
+// Config is the effective, request-scoped configuration. Authorize is supplied
+// by the Foundry identity client; credentials are never persisted here.
+type Config struct {
+	Endpoint, Deployment, APIVersion, APIKey string
+	Authorize                                func(*http.Request) error
+	Reasoning                                bool
+}
 
 // requestTimeout bounds a single AI call. Model routers can be slow, but a
 // request must not hang a UI handler forever.
@@ -36,7 +43,7 @@ var httpClient = &http.Client{
 // returns the model's plain-text answer. It logs request/response metadata
 // (never the API key) via the provided logger to ease debugging of the remote
 // endpoint.
-func Ask(ctx context.Context, cfg models.AISettings, system, user string, logger *slog.Logger) (string, error) {
+func Ask(ctx context.Context, cfg Config, system, user string, logger *slog.Logger) (string, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -44,26 +51,33 @@ func Ask(ctx context.Context, cfg models.AISettings, system, user string, logger
 	deployment := strings.TrimSpace(cfg.Deployment)
 	apiVersion := strings.TrimSpace(cfg.APIVersion)
 	apiKey := strings.TrimSpace(cfg.APIKey)
-	if endpoint == "" || deployment == "" || apiKey == "" {
+	if endpoint == "" || deployment == "" || (apiKey == "" && cfg.Authorize == nil) {
 		logger.Warn("ai request rejected: incomplete configuration",
 			"endpointSet", endpoint != "", "deploymentSet", deployment != "", "apiKeySet", apiKey != "")
-		return "", fmt.Errorf("KI-Endpoint ist nicht vollständig konfiguriert (Endpoint, Deployment und API-Key erforderlich)")
+		return "", fmt.Errorf("KI-Endpoint ist nicht vollständig konfiguriert (Endpoint, Deployment und Zugangsdaten erforderlich)")
 	}
 	if apiVersion == "" {
 		apiVersion = "2024-10-21"
 	}
 
-	url := strings.TrimRight(endpoint, "/") +
-		"/openai/deployments/" + deployment +
-		"/chat/completions?api-version=" + apiVersion
+	target, v1, err := ChatURL(endpoint, deployment, apiVersion)
+	if err != nil {
+		return "", err
+	}
 
 	reqBody := chatRequest{
-		Temperature:         0,
 		MaxCompletionTokens: 8192,
 		Messages: []chatMessage{
 			{Role: "system", Content: system},
 			{Role: "user", Content: user},
 		},
+	}
+	if !cfg.Reasoning {
+		temperature := 0.0
+		reqBody.Temperature = &temperature
+	}
+	if v1 {
+		reqBody.Model = deployment
 	}
 	payload, err := json.Marshal(reqBody)
 	if err != nil {
@@ -77,12 +91,19 @@ func Ask(ctx context.Context, cfg models.AISettings, system, user string, logger
 	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, target, bytes.NewReader(payload))
 	if err != nil {
 		return "", fmt.Errorf("Anfrage konnte nicht erstellt werden: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("api-key", apiKey)
+	if cfg.Authorize != nil {
+		if err := cfg.Authorize(req); err != nil {
+			logger.Error("ai authorization failed")
+			return "", fmt.Errorf("KI-Anmeldung fehlgeschlagen. Prüfe die Foundry-Einstellungen und Azure-Berechtigungen.")
+		}
+	} else {
+		req.Header.Set("api-key", apiKey)
+	}
 
 	start := time.Now()
 	resp, err := httpClient.Do(req)
@@ -92,22 +113,27 @@ func Ask(ctx context.Context, cfg models.AISettings, system, user string, logger
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	const maxBody = 4 << 20
+	body, readErr := io.ReadAll(io.LimitReader(resp.Body, maxBody+1))
 	elapsed := time.Since(start)
+	if readErr != nil || len(body) > maxBody {
+		logger.Error("ai response body could not be read", "oversized", len(body) > maxBody)
+		return "", fmt.Errorf("KI-Antwort konnte nicht vollständig gelesen werden oder ist zu groß")
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		logger.Error("ai endpoint error status",
 			"status", resp.StatusCode, "deployment", deployment,
-			"elapsedMs", elapsed.Milliseconds(), "body", snippet(body))
-		return "", fmt.Errorf("KI-Endpoint antwortete mit %s: %s", resp.Status, snippet(body))
+			"elapsedMs", elapsed.Milliseconds())
+		return "", fmt.Errorf("KI-Endpoint antwortete mit HTTP %d. Prüfe Deployment, Zugangsdaten und Azure-Berechtigungen.", resp.StatusCode)
 	}
 
 	var parsed chatResponse
 	if err := json.Unmarshal(body, &parsed); err != nil {
-		logger.Error("ai response unreadable", "error", err, "body", snippet(body))
-		return "", fmt.Errorf("KI-Antwort konnte nicht gelesen werden: %w", err)
+		logger.Error("ai response unreadable")
+		return "", fmt.Errorf("KI-Antwort konnte nicht gelesen werden")
 	}
 	if len(parsed.Choices) == 0 {
-		logger.Error("ai response without choices", "body", snippet(body))
+		logger.Error("ai response without choices")
 		return "", fmt.Errorf("KI-Antwort enthielt kein Ergebnis")
 	}
 	finish := parsed.Choices[0].FinishReason
@@ -121,6 +147,9 @@ func Ask(ctx context.Context, cfg models.AISettings, system, user string, logger
 		logger.Warn("ai response truncated (token limit)",
 			"completionTokens", parsed.Usage.CompletionTokens, "deployment", deployment)
 		return "", fmt.Errorf("KI-Antwort wurde abgeschnitten (Token-Limit erreicht). Stelle eine engere Frage.")
+	}
+	if finish == "content_filter" {
+		return "", fmt.Errorf("KI-Antwort wurde durch den Inhaltsfilter blockiert")
 	}
 	content := strings.TrimSpace(parsed.Choices[0].Message.Content)
 	if content == "" {
@@ -147,19 +176,44 @@ func stripCodeFences(s string) string {
 	return strings.TrimSpace(s)
 }
 
-// snippet shortens a response body for error messages.
-func snippet(b []byte) string {
-	s := strings.TrimSpace(string(b))
-	if len(s) > 300 {
-		return s[:300] + "…"
-	}
-	return s
+type chatRequest struct {
+	Model               string        `json:"model,omitempty"`
+	Messages            []chatMessage `json:"messages"`
+	Temperature         *float64      `json:"temperature,omitempty"`
+	MaxCompletionTokens int           `json:"max_completion_tokens,omitempty"`
 }
 
-type chatRequest struct {
-	Messages            []chatMessage `json:"messages"`
-	Temperature         float64       `json:"temperature"`
-	MaxCompletionTokens int           `json:"max_completion_tokens,omitempty"`
+// ChatURL supports explicit OpenAI v1 base URLs without changing legacy
+// resource-root configurations. Identity mode always provides a verified v1 URL.
+func ChatURL(endpoint, deployment, apiVersion string) (string, bool, error) {
+	u, err := url.Parse(strings.TrimRight(strings.TrimSpace(endpoint), "/"))
+	if err != nil || u.Hostname() == "" || (u.Scheme != "https" && u.Scheme != "http") ||
+		u.User != nil || u.Opaque != "" || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" ||
+		strings.Contains(u.EscapedPath(), "%") {
+		return "", false, fmt.Errorf("KI-Endpoint muss eine absolute HTTP(S)-Basis-URL ohne Zugangsdaten, Query oder Fragment sein")
+	}
+	for _, part := range strings.Split(u.Path, "/") {
+		if part == "." || part == ".." {
+			return "", false, fmt.Errorf("KI-Endpoint enthält einen ungültigen Pfad")
+		}
+	}
+	if deployment == "" || len(deployment) > 100 || strings.ContainsAny(deployment, "/\\?#%") ||
+		deployment == "." || deployment == ".." {
+		return "", false, fmt.Errorf("Ungültiger KI-Deployment-Name")
+	}
+	if strings.HasSuffix(u.Path, "/openai/v1") {
+		u.Path += "/chat/completions"
+		return u.String(), true, nil
+	}
+	if strings.Contains(u.Path, "/openai/") {
+		return "", false, fmt.Errorf("Verwende die Azure-Ressourcen-URL oder eine Basis-URL mit /openai/v1")
+	}
+	u.Path += "/openai/deployments/" + deployment + "/chat/completions"
+	if apiVersion == "" {
+		apiVersion = "2024-10-21"
+	}
+	u.RawQuery = url.Values{"api-version": {apiVersion}}.Encode()
+	return u.String(), false, nil
 }
 
 type chatMessage struct {

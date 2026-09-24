@@ -22,8 +22,16 @@
       <label>Wochensollstunden
         <input type="text" inputmode="decimal" name="weekly" value="{{hoursRaw .Settings.WeeklyTargetHours}}" placeholder="40">
       </label>
+      <label>Standardzeitraum im Dashboard
+        <select name="dashboardRange">
+          {{range .DashboardRanges}}
+            <option value="{{.Key}}" {{if eq .Key $.Settings.DashboardRange}}selected{{end}}>{{.Label}}</option>
+          {{end}}
+        </select>
+      </label>
     </div>
     <p class="hint">Gilt für alle Fiskaljahre. FY {{.Settings.Year}}: <strong>{{.FYStart}} – {{.FYEnd}}</strong>. Startmonat Januar = Kalenderjahr.</p>
+    <p class="hint">Der Standardzeitraum wird beim Öffnen des Dashboards verwendet. Dort kannst du den Zeitraum weiterhin vorübergehend wechseln.</p>
 
     <h2>Stundenkonfiguration (FY {{.Settings.Year}})</h2>
     <div class="hours-block">
@@ -61,7 +69,7 @@
       Verbleibend = Gesamt − Urlaub − Feiertage − Standard Tasks – <strong>dieses Ergebnis ist das FY-Ziel</strong>.
     </p>
 
-    <span class="save-status ok" data-save-status>Automatisch gespeichert</span>
+    <span class="save-status" data-save-status data-save-quiet hidden role="status"></span>
   </form>
   <p class="hint">Die Stundenkonfiguration gilt für das Fiskaljahr, das oben rechts im Kopfbereich ausgewählt ist. Willst du ein anderes FY konfigurieren, wechsle es dort.</p>
 </section>
@@ -100,31 +108,76 @@
              aria-label="Bezeichnung für „Überbucht“">
     </div>
     <p class="hint">Klassifizierung: ≤ {{hours .Settings.Utilization.MinHours}} h → Minimum (blau) · ≤ {{hours .Settings.Utilization.OptimalHours}} h → Optimal (grün) · &lt; {{hours .Settings.Utilization.OverHours}} h → Zu hoch (orange) · ≥ {{hours .Settings.Utilization.OverHours}} h → Überbucht (rot).</p>
-    <span class="save-status ok" data-save-status>Automatisch gespeichert</span>
+    <span class="save-status" data-save-status data-save-quiet hidden role="status"></span>
   </form>
 </section>
 
-<section class="card">
+<section class="card" id="ai">
   <h2>KI-Endpoint</h2>
-  <p class="hint">Konfiguriere einen entfernten, Azure-OpenAI-kompatiblen Endpoint (z. B. einen Azure&nbsp;AI&nbsp;Foundry Model-Router). Damit kannst du unter <a href="/goal#chat">Ziele &rarr; Chat with your data</a> Fragen zu deinen gebuchten und geplanten Stunden stellen.</p>
+  {{if .Foundry.Enabled}}
+  {{if .Private}}
+  <p class="hint">Konfiguration und Deployment-Auswahl sind im privaten Modus gesperrt.</p>
+  {{else}}
+  <table class="kv tokens foundry-config">
+    <tr>
+      <td>Azure-Ressource</td>
+      <td><code>{{if .Foundry.ResourceID}}{{.Foundry.ResourceID}}{{else}}Nicht gesetzt{{end}}</code></td>
+    </tr>
+    <tr>
+      <td>Tenant-ID</td>
+      <td><code>{{if .Foundry.TenantID}}{{.Foundry.TenantID}}{{else}}Nicht gesetzt{{end}}</code></td>
+    </tr>
+    <tr>
+      <td>Client-ID</td>
+      <td><code>{{if .Foundry.ClientID}}{{.Foundry.ClientID}}{{else}}Nicht gesetzt{{end}}</code></td>
+    </tr>
+    <tr>
+      <td>Client-Secret</td>
+      <td><code class="secret-status{{if .Foundry.SecretSet}} ok{{end}}">{{if .Foundry.SecretSet}}gesetzt{{else}}Nicht gesetzt{{end}}</code></td>
+    </tr>
+    <tr>
+      <td>Erkannter Endpoint</td>
+      <td><code>{{if .Foundry.Endpoint}}{{.Foundry.Endpoint}}{{else}}Nicht verfügbar{{end}}</code></td>
+    </tr>
+  </table>
+  {{if .Foundry.Error}}<p class="save-status error" role="alert">{{.Foundry.Error}}</p>{{end}}
+  <form method="post" action="/settings" class="form-stack foundry-form" data-autosave>
+    <input type="hidden" name="section" value="ai">
+    <div class="form-row foundry-controls">
+      <label>Chat-Deployment
+        <select name="aiDeployment" data-reload{{if .Foundry.Error}} disabled{{end}}>
+          <option value="">– Deployment auswählen –</option>
+          {{if and .Settings.AI.Deployment (not .Foundry.SelectedPresent)}}<option value="{{.Settings.AI.Deployment}}" selected disabled>{{.Settings.AI.Deployment}} · nicht verfügbar</option>{{end}}
+          {{range .Foundry.Deployments}}<option value="{{.Name}}"{{if eq .Name $.Settings.AI.Deployment}} selected{{end}}>{{.Name}} · {{.ModelName}}</option>{{end}}
+        </select>
+      </label>
+      <button type="submit" class="btn" form="foundry-refresh">Deployments neu laden</button>
+    </div>
+    {{if not .Foundry.Deployments}}{{if not .Foundry.Error}}<p class="hint">Keine unterstützten Chat-Deployments gefunden.</p>{{end}}{{end}}
+    <span class="save-status" data-save-status data-save-quiet hidden role="status"></span>
+  </form>
+  <form method="post" action="/settings/ai/refresh" id="foundry-refresh"></form>
+  {{if .Foundry.RefreshedAt}}<p class="hint">Stand: {{.Foundry.RefreshedAt}}</p>{{end}}
+  {{end}}
+  {{else}}
   <form method="post" action="/settings" class="form-stack" data-autosave>
     <input type="hidden" name="section" value="ai">
     <label>Endpoint-URL
-      <input type="url" name="aiEndpoint" value="{{.Settings.AI.Endpoint}}" placeholder="https://mein-resource.openai.azure.com">
+      <input type="url" name="aiEndpoint" value="{{.Settings.AI.Endpoint}}" placeholder="https://mein-resource.openai.azure.com"{{if .Private}} disabled{{end}}>
     </label>
     <label>Deployment / Model-Router-Name
-      <input type="text" name="aiDeployment" value="{{.Settings.AI.Deployment}}" placeholder="z. B. model-router">
+      <input type="text" name="aiDeployment" value="{{.Settings.AI.Deployment}}" placeholder="z. B. model-router"{{if .Private}} disabled{{end}}>
     </label>
-    <label>API-Version
-      <input type="text" name="aiApiVersion" value="{{.Settings.AI.APIVersion}}" placeholder="2024-10-21">
+    <label>API-Version (nur klassische API, bei v1 nicht verwendet)
+      <input type="text" name="aiApiVersion" value="{{.Settings.AI.APIVersion}}" placeholder="2024-10-21"{{if .Private}} disabled{{end}}>
     </label>
     <label>API-Key
-      {{if .AIKeySet}}<span class="badge ok">aus Umgebungsvariable <code>{{.AIKeyEnv}}</code> geladen</span>
-      {{else}}<span class="badge error">nicht gesetzt</span>{{end}}
+      <span><code class="secret-status{{if .AIKeySet}} ok{{end}}">{{if .AIKeySet}}gesetzt{{else}}Nicht gesetzt{{end}}</code></span>
     </label>
-    <p class="hint">Der API-Key wird <strong>nicht</strong> in der Datendatei gespeichert, sondern über die Umgebungsvariable <code>{{.AIKeyEnv}}</code> bereitgestellt (z. B. als Docker-Secret bzw. <code>environment</code>-Eintrag in <code>docker-compose.yml</code>).{{if .AIKeyInStore}} Es liegt noch ein veralteter Key in der Datendatei – ändere ein Feld in dieser Karte (z. B. die API-Version neu eintragen und das Feld verlassen), um ihn zu entfernen, und rotiere den Schlüssel.{{end}}</p>
-    <span class="save-status ok" data-save-status>Automatisch gespeichert</span>
+    <p class="hint">API-Key über <code>{{.AIKeyEnv}}</code> setzen.{{if .AIKeyInStore}} Es liegt noch ein veralteter Key in der Datendatei – ändere ein Feld in dieser Karte (z. B. die API-Version neu eintragen und das Feld verlassen), um ihn zu entfernen, und rotiere den Schlüssel.{{end}}</p>
+    <span class="save-status" data-save-status data-save-quiet hidden role="status"></span>
   </form>
+  {{end}}
 </section>
 
 <section class="card">
@@ -133,13 +186,11 @@
   <table class="kv tokens">
     <tr>
       <td>Lese-Token</td>
-      <td><code>{{.APIReadEnv}}</code></td>
-      <td>{{if .APIReadSet}}<span class="badge ok">gesetzt</span>{{else}}<span class="badge error">nicht gesetzt</span>{{end}}</td>
+      <td><code class="secret-status{{if .APIReadSet}} ok{{end}}">{{if .APIReadSet}}gesetzt{{else}}Nicht gesetzt{{end}}</code></td>
     </tr>
     <tr>
       <td>Schreib-Token</td>
-      <td><code>{{.APIWriteEnv}}</code></td>
-      <td>{{if .APIWriteSet}}<span class="badge ok">gesetzt</span>{{else}}<span class="badge error">nicht gesetzt</span>{{end}}</td>
+      <td><code class="secret-status{{if .APIWriteSet}} ok{{end}}">{{if .APIWriteSet}}gesetzt{{else}}Nicht gesetzt{{end}}</code></td>
     </tr>
   </table>
   <p class="hint">Die Tokens werden <strong>nicht</strong> in der Datendatei gespeichert, sondern über Umgebungsvariablen bereitgestellt (z.&nbsp;B. als Docker-Secret bzw. <code>environment</code>-Eintrag in <code>docker-compose.yml</code>). Der Lese-Token erlaubt nur GET-Zugriffe, der Schreib-Token zusätzlich Änderungen. Ist keiner gesetzt, ist die API deaktiviert.</p>

@@ -4,10 +4,51 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/daknoblo/forecast-tool/internal/models"
 )
+
+func TestMonthPlanningPersistenceAndRollback(t *testing.T) {
+	s, path := newStore(t)
+	if err := s.Mutate(func(d *models.Data) error {
+		d.Settings.MonthPlanningPrompt = "Prefer blocks on four days."
+		d.Settings.MonthPlanningSystemPrompt = "Preserve weekly totals and return JSON."
+		d.SavedMonthPlans = map[string]string{"2026-09": "2026-09-23T12:00:00Z"}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := New(path)
+	if err != nil || !reflect.DeepEqual(s.Snapshot(), reopened.Snapshot()) {
+		t.Fatal("monthly settings did not survive reopening")
+	}
+	before := s.Snapshot()
+	copy := s.Snapshot()
+	copy.SavedMonthPlans["2026-09"] = "changed"
+	if !reflect.DeepEqual(s.Snapshot(), before) {
+		t.Fatal("snapshot aliases saved month markers")
+	}
+	if err := os.Mkdir(path+".tmp", 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Mutate(func(d *models.Data) error {
+		d.Settings.MonthPlanningPrompt = "must not survive failure"
+		d.Settings.MonthPlanningSystemPrompt = "must not survive failure either"
+		d.SavedMonthPlans["2026-10"] = "2026-09-23T13:00:00Z"
+		return nil
+	}); err == nil {
+		t.Fatal("expected persistence failure")
+	}
+	if !reflect.DeepEqual(before, s.Snapshot()) {
+		t.Fatal("failed write changed in-memory state")
+	}
+	reopened, err = New(path)
+	if err != nil || !reflect.DeepEqual(before, reopened.Snapshot()) {
+		t.Fatal("failed write changed persisted state")
+	}
+}
 
 func newStore(t *testing.T) (*Store, string) {
 	t.Helper()
@@ -31,6 +72,9 @@ func TestNewStoreIsSelfConsistent(t *testing.T) {
 	if d.Settings.WeeklyTargetHours <= 0 || d.Settings.FederalState == "" {
 		t.Errorf("settings not defaulted: %+v", d.Settings)
 	}
+	if d.Settings.DashboardRange != models.DefaultDashboardRange {
+		t.Errorf("dashboard range = %q, want %q", d.Settings.DashboardRange, models.DefaultDashboardRange)
+	}
 	if u := d.Settings.Utilization; u.MinHours == 0 && u.OptimalHours == 0 && u.OverHours == 0 {
 		t.Error("utilization thresholds were left unset")
 	}
@@ -48,6 +92,38 @@ func TestNewStoreIsSelfConsistent(t *testing.T) {
 	}
 	if _, err := os.Stat(path); err != nil {
 		t.Errorf("the store did not persist itself: %v", err)
+	}
+}
+
+func TestLegacyDashboardRangeAndValidation(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "data.json")
+	if err := os.WriteFile(path, []byte(`{"settings":{"year":2027}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s, err := New(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Snapshot().Settings.DashboardRange; got != models.DefaultDashboardRange {
+		t.Fatalf("legacy default = %q", got)
+	}
+	for _, choice := range models.DashboardRanges {
+		if err := s.Mutate(func(d *models.Data) error {
+			d.Settings.DashboardRange = choice.Key
+			return nil
+		}); err != nil {
+			t.Fatalf("valid range %q: %v", choice.Key, err)
+		}
+	}
+	before := s.Snapshot().Settings.DashboardRange
+	if err := s.Mutate(func(d *models.Data) error {
+		d.Settings.DashboardRange = "invalid"
+		return nil
+	}); err == nil {
+		t.Fatal("invalid dashboard range accepted")
+	}
+	if got := s.Snapshot().Settings.DashboardRange; got != before {
+		t.Fatalf("rejected mutation changed range to %q", got)
 	}
 }
 
