@@ -1,7 +1,7 @@
 {{template "header" .}}
 <div class="week-head">
   <h1>
-    {{if gt .Span.Weeks 1}}FYW{{.Span.StartWeek}}–FYW{{.Span.EndWeek}}{{else}}FYW{{.Span.StartWeek}}{{end}}
+    {{if gt .Span.Weeks 1}}FYW {{.Span.StartWeek}}–FYW {{.Span.EndWeek}}{{else}}FYW {{.Span.StartWeek}}{{end}}
     · FY {{.Settings.Year}}
   </h1>
 </div>
@@ -34,10 +34,10 @@
     <tr class="weekrow">
       <th rowspan="2" class="pname">Projekt</th>
       {{range .Span.Blocks}}
-        <th colspan="5" class="weekgroup">FYW{{.Week}} · KW{{printf "%02d" .ISOWeek}}
+        <th colspan="5" class="weekgroup">FYW {{.Week}} · KW{{printf "%02d" .ISOWeek}}
           {{if not $.Private}}<button type="button" class="clearbtn" data-clear-dates="{{range .Days}}{{.Date}},{{end}}" title="Woche leeren">✕</button>{{end}}
           <br><small>{{.RangeLabel}}</small></th>
-        <th rowspan="2" class="num sumcol weeksum">Summe<br><small>FYW{{.Week}}</small></th>
+        <th rowspan="2" class="num sumcol weeksum">Summe<br><small>FYW {{.Week}}</small></th>
       {{end}}
       <th rowspan="2" class="num sumcol grandsum">Gesamt</th>
     </tr>

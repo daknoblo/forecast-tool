@@ -91,7 +91,7 @@ only renders the docs and the demo snapshot.
   include adjacent-month days within the FY, weekend entries and unallocated
   hours. A yellow overload badge appears beside the week identifier only when
   the weekly total exceeds capacity; there is no date-range line underneath.
-  Fiscal-week identifiers use **FYW10** throughout the UI; **KW** continues to
+  Fiscal-week identifiers use **FYW 10** throughout the UI; **KW** continues to
   identify ISO calendar weeks.
   **In monthly planning only**, vacation is an absence, not booked work.
   Daily and weekly booked totals exclude vacation; net capacity subtracts

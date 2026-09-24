@@ -200,7 +200,7 @@ func buildWeek(d models.Data, cal *holidays.Calendar, week int, hidx map[string]
 		Year:          year,
 		Week:          week,
 		ISOWeek:       isoWeek,
-		Label:         fmt.Sprintf("FYW%d · KW %02d", week, isoWeek),
+		Label:         fmt.Sprintf("FYW %d · KW %02d", week, isoWeek),
 		RangeLabel:    monday.Format("02.01.") + "–" + friday.Format("02.01.2006"),
 		ProjectTotals: map[string]float64{},
 		TargetHours:   d.Settings.WeeklyTargetHours,
@@ -842,7 +842,7 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 		ys.WeekTotals = append(ys.WeekTotals, WeekTotal{
 			Week:           w,
 			ISOWeek:        isoWeek,
-			Label:          fmt.Sprintf("FYW%d · KW%02d", w, isoWeek),
+			Label:          fmt.Sprintf("FYW %d · KW%02d", w, isoWeek),
 			RangeLabel:     formatDayWithWeekday(monday) + " – " + formatDayWithWeekday(monday.AddDate(0, 0, 4)),
 			Hours:          hrs,
 			TargetHours:    d.Settings.WeeklyTargetHours,

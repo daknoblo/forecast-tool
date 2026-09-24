@@ -32,6 +32,12 @@ func TestBuildWeekTotals(t *testing.T) {
 	cal := holidays.New(2026, "BY")
 	wv := BuildWeek(d, cal, 3)
 
+	if wv.Label != "FYW 3 · KW 03" {
+		t.Errorf("week label = %q", wv.Label)
+	}
+	if label := BuildYearSummary(d, cal).WeekTotals[2].Label; label != "FYW 3 · KW03" {
+		t.Errorf("summary week label = %q", label)
+	}
 	if wv.Total != 22 {
 		t.Fatalf("week total = %v, want 22", wv.Total)
 	}
