@@ -69,7 +69,7 @@
       Verbleibend = Gesamt − Urlaub − Feiertage − Standard Tasks – <strong>dieses Ergebnis ist das FY-Ziel</strong>.
     </p>
 
-    <span class="save-status ok" data-save-status>Automatisch gespeichert</span>
+    <span class="save-status" data-save-status data-save-quiet hidden role="status"></span>
   </form>
   <p class="hint">Die Stundenkonfiguration gilt für das Fiskaljahr, das oben rechts im Kopfbereich ausgewählt ist. Willst du ein anderes FY konfigurieren, wechsle es dort.</p>
 </section>
@@ -108,46 +108,58 @@
              aria-label="Bezeichnung für „Überbucht“">
     </div>
     <p class="hint">Klassifizierung: ≤ {{hours .Settings.Utilization.MinHours}} h → Minimum (blau) · ≤ {{hours .Settings.Utilization.OptimalHours}} h → Optimal (grün) · &lt; {{hours .Settings.Utilization.OverHours}} h → Zu hoch (orange) · ≥ {{hours .Settings.Utilization.OverHours}} h → Überbucht (rot).</p>
-    <span class="save-status ok" data-save-status>Automatisch gespeichert</span>
+    <span class="save-status" data-save-status data-save-quiet hidden role="status"></span>
   </form>
 </section>
 
 <section class="card" id="ai">
   <h2>KI-Endpoint</h2>
-  <p class="hint">Unter <a href="/goal#chat">Ziele &rarr; Chat with your data</a> kannst du Fragen zu deinen gebuchten und geplanten Stunden stellen. Der KI-Dienst erhält nur die Zusammenfassung, niemals Schreibzugriff.</p>
   {{if .Foundry.Enabled}}
-  <h3>Microsoft Foundry · Entra-ID</h3>
   {{if .Private}}
-  <p class="hint">Die Foundry-Konfiguration und das Laden der Deployments sind im privaten Modus verborgen bzw. gesperrt.</p>
+  <p class="hint">Konfiguration und Deployment-Auswahl sind im privaten Modus gesperrt.</p>
   {{else}}
-  <dl class="foundry-config">
-    <dt>Azure-Ressource</dt><dd><code>{{.Foundry.ResourceID}}</code></dd>
-    <dt>Tenant-ID</dt><dd><code>{{.Foundry.TenantID}}</code></dd>
-    <dt>Client-ID</dt><dd><code>{{.Foundry.ClientID}}</code></dd>
-    {{if .Foundry.Endpoint}}<dt>Erkannter Endpoint</dt><dd><code>{{.Foundry.Endpoint}}</code></dd>{{end}}
-  </dl>
-  <p class="hint">Die Anmeldung erfolgt per Client-Secret aus der Umgebung. Das Secret wird weder angezeigt noch in der Datendatei gespeichert. Der API-Key-Modus ist hier deaktiviert; bei Anmeldefehlern gibt es keinen automatischen Rückfall.</p>
+  <table class="kv tokens foundry-config">
+    <tr>
+      <td>Azure-Ressource</td>
+      <td><code>{{if .Foundry.ResourceID}}{{.Foundry.ResourceID}}{{else}}Nicht gesetzt{{end}}</code></td>
+    </tr>
+    <tr>
+      <td>Tenant-ID</td>
+      <td><code>{{if .Foundry.TenantID}}{{.Foundry.TenantID}}{{else}}Nicht gesetzt{{end}}</code></td>
+    </tr>
+    <tr>
+      <td>Client-ID</td>
+      <td><code>{{if .Foundry.ClientID}}{{.Foundry.ClientID}}{{else}}Nicht gesetzt{{end}}</code></td>
+    </tr>
+    <tr>
+      <td>Client-Secret</td>
+      <td><code class="secret-status{{if .Foundry.SecretSet}} ok{{end}}">{{if .Foundry.SecretSet}}gesetzt{{else}}Nicht gesetzt{{end}}</code></td>
+    </tr>
+    <tr>
+      <td>Erkannter Endpoint</td>
+      <td><code>{{if .Foundry.Endpoint}}{{.Foundry.Endpoint}}{{else}}Nicht verfügbar{{end}}</code></td>
+    </tr>
+  </table>
   {{if .Foundry.Error}}<p class="save-status error" role="alert">{{.Foundry.Error}}</p>{{end}}
-  <form method="post" action="/settings" class="form-stack" data-autosave>
+  <form method="post" action="/settings" class="form-stack foundry-form" data-autosave>
     <input type="hidden" name="section" value="ai">
-    <label>Chat-Deployment
-      <select name="aiDeployment" data-reload{{if .Foundry.Error}} disabled{{end}}>
-        <option value="">– Deployment auswählen –</option>
-        {{if and .Settings.AI.Deployment (not .Foundry.SelectedPresent)}}<option value="{{.Settings.AI.Deployment}}" selected disabled>{{.Settings.AI.Deployment}} · nicht verfügbar</option>{{end}}
-        {{range .Foundry.Deployments}}<option value="{{.Name}}"{{if eq .Name $.Settings.AI.Deployment}} selected{{end}}>{{.Name}} · {{.ModelName}}</option>{{end}}
-      </select>
-    </label>
-    {{if not .Foundry.Deployments}}{{if not .Foundry.Error}}<p class="hint">Keine unterstützten Chat-Deployments gefunden. Stelle ein synchrones Chat-Modell in dieser Ressource bereit und lade die Liste erneut.</p>{{end}}{{end}}
-    {{if not .Foundry.Error}}<span class="save-status ok" data-save-status>Auswahl wird automatisch gespeichert</span>{{end}}
+    <div class="form-row foundry-controls">
+      <label>Chat-Deployment
+        <select name="aiDeployment" data-reload{{if .Foundry.Error}} disabled{{end}}>
+          <option value="">– Deployment auswählen –</option>
+          {{if and .Settings.AI.Deployment (not .Foundry.SelectedPresent)}}<option value="{{.Settings.AI.Deployment}}" selected disabled>{{.Settings.AI.Deployment}} · nicht verfügbar</option>{{end}}
+          {{range .Foundry.Deployments}}<option value="{{.Name}}"{{if eq .Name $.Settings.AI.Deployment}} selected{{end}}>{{.Name}} · {{.ModelName}}</option>{{end}}
+        </select>
+      </label>
+      <button type="submit" class="btn" form="foundry-refresh">Deployments neu laden</button>
+    </div>
+    {{if not .Foundry.Deployments}}{{if not .Foundry.Error}}<p class="hint">Keine unterstützten Chat-Deployments gefunden.</p>{{end}}{{end}}
+    <span class="save-status" data-save-status data-save-quiet hidden role="status"></span>
   </form>
-  <form method="post" action="/settings/ai/refresh">
-    <button type="submit" class="btn">Deployments neu laden</button>
-    {{if .Foundry.RefreshedAt}}<span class="hint">Stand: {{.Foundry.RefreshedAt}} · automatische Aktualisierung nach 5 Minuten beim nächsten Zugriff</span>{{end}}
-  </form>
-  <p class="hint">Erforderlich sind Leserechte für die Azure-Ressource und ihre Deployments sowie Inferenzrechte für das ausgewählte Modell, jeweils für die konfigurierte Entra-Anwendung.</p>
+  <form method="post" action="/settings/ai/refresh" id="foundry-refresh"></form>
+  {{if .Foundry.RefreshedAt}}<p class="hint">Stand: {{.Foundry.RefreshedAt}}</p>{{end}}
   {{end}}
   {{else}}
-  <p class="hint">API-Key-Modus: Azure-Ressourcen-URL für die klassische API oder Basis-URL mit <code>/openai/v1</code> für die neue API.</p>
   <form method="post" action="/settings" class="form-stack" data-autosave>
     <input type="hidden" name="section" value="ai">
     <label>Endpoint-URL
@@ -160,16 +172,11 @@
       <input type="text" name="aiApiVersion" value="{{.Settings.AI.APIVersion}}" placeholder="2024-10-21"{{if .Private}} disabled{{end}}>
     </label>
     <label>API-Key
-      {{if .AIKeySet}}<span class="badge ok">aus Umgebungsvariable <code>{{.AIKeyEnv}}</code> geladen</span>
-      {{else}}<span class="badge error">nicht gesetzt</span>{{end}}
+      <span><code class="secret-status{{if .AIKeySet}} ok{{end}}">{{if .AIKeySet}}gesetzt{{else}}Nicht gesetzt{{end}}</code></span>
     </label>
-    <p class="hint">Der API-Key wird <strong>nicht</strong> in der Datendatei gespeichert, sondern über die Umgebungsvariable <code>{{.AIKeyEnv}}</code> bereitgestellt (z. B. als Docker-Secret bzw. <code>environment</code>-Eintrag in <code>docker-compose.yml</code>).{{if .AIKeyInStore}} Es liegt noch ein veralteter Key in der Datendatei – ändere ein Feld in dieser Karte (z. B. die API-Version neu eintragen und das Feld verlassen), um ihn zu entfernen, und rotiere den Schlüssel.{{end}}</p>
-    <span class="save-status ok" data-save-status>Automatisch gespeichert</span>
+    <p class="hint">API-Key über <code>{{.AIKeyEnv}}</code> setzen.{{if .AIKeyInStore}} Es liegt noch ein veralteter Key in der Datendatei – ändere ein Feld in dieser Karte (z. B. die API-Version neu eintragen und das Feld verlassen), um ihn zu entfernen, und rotiere den Schlüssel.{{end}}</p>
+    <span class="save-status" data-save-status data-save-quiet hidden role="status"></span>
   </form>
-  <details class="hint">
-    <summary>Foundry mit Entra-ID statt API-Key einrichten</summary>
-    <p>Setze <code>AZURE_RESOURCE_ID</code>, <code>AZURE_TENANT_ID</code>, <code>AZURE_CLIENT_ID</code> und <code>AZURE_CLIENT_SECRET</code> in der Server-Umgebung und starte den Server neu. Danach wird hier die Deployment-Auswahl automatisch aus der Azure-Ressource geladen. Schon eine gesetzte Variable aktiviert den Foundry-Modus; eine unvollständige Konfiguration muss erst ergänzt werden.</p>
-  </details>
   {{end}}
 </section>
 
@@ -179,13 +186,11 @@
   <table class="kv tokens">
     <tr>
       <td>Lese-Token</td>
-      <td><code>{{.APIReadEnv}}</code></td>
-      <td>{{if .APIReadSet}}<span class="badge ok">gesetzt</span>{{else}}<span class="badge error">nicht gesetzt</span>{{end}}</td>
+      <td><code class="secret-status{{if .APIReadSet}} ok{{end}}">{{if .APIReadSet}}gesetzt{{else}}Nicht gesetzt{{end}}</code></td>
     </tr>
     <tr>
       <td>Schreib-Token</td>
-      <td><code>{{.APIWriteEnv}}</code></td>
-      <td>{{if .APIWriteSet}}<span class="badge ok">gesetzt</span>{{else}}<span class="badge error">nicht gesetzt</span>{{end}}</td>
+      <td><code class="secret-status{{if .APIWriteSet}} ok{{end}}">{{if .APIWriteSet}}gesetzt{{else}}Nicht gesetzt{{end}}</code></td>
     </tr>
   </table>
   <p class="hint">Die Tokens werden <strong>nicht</strong> in der Datendatei gespeichert, sondern über Umgebungsvariablen bereitgestellt (z.&nbsp;B. als Docker-Secret bzw. <code>environment</code>-Eintrag in <code>docker-compose.yml</code>). Der Lese-Token erlaubt nur GET-Zugriffe, der Schreib-Token zusätzlich Änderungen. Ist keiner gesetzt, ist die API deaktiviert.</p>

@@ -1,0 +1,44 @@
+name: Browser tests
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    name: Chromium regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tools/screenshots/package-lock.json
+
+      - name: Install browser tooling
+        working-directory: tools/screenshots
+        run: npm ci
+
+      - name: Install Chromium
+        working-directory: tools/screenshots
+        run: npx playwright install --with-deps --only-shell chromium
+
+      - name: Test browser interactions and layout
+        env:
+          FORECAST_BROWSER_TESTS: "1"
+        run: go test -race ./internal/web -run '^TestBrowserRegression$' -count=1 -v -timeout=8m

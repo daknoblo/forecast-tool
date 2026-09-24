@@ -55,7 +55,8 @@ whether the variables are set.
 - **Request body limit:** 2 MiB. Unknown JSON fields are rejected (`400`).
 - **Partial updates (`PUT`):** only the fields you send are changed. For the
   project date fields, `""` means "clear the window" and omitting the field means
-  "leave unchanged".
+  "leave unchanged". Exception: the Forecast Accuracy endpoint replaces one
+  complete snapshot and requires both `percentage` and `asOf`.
 
 ### Status codes
 
@@ -83,6 +84,8 @@ whether the variables are set.
 | `GET`    | `/api/v1/projects/{id}` | read | Single project |
 | `GET`    | `/api/v1/entries` | read | Entries (filtered) |
 | `GET`    | `/api/v1/goal` | read | Goal/capacity summary |
+| `GET`    | `/api/v1/forecast-accuracy/{year}` | read | Imported ESXP accuracy and FY-end worst case |
+| `PUT`    | `/api/v1/forecast-accuracy/{year}` | write | Replace one FY's accuracy snapshot |
 | `POST`   | `/api/v1/entries/sync` | write | Upsert entries (the core sync) |
 | `POST`   | `/api/v1/projects` | write | Create a project |
 | `PUT`    | `/api/v1/projects/{id}` | write | Update a project |
@@ -95,11 +98,100 @@ whether the variables are set.
 
 ---
 
+## ESXP Forecast Accuracy
+
+### `PUT /api/v1/forecast-accuracy/{year}`
+
+The ESXP reader sends the displayed **percentage for that fiscal year**, not
+individual weekly comparisons. This repository does not scrape ESXP. Extend
+the external reader to call this endpoint with the write bearer token:
+
+```http
+PUT /api/v1/forecast-accuracy/2027
+Authorization: Bearer <FORECAST_API_WRITE_TOKEN>
+Content-Type: application/json
+
+{"percentage":100,"asOf":"2026-09-24"}
+```
+
+Replace the example FY and date with those of the actual observation. `asOf`
+is the UTC reference date of the observed percentage, **not** an arbitrary
+upload date for an older observation. Both fields are required. `percentage`
+is a number in `[0,100]` (not a fraction); zero is valid, null is not.
+`asOf` must be `YYYY-MM-DD`, on or after the FY start and not in the future.
+Observations after the FY ends are allowed for finalized annual values.
+Years must be in `[2000,2100]`.
+
+The endpoint replaces that FY's snapshot atomically without changing entries,
+projects, settings, or the active FY. Same-date corrections are allowed;
+an observation older than the saved `asOf` returns **409** without changes.
+Invalid input returns **400**, persistence failures **500**.
+The configured FY start month is captured alongside the value. A later change
+to the FY calendar disables the projection until a matching ESXP value is
+imported again. Storage and JSON exports contain:
+
+```json
+"forecastAccuracy": {
+  "2027": {
+    "percentage": 100,
+    "asOf": "2026-09-24",
+    "fiscalYearStartMonth": 7
+  }
+}
+```
+
+### `GET /api/v1/forecast-accuracy/{year}`
+
+GET and successful PUT return the same computed summary. For example, reading
+the observation above in the same week returns:
+
+```json
+{
+  "fiscalYear": 2027,
+  "hasData": true,
+  "hasProjection": true,
+  "percentage": 100,
+  "minimumPct": 22.641509433962263,
+  "drawdownPoints": 77.35849056603774,
+  "asOf": "2026-09-24",
+  "evaluatedWeeks": 12,
+  "remainingWeeks": 41,
+  "totalWeeks": 53,
+  "stale": false
+}
+```
+
+- ESXP is authoritative: a week is correct when actual and forecast hours
+  differ by **at most 8 hours in either direction**. This app does not
+  reconstruct the imported rate from its mutable daily entries.
+- The denominator of the imported rate is every **completed FY week at
+  `asOf`**. The current Monday-based week is excluded. Partial boundary weeks
+  count like the existing forecast's FY weeks; the final partial week is
+  complete on the first day after FY end. Total FY weeks may be 53 or 54;
+  they are not hard-coded to 52.
+- `minimumPct = percentage × evaluatedWeeks / totalWeeks`, assuming every
+  remaining week is incorrect. `drawdownPoints = percentage − minimumPct`,
+  measured in **percentage points**, not relative percent.
+- `stale` becomes true when more FY weeks have completed since `asOf`.
+  The calculation stays anchored to that observation, conservatively assuming
+  **all unassessed weeks since then** fail, rather than silently applying an old
+  rate to a new denominator. Sync a fresh observation to calculate the
+  worst case starting with the actual current week.
+- Missing data: `hasData:false`. No completed weeks, missing data, or a changed
+  FY calendar: `hasProjection:false`. Ignore the corresponding numeric fields
+  when these flags are false; zero is not a fabricated accuracy or projection.
+  Invalid stored data or a calendar mismatch also includes a German `error`.
+- ESXP's source precision limits the projection's precision. Inferred
+  successful weeks are **not rounded to integers**.
+- The dashboard shows the rate and minimum; the observation date remains in
+  the tooltip, not below the figures. Private mode replaces imported values
+  with fictional sample data.
+
 ## Reading
 
 ### `GET /api/v1/data`
 Returns the complete document (`settings`, `fiscalYears`, `projects`,
-`entries`). The AI API key is always redacted. Foundry identity, client secrets
+`entries`, and optional `savedMonthPlans`/`forecastAccuracy`). The AI API key is always redacted. Foundry identity, client secrets
 and discovered catalogs are environment/runtime configuration, not part of this
 document. In Foundry mode `settings.ai.deployment` selects a discovered chat
 deployment; the manual endpoint and API version are ignored for inference.
@@ -234,7 +326,8 @@ Upserts a batch of entries. The key of each item is **(date, projectId)**.
   of the batch is still applied.
 - A date **outside the project's booking window** is accepted: such entries can be
   created, edited and deleted like any other. The window only drives the
-  `outOfWindow` warning and the visual hint in the forecast grid.
+  `outOfWindow` warning. The monthly calendar still displays existing entries;
+  newly generated plans respect the booking window.
 
 **Request**
 ```json
@@ -314,12 +407,29 @@ curl -X DELETE https://host/api/v1/projects/abc -H "Authorization: Bearer $WRITE
 
 Partial update. Fields: `year` (active FY), `federalState` (state code, e.g.
 `BY`), `weeklyTargetHours`, `fiscalYearStartMonth` (1–12), `dashboardRange`
-(`1w`, `2w`, `4w`, `2m`, `3m`, `6m`, `fy`; default `4w`), `utilization`
+(`1w`, `2w`, `4w`, `2m`, `3m`, `6m`, `fy`; default `4w`), `monthPlanningPrompt`,
+`monthPlanningSystemPrompt`, `utilization`
 (traffic-light thresholds/labels) and `ai` (`endpoint`/`deployment`/`apiVersion`
 — **no** key). Invalid values → `400`.
 
 `dashboardRange` controls the dashboard charts when no valid `sankey` query
 parameter is supplied. Explicit horizon links do not change the saved default.
+
+`monthPlanningPrompt` is the editable task prompt for monthly AI planning;
+`monthPlanningSystemPrompt` is the editable system prompt and response format.
+Both are persisted in the existing data document (maximum 8,000 Unicode
+characters each). Empty/whitespace selects the respective built-in prompt;
+omission keeps the existing value. Changing either does not generate or save a
+forecast. Server-side plan validation cannot be overridden by either prompt:
+historical-only projects cannot acquire new forecast hours, and existing totals
+must remain unchanged per project/week.
+
+The full data document's `savedMonthPlans` map (`YYYY-MM` to RFC3339 timestamp)
+is maintained when a monthly preview is explicitly saved. It selects exact
+stored-day rendering instead of local re-estimation; it is not an alternate
+entry store. It is not writable through this settings endpoint. Generation,
+ephemeral previews and explicit saves belong to the same-origin HTML UI,
+not the bearer-authenticated JSON API.
 
 ```bash
 curl -X PUT https://host/api/v1/settings \

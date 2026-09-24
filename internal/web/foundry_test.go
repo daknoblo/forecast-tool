@@ -57,6 +57,152 @@ func foundryTestServer(t *testing.T) (*Server, *storage.Store, *mockFoundry) {
 	return srv, store, mock
 }
 
+func TestSettingsFoundryPresentation(t *testing.T) {
+	srv, _, mock := foundryTestServer(t)
+	for _, tc := range []struct {
+		name                        string
+		enabled, secretSet, private bool
+		discoveryError              bool
+	}{
+		{name: "manual"},
+		{name: "foundry set", enabled: true, secretSet: true},
+		{name: "foundry unset", enabled: true},
+		{name: "foundry error", enabled: true, secretSet: true, discoveryError: true},
+		{name: "private", enabled: true, secretSet: true, private: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("AZURE_RESOURCE_ID", "test-resource")
+			t.Setenv("AZURE_TENANT_ID", "test-tenant")
+			t.Setenv("AZURE_CLIENT_ID", "test-client")
+			secret := ""
+			if tc.secretSet {
+				secret = "secret-must-never-appear-in-html"
+			}
+			t.Setenv("AZURE_CLIENT_SECRET", secret)
+			srv.foundry = newFoundryState()
+			if srv.foundry.secretSet != tc.secretSet {
+				t.Fatal("secret presence does not match the environment")
+			}
+			srv.foundry.enabled = tc.enabled
+			if !tc.discoveryError {
+				srv.foundry.setupErr = nil
+				srv.foundry.source = mock
+			}
+			req := httptest.NewRequest("GET", "/settings", nil)
+			if tc.private {
+				req.AddCookie(&http.Cookie{Name: privateCookie, Value: "1"})
+			}
+			rec := httptest.NewRecorder()
+			srv.Handler().ServeHTTP(rec, req)
+			body := rec.Body.String()
+			if rec.Code != http.StatusOK {
+				t.Fatalf("settings status = %d", rec.Code)
+			}
+			if strings.Contains(strings.ToLower(body), "automatisch gespeichert") {
+				t.Fatal("settings still contain automatic-save hints")
+			}
+			for _, removed := range []string{
+				"Befüllt",
+				"Microsoft Foundry · Entra-ID", "Die Anmeldung erfolgt per Client-Secret",
+				"Erforderlich sind Leserechte", "automatische Aktualisierung nach 5 Minuten",
+				`href="/goal#chat"`, `href="https://github.com/daknoblo/forecast-tool#chat-with-your-data"`,
+				"<code>AZURE_RESOURCE_ID</code>", "<code>AZURE_TENANT_ID</code>",
+				"<code>AZURE_CLIENT_ID</code>", "<code>AZURE_CLIENT_SECRET</code>",
+			} {
+				if strings.Contains(body, removed) {
+					t.Errorf("settings still contain redundant text: %s", removed)
+				}
+			}
+			if strings.Count(body, "data-save-quiet hidden") != strings.Count(body, "data-autosave>") {
+				t.Fatal("settings forms must retain hidden auto-save feedback")
+			}
+			if secret != "" && strings.Contains(body, secret) {
+				t.Fatal("settings exposed the secret")
+			}
+			if tc.enabled && !tc.private {
+				status := `<code class="secret-status">Nicht gesetzt</code>`
+				if tc.secretSet {
+					status = `<code class="secret-status ok">gesetzt</code>`
+				}
+				for _, want := range []string{
+					`class="kv tokens foundry-config"`,
+					"<td>Azure-Ressource</td>", "<td>Tenant-ID</td>", "<td>Client-ID</td>",
+					"<td>Erkannter Endpoint</td>", "<td>Client-Secret</td>", "<td>" + status + "</td>",
+					"<code>test-resource</code>", "<code>test-tenant</code>", "<code>test-client</code>",
+					`class="form-row foundry-controls"`, `form="foundry-refresh"`,
+					`action="/settings/ai/refresh" id="foundry-refresh"`,
+				} {
+					if !strings.Contains(body, want) {
+						t.Errorf("settings missing %s", want)
+					}
+					endpoint := mock.snapshot.Endpoint
+					if tc.discoveryError {
+						endpoint = "Nicht verfügbar"
+					}
+					if !strings.Contains(body, "<code>"+endpoint+"</code>") {
+						t.Fatal("endpoint is not shown in the value field")
+					}
+				}
+			}
+			if tc.private && (strings.Contains(body, "<td>Client-Secret</td>") || srv.foundrySettings(req, "").SecretSet) {
+				t.Fatal("private mode exposed secret presence")
+			}
+		})
+	}
+}
+
+func TestSettingsSecretPresenceFields(t *testing.T) {
+	srv, _, _ := foundryTestServer(t)
+	srv.foundry = newFoundryState()
+	for _, tc := range []struct {
+		name             string
+		read, write, key bool
+	}{
+		{name: "empty"},
+		{name: "all set", read: true, write: true, key: true},
+		{name: "read only", read: true},
+		{name: "write only", write: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for name, set := range map[string]bool{
+				"FORECAST_API_READ_TOKEN": tc.read, "FORECAST_API_WRITE_TOKEN": tc.write, aiAPIKeyEnv: tc.key,
+			} {
+				value := ""
+				if set {
+					value = name + "-secret-must-stay-hidden"
+				}
+				t.Setenv(name, value)
+			}
+			rec := httptest.NewRecorder()
+			srv.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/settings", nil))
+			body := rec.Body.String()
+			if rec.Code != http.StatusOK || strings.Contains(body, "-secret-must-stay-hidden") {
+				t.Fatal("settings failed to render or exposed a secret")
+			}
+			for label, set := range map[string]bool{"Lese-Token": tc.read, "Schreib-Token": tc.write} {
+				_, rest, found := strings.Cut(body, "<td>"+label+"</td>")
+				row, _, _ := strings.Cut(rest, "</tr>")
+				status := `<code class="secret-status">Nicht gesetzt</code>`
+				if set {
+					status = `<code class="secret-status ok">gesetzt</code>`
+				}
+				if !found || !strings.Contains(row, status) || strings.Contains(row, "FORECAST_API_") {
+					t.Errorf("%s must show only its presence with green styling when set", label)
+				}
+			}
+			keyStatus := `<code class="secret-status">Nicht gesetzt</code>`
+			if tc.key {
+				keyStatus = `<code class="secret-status ok">gesetzt</code>`
+			}
+			_, keyRest, keyFound := strings.Cut(body, "<label>API-Key")
+			keyField, _, _ := strings.Cut(keyRest, "</label>")
+			if !keyFound || !strings.Contains(keyField, keyStatus) {
+				t.Fatal("manual API key must show only its presence with green styling when set")
+			}
+		})
+	}
+}
+
 func TestFoundrySettingsAndSelection(t *testing.T) {
 	srv, store, mock := foundryTestServer(t)
 	if err := store.Mutate(func(d *models.Data) error {

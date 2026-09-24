@@ -24,11 +24,10 @@ type Page struct {
 
 // DemoPages returns every page of the clickable demo snapshot. The dashboard is
 // captured once per Sankey horizon so the horizon chips keep working offline.
-func DemoPages(week int) []Page {
+func DemoPages() []Page {
 	pages := []Page{
 		{URL: "/", File: "index.html", Title: "Dashboard"},
 		{URL: "/projects", File: "projects.html", Title: "Projekte"},
-		{URL: fmt.Sprintf("/week/%d", week), File: "week.html", Title: "Forecast"},
 		{URL: "/month", File: "month.html", Title: "Monatsplanung"},
 		{URL: "/goal", File: "goal.html", Title: "Ziele"},
 		{URL: "/settings", File: "settings.html", Title: "Einstellungen"},
@@ -37,12 +36,6 @@ func DemoPages(week int) []Page {
 		pages = append(pages, Page{
 			URL:  "/?sankey=" + key,
 			File: "dashboard-" + key + ".html",
-		})
-	}
-	for _, weeks := range []int{1, 2, 4} {
-		pages = append(pages, Page{
-			URL:  fmt.Sprintf("/week/%d?weeks=%d", week, weeks),
-			File: fmt.Sprintf("week-%dw.html", weeks),
 		})
 	}
 	return pages
@@ -142,14 +135,12 @@ func rewrite(html string, byURL map[string]string) (string, []string) {
 }
 
 // fallbackURL maps a link that was not captured to the closest page that was,
-// e.g. a link to any fiscal-year week to the single captured week.
+// e.g. a link to another month to the captured monthly calendar.
 func fallbackURL(val string) string {
 	p := strings.SplitN(val, "?", 2)[0]
 	switch {
 	case p == "/" || strings.HasPrefix(p, "/?"):
 		return "/"
-	case strings.HasPrefix(p, "/week"):
-		return "/week"
 	case p == "/month":
 		return "/month"
 	case strings.HasPrefix(p, "/projects"):
@@ -162,8 +153,7 @@ func fallbackURL(val string) string {
 	return ""
 }
 
-// normalizeURL makes two spellings of the same link comparable (sorted query,
-// "/week" matching "/week/12").
+// normalizeURL makes two spellings of the same link comparable (sorted query).
 func normalizeURL(raw string) string {
 	if raw == "" {
 		return ""
@@ -173,9 +163,6 @@ func normalizeURL(raw string) string {
 		return raw
 	}
 	p := u.Path
-	if strings.HasPrefix(p, "/week/") {
-		p = "/week"
-	}
 	if q := u.Query().Encode(); q != "" {
 		return p + "?" + q
 	}

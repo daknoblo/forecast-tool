@@ -373,6 +373,40 @@ func TestDashboardRangeSettings(t *testing.T) {
 	}
 }
 
+func TestMonthPlanningPromptSettings(t *testing.T) {
+	st := newTestStore(t)
+	h := newTestServer(t, st, readTok, writeTok)
+	for _, prompt := range []string{"Prefer four booking days.", ""} {
+		response := do(t, h, http.MethodPut, "/api/v1/settings", writeTok, map[string]any{"monthPlanningPrompt": prompt})
+		if response.Code != http.StatusOK || st.Snapshot().Settings.MonthPlanningPrompt != prompt {
+			t.Fatalf("prompt update: %d %s", response.Code, response.Body.String())
+		}
+	}
+	response := do(t, h, http.MethodPut, "/api/v1/settings", writeTok, map[string]any{"monthPlanningPrompt": strings.Repeat("x", models.MaxMonthPlanningPrompt+1)})
+	if response.Code != http.StatusBadRequest || st.Snapshot().Settings.MonthPlanningPrompt != "" {
+		t.Fatal("oversized prompt changed settings")
+	}
+}
+
+func TestMonthPlanningSystemPromptSettings(t *testing.T) {
+	st := newTestStore(t)
+	h := newTestServer(t, st, readTok, writeTok)
+	for _, prompt := range []string{"Return only JSON.", ""} {
+		response := do(t, h, http.MethodPut, "/api/v1/settings", writeTok, map[string]any{"monthPlanningSystemPrompt": prompt})
+		if response.Code != http.StatusOK || st.Snapshot().Settings.MonthPlanningSystemPrompt != prompt {
+			t.Fatalf("system prompt update: %d %s", response.Code, response.Body.String())
+		}
+	}
+	response := do(t, h, http.MethodPut, "/api/v1/settings", writeTok, map[string]any{
+		"monthPlanningPrompt":       "Must not be saved",
+		"monthPlanningSystemPrompt": strings.Repeat("ä", models.MaxMonthPlanningPrompt+1),
+	})
+	if response.Code != http.StatusBadRequest || st.Snapshot().Settings.MonthPlanningPrompt != "" ||
+		st.Snapshot().Settings.MonthPlanningSystemPrompt != "" {
+		t.Fatal("invalid system prompt changed settings")
+	}
+}
+
 func TestProjectsSummary(t *testing.T) {
 	st := newTestStore(t)
 	year := setFYAroundToday(t, st)

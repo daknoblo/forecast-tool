@@ -72,6 +72,9 @@ func buildDemoData(today time.Time) models.Data {
 	prev := year - 1
 
 	d := models.DefaultData(year)
+	d.ForecastAccuracy = map[int]models.ForecastAccuracy{
+		year: {Percentage: 96, AsOf: today.Format("2006-01-02"), FiscalYearStartMonth: demoStartMonth},
+	}
 	d.Settings.FederalState = DemoState
 	d.Settings.FiscalYearStartMonth = demoStartMonth
 	d.Settings.WeeklyTargetHours = 40

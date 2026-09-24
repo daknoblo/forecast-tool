@@ -83,15 +83,15 @@ go.mod
   column chart on the same time axis, the budgets table
   (budget/forecast/booked/remaining/window/burn rate/utilization) and the weekly
   utilization table.
-- **Multi-week forecast** (`/week`): projects × days across several weeks,
-  holidays marked, one hours value per day, day/week totals, utilization against
-  the weekly target, navigation. Buttons to clear single days or weeks, a
-  traffic-light status row per week, and background auto-save via
-  `POST /week/cells`.
+- **Monthly planning** (`/month`): Monday–Friday calendar with project blocks,
+  public holidays, vacation and weekly capacity. Daily entries arrive through
+  the API; the local estimate is read-only. Optional AI planning requires an
+  explicit preview/save. The former weekly editor and its write routes are
+  removed, without changing stored forecast data or the import API.
 - **Utilization traffic light**: globally configurable thresholds (min 26 /
   optimal 40 / over 60 h) and four freely editable labels. Coloured dots
-  (blue ↓ / green OK / orange ↑ / red ✕) in the forecast, dashboard and goals
-  tables.
+  (blue ↓ / green OK / orange ↑ / red ✕) in the dashboard and goals tables.
+  Week links open the corresponding month and fiscal-week anchor.
 - **Projects**: CRUD per fiscal year, budget, colour, active/inactive, start/end
   date (booking window), burn rate (h/week · h/day) plus required pace,
   remaining budget and a burn-down SVG. Projects sharing an `assignmentId` with
@@ -107,11 +107,11 @@ go.mod
 - **Private mode**: a header toggle that replaces the real document with a
   fictional sample one (7 projects, carry-over, vacation, a planned half-year),
   so a shared screen shows a complete, lively page without any real figure. It
-  also disables the project forms, the forecast inputs, the fiscal-year switch,
-  the export and the data chat. It is a per-browser display preference stored in
+  also disables project forms, monthly prompt edits/generation/saving, the
+  fiscal-year switch, the export and the data chat. It is a per-browser display preference stored in
   a cookie, not in `data.json`.
 - **Layout**: central app name via `web.AppName`/`{{appName}}` (title, header
-  brand, footer). Navigation: Dashboard – Projekte – Forecast (`/week`) – Ziele
+  brand, footer). Navigation: Dashboard – Projekte – Monatsplanung (`/month`) – Ziele
   (`/goal`) – Einstellungen. Footer with a link to the GitHub profile.
 - **Chat with your data** (`POST /goal/chat`): ask questions about the active
   fiscal year. The server builds a compact factual digest of the figures and

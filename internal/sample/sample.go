@@ -40,8 +40,8 @@ type project struct {
 	endMonth     int
 	// share weights the project when a day's hours are split.
 	share int
-	// active projects appear in the forecast grid; an inactive one releases its
-	// unplanned budget and only carries hours from before the reference day.
+	// An inactive project releases its unplanned budget and only carries hours
+	// from before the reference day.
 	active bool
 	// carryOver, when > 0, additionally creates the same assignment in the
 	// previous fiscal year and books that many hours on it.
@@ -82,6 +82,7 @@ var weekHours = [...]float64{32, 37, 22, 35, 44, 29, 34, 61, 25, 38, 19, 33, 41,
 // base itself is never modified.
 func Data(now time.Time, base models.Data) models.Data {
 	d := base
+	d.ForecastAccuracy = nil
 	startMonth := d.Settings.FiscalYearStartMonth
 	if startMonth < 1 || startMonth > 12 {
 		startMonth = models.DefaultFiscalYearStartMonth
@@ -102,6 +103,11 @@ func Data(now time.Time, base models.Data) models.Data {
 	// A fiscal year the user is not currently living in still has to look
 	// populated, so the generator falls back to the closest day inside it.
 	ref := clamp(dayOf(now), fyStart, fyEnd)
+	if !fyStart.After(dayOf(now)) {
+		d.ForecastAccuracy = map[int]models.ForecastAccuracy{
+			year: {Percentage: 90, AsOf: ref.Format("2006-01-02"), FiscalYearStartMonth: startMonth},
+		}
+	}
 
 	d.Projects = buildProjects(year, fyStart, fyEnd, ref)
 	models.EnsureVacationProject(&d, year)
@@ -172,10 +178,9 @@ func buildProjects(year int, fyStart, fyEnd, ref time.Time) []models.Project {
 }
 
 // window returns a project's inclusive booking window inside the fiscal year.
-// An inactive project additionally ends shortly before the reference day: it is
-// gone from the forecast grid, so forecast hours on it would make the grid rows
-// and the day totals disagree. The cut never runs past the project's own start,
-// which would be an invalid window.
+// An inactive sample project ends shortly before the reference day, so its
+// hours illustrate completed work rather than new planning. The cut never runs
+// past the project's own start, which would be an invalid window.
 func window(fyStart, fyEnd, ref time.Time, p project) (start, end time.Time) {
 	start = fyStart
 	if p.startMonth > 0 {

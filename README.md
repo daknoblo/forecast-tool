@@ -31,8 +31,8 @@ and the screenshots can never drift away from the code.
 
 | | |
 |---|---|
-| [![Dashboard](https://daknoblo.github.io/forecast-tool/screenshots/dashboard.png)](https://daknoblo.github.io/forecast-tool/screenshots.html#dashboard.png) | [![Forecast grid](https://daknoblo.github.io/forecast-tool/screenshots/forecast.png)](https://daknoblo.github.io/forecast-tool/screenshots.html#forecast.png) |
-| **Dashboard** – KPI tiles, utilization Sankey, free capacity, budgets | **Forecast grid** – projects × days, one hours value per day, auto-saved |
+| [![Dashboard](https://daknoblo.github.io/forecast-tool/screenshots/dashboard.png)](https://daknoblo.github.io/forecast-tool/screenshots.html#dashboard.png) | [![Monthly planning](https://daknoblo.github.io/forecast-tool/screenshots/month.png)](https://daknoblo.github.io/forecast-tool/screenshots.html#month.png) |
+| **Dashboard** – KPI tiles, utilization Sankey, free capacity, budgets | **Monthly planning** – project blocks, holidays, vacation and weekly capacity |
 | [![Goals](https://daknoblo.github.io/forecast-tool/screenshots/goal.png)](https://daknoblo.github.io/forecast-tool/screenshots.html#goal.png) | [![Projects](https://daknoblo.github.io/forecast-tool/screenshots/projects.png)](https://daknoblo.github.io/forecast-tool/screenshots.html#projects.png) |
 | **Goals & capacity** – derived FY target, hours flow, progress charts | **Projects** – budget, carry-over, burn rate, burn-down |
 
@@ -61,21 +61,45 @@ only renders the docs and the demo snapshot.
   the remaining budget and the burn rate never hand out budget twice, and the
   projects page shows the full per-fiscal-year split of the assignment
 - **Per-project booking window** (optional start/end date): a planning hint, not
-  a lock — days outside it stay editable in the forecast grid and via the API and
-  are only marked. From it the tool derives the **burn rate** (h/week and
+  a lock — entries outside it remain visible and editable via the API.
+  Generated monthly plans respect the window. From it the tool derives the **burn rate** (h/week and
   h/working day), the pace still required, and a warning when hours were booked
   outside the window
-- Multi-week forecast grid: projects × days (Mon–Fri) across several weeks with
-  **one hours value per day** (past days count as booked, today and later as
-  forecast), automatic totals, and buttons to clear single days or whole weeks
-- **Auto-save**: edits in the forecast grid are persisted in the background
-  (`POST /week/cells`); the page is never reloaded while typing
-- **Monthly planning** (`/month`): a Monday–Friday calendar beside Forecast,
+- **Daily entries**: hours and vacation are imported through the API. Past days
+  count as booked, today and later as forecast. Monatsplanung is the only
+  planning page; the former weekly editor and its save endpoints are removed.
+  Existing entries, imports and weekly calculations remain unchanged.
+- **Activity indicator**: the always-visible ring before “Privat” in the header
+  animates during data requests, saves and same-tab navigation. It covers monthly
+  AI planning, goal chat, settings/project autosaves and form
+  actions such as deployment refresh. Concurrent requests keep it active until
+  all finish; errors retain their existing messages. Reduced-motion preferences
+  disable rotation while the active colour still indicates pending work.
+- **Monthly planning** (`/month`): the Monday–Friday planning calendar,
   with public holidays, vacation, project blocks and weekly capacity balances.
-  Past days always show stored entries, today and future days a **read-only
-  estimated daily distribution**, without a view switch. Compact project tiles
+  Past days always show stored entries; today and future days initially show a
+  **read-only local estimate**, without a view switch. Compact project tiles
   place names and hours on one line; each day header combines weekday/date,
   hours/capacity and a yellow overtime badge.
+  The title, month navigation/Today and AI planning button share one header row
+  on wide screens, without subtitles (controls wrap on narrow screens).
+  The weekly sidebar lists net capacity, **Urlaub/Feiertage**, each project's weekly hours
+  with its project colour, total booked hours and available capacity.
+  The absence row uses the active fiscal year's configured vacation-project colour.
+  Totals
+  include adjacent-month days within the FY, weekend entries and unallocated
+  hours. A yellow overload badge appears beside the week identifier only when
+  the weekly total exceeds capacity; there is no date-range line underneath.
+  Fiscal-week identifiers use **FYW 10** throughout the UI; **KW** continues to
+  identify ISO calendar weeks.
+  **In monthly planning only**, vacation is an absence, not booked work.
+  Daily and weekly booked totals exclude vacation; net capacity subtracts
+  weekday public holidays and vacation (partial days proportionally), at most
+  8 hours per day, without double-counting overlapping absences or weekends.
+  The combined absence row shows this capacity reduction. For example, one
+  vacation day plus one weekday public holiday leave 24 hours of a 40-hour week.
+  Vacation entries remain visible and unchanged in storage. Dashboard
+  and goal calculations retain their existing semantics.
   Existing weekly project totals are distributed using weekday patterns from the
   last 12 completed weeks (matched across FYs by assignment ID). Newer weeks
   carry more weight (four-week half-life); normalized weekly shares keep one
@@ -94,12 +118,75 @@ only renders the docs and the demo snapshot.
   Weekends have no columns; any stored weekend hours remain in weekly totals
   and are explicitly noted in the weekly summary.
   Standard tasks have no daily dates and are not deducted separately.
-  No writes, external AI calls, clock times or additional forecast hours are created.
+  The local estimate does not write data or call an external service.
+  **“Planung mit KI regenerieren”** explicitly sends the last 84 days of actual
+  daily bookings, project/assignment metadata, weekly forecast totals and
+  holiday/vacation availability to the configured AI deployment. The editable,
+  globally saved planning prompt under **“Prompts”** asks for real
+  booking patterns such as four 2-hour blocks rather than five 1.6-hour blocks.
+  Both the planning prompt and system prompt/response format are editable there,
+  saved in the existing data document as `settings.monthPlanningPrompt` and
+  `settings.monthPlanningSystemPrompt` (8,000 characters each; empty uses the
+  respective built-in default). Changes apply to new previews, not saved entries.
+  The prompt section starts collapsed; its nested details are already expanded
+  so one click reveals all contents. Both textareas grow
+  and shrink with their content, including after editing, resizing or reopening.
+  An additional read-only, content-sized text field shows the model's complete
+  planning response, indented as JSON for copying and diagnosis. It is outside
+  the prompt form and never becomes configuration or stored application data.
+  Valid responses live with their temporary preview; rejected responses are
+  shown on the current page with the error (unparseable output stays verbatim).
+  Private mode and expired previews never expose the response.
+  History also includes occasional projects without forecast hours; it supplies
+  patterns only, never new planning totals. Only positive `editableHours` for the
+  exact project/week permit new allocations.
+  Strict server-side validation, independent of edited prompts, enforces project/week
+  totals, project windows, holidays and full-day vacation. Eight hours remains the
+  regular capacity, **not a hard AI planning limit**. Actual historical overtime
+  is included in the context. A reference derived from the 90th percentile of
+  positive daily project totals on non-holiday weekdays without vacation
+  (at least 8 hours; 8 hours without history) guides plausible distributions.
+  The AI context includes the observation count, median and reference, reduced by
+  partial vacation. Higher values remain allowed and are shown directly on the
+  calendar days; the preview has no duplicate workload summary or confirmation
+  checkbox. Clicking **“Forecast speichern”** is sufficient for a valid complete
+  plan. This is not a legal working-time approval.
+  The local non-AI estimator and regular capacity/overtime indicators
+  retain their existing 8-hour baseline. No credentials or unrelated
+  settings are part of the planning context.
+  Results first appear as an **unsaved preview**.
+  The explanation renders Markdown paragraphs, lists and emphasis.
+  The **“Planungsübersicht”** requests only the chosen days/time spans and hours:
+  one bullet per project with a bold project name and two or three concise
+  sentences covering planned totals, dates and block sizes, no historical rationale,
+  planning rules or general disclaimers. The presentation instruction is appended
+  to every request, including when custom prompts are saved. This instruction
+  is visible in the prompt details and does not modify those saved prompts.
+  Existing previews retain their original text until regenerated. Preview expiry
+  and save-scope notes are omitted from the card; expiry/freshness validation,
+  actionable errors and the explicit save/discard controls remain unchanged.
+  For unallocated hours, the red warning lists the model's reason alongside the
+  project, fiscal week and hours. These are explicitly model-reported reasons,
+  not proof that capacity or project dates make allocation impossible.
+  Raw HTML is disabled; links and images are rendered as text without loading
+  external resources. Existing plain-text explanations remain readable.
+  Only **“Forecast speichern”**
+  replaces future non-vacation entries in the displayed month, including today.
+  Unlike the local estimate, AI planning never moves hours into adjacent months.
+  Past entries, vacation and out-of-month dates remain unchanged. Unallocated
+  hours block saving; invalid or truncated responses are rejected without a
+  fallback write. Drafts expire after 30 minutes or a restart; changed source
+  data requires regeneration. Saved months render their exact stored distribution
+  even after reload (later entry changes remain visible), without local
+  redistribution. Prompt editing, generation and saving are blocked in private
+  mode. No clock times or additional forecast hours are created.
 - Configurable **utilization traffic light**: four states (minimum burn rate,
   optimal, too high, overbooked) with freely chosen thresholds (hours) and
-  labels; coloured dots in the forecast grid and in the weekly tables of the
+  labels; coloured dots in the weekly tables of the
   dashboard and goals pages. Both pages use the same weekly utilization table
-  (week and date range, target hours, booked/planned hours, status and utilization)
+  (week and date range, target hours, booked/planned hours, status and utilization).
+  Fiscal-week links open the corresponding week in Monatsplanung, including FY
+  boundary weeks; the dashboard's current-week tile uses the same navigation.
 - Fiscal-year logic (configurable start month) with a central FY switcher in the
   header
 - Automatic public holidays (all 16 German federal states)
@@ -122,6 +209,15 @@ only renders the docs and the demo snapshot.
   the hours actually booked against the FY goal spread evenly over the year's
   weeks. Working 40 h where the even split only asks for 27.7 h shows as ~147 %
   (today is excluded while it is still running, vacation does not count)
+- **Forecast Accuracy** tile: the ESXP percentage for the selected FY beside
+  its worst-case FY-end minimum, assuming all remaining weeks are incorrect
+  (inclusive ±8 h tolerance). The external ESXP reader imports the percentage
+  and observation date via `PUT /api/v1/forecast-accuracy/{year}`.
+  The minimum is `percentage × completed FY weeks / total FY weeks`; the
+  current week is still at risk. Snapshots are stored per FY, missing data is
+  shown as a dash, and outdated observations are labelled rather than silently
+  extrapolated. The tooltip explains the maximum loss in percentage points.
+  See the [API contract and example](docs/API.md#esxp-forecast-accuracy).
 - **Working time per Werktag (§3 ArbZG)**: a split dashboard tile with the
   rolling 6-month average — the balancing period the law names — booked and
   planned side by side, plus a timeline on the goal page centred on today: six
@@ -209,6 +305,11 @@ per-project budgets with booked/forecast/remaining hours, hours per month,
 quarter and per project and month) and sends that together with the question.
 The raw data file never leaves the machine, and the section is disabled while
 **private mode** is on.
+
+Monthly AI planning uses the same deployment and authentication, but sends the
+selected planning context including individual historical daily bookings rather
+than the goal chat's aggregated digest. It has a separate editable prompt and an
+explicit preview/save workflow; the goal chat remains read-only.
 
 ### Foundry with Microsoft Entra ID
 
@@ -431,8 +532,30 @@ it via `depends_on`:
 
 ## Tests
 ```bash
-go test ./...
+go test -race ./...
 ```
+
+Every main push and pull request also runs Chromium regression tests against isolated
+Go test servers and temporary JSON stores. They reuse the existing Playwright
+dependency; AI responses are local fixtures, with no external AI calls or credentials.
+Coverage includes monthly prompt autosave/auto-sizing, concurrent activity and
+reduced motion, failed-model diagnostics, preview versus explicit save, blocked
+unallocated plans, private mode, accuracy import, retired routes, calendar links,
+and KPI alignment at mobile/desktop breakpoints with and without data.
+The same reusable workflow gates releases (including version tags): browser
+failures block image publication alongside the existing Go verification.
+
+Run those browser checks locally:
+```bash
+(cd tools/screenshots && npm ci && npx playwright install --only-shell chromium)
+FORECAST_BROWSER_TESTS=1 go test -race ./internal/web -run '^TestBrowserRegression$' -count=1 -v
+```
+
+Without `FORECAST_BROWSER_TESTS=1`, the normal Go suite does not require Node or a
+browser. CI explicitly enables it, so missing browser dependencies fail that job
+rather than silently skipping checks. Domain/API tests continue covering weekly
+allocation conservation, history-only projects, holidays/vacation overlap, fiscal
+boundaries, Forecast Accuracy projections, stale previews and persistence failures.
 
 ## Project structure & plan
 See [docs/PLAN.md](docs/PLAN.md) for the architecture and design decisions, and

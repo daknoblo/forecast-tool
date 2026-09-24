@@ -1,44 +1,71 @@
 {{template "header" .}}
 <section class="card month-heading">
-  <div>
+  <div class="month-title-row">
     <h1>Monatsplanung</h1>
-    <p class="muted">Projektstunden als Tagesblöcke · Feiertage in {{.Settings.FederalState}} · Urlaub auf einen Blick</p>
+    <div class="month-nav" aria-label="Monat wählen">
+      {{if .Plan.Prev}}<a class="btn" href="/month?month={{.Plan.Prev}}" aria-label="Vorheriger Monat">‹</a>{{end}}
+      <h2>{{.Plan.Label}}</h2>
+      {{if .Plan.Next}}<a class="btn" href="/month?month={{.Plan.Next}}" aria-label="Nächster Monat">›</a>{{end}}
+      <a class="btn" href="/month">Heute</a>
+    </div>
+    <button type="button" class="btn primary" id="month-generate" data-month="{{.Plan.Month}}"{{if not .CanGenerate}} disabled{{end}}>Planung mit KI regenerieren</button>
   </div>
-  <div class="month-nav" aria-label="Monat wählen">
-    {{if .Plan.Prev}}<a class="btn" href="/month?month={{.Plan.Prev}}" aria-label="Vorheriger Monat">‹</a>{{end}}
-    <h2>{{.Plan.Label}}</h2>
-    {{if .Plan.Next}}<a class="btn" href="/month?month={{.Plan.Next}}" aria-label="Nächster Monat">›</a>{{end}}
-    <a class="btn" href="/month">Heute</a>
-  </div>
-  <p class="month-readonly">Vergangenheit: gespeicherte Werte · Ab heute: Schätzung · Nur Vorschau, keine Änderungen an Buchungen</p>
+  <p id="month-ai-status" class="msg" role="status" hidden></p>
+  {{if .PlanningError}}<p id="month-planning-error" class="msg error" role="alert">{{.PlanningError}}</p>{{end}}
 </section>
 
 <details class="card month-method">
-  <summary>Wie entsteht die Schätzung?</summary>
-  <p>Grundlage sind die gespeicherten Projektstunden pro Woche, nicht eine Vorhersage zusätzlicher Aufträge.
-    Die letzten zwölf abgeschlossenen Wochen ({{.Plan.HistoryFrom}} bis {{.Plan.HistoryTo}}) liefern je Assignment das Stundenmuster nach Wochentag.
-    Neuere Wochen zählen stärker: Vier Wochen ältere Buchungen erhalten das halbe Gewicht.
-    Jede Woche trägt ihre prozentuale Tagesverteilung bei, damit einzelne große Buchungen das Muster nicht dominieren.
-    Feiertage und ganzer bzw. anteiliger Urlaub werden bei den historischen verfügbaren Tagen berücksichtigt.
-    Bei weniger als vier Projektwochen wird das Muster mit deinem persönlichen Wochenmuster aus allen Projekten gemischt;
-    auch dieses wird bei wenig Historie durch eine gleichmäßige Verteilung abgesichert.
-    Ohne Historie wird gleichmäßig nach freier Kapazität verteilt.
-    Fortgeführte Assignments werden über Fiskaljahre hinweg erkannt. Es werden keine Daten an einen KI-Dienst gesendet.</p>
-  <p>Vergangene Buchungen und Urlaub bleiben unverändert. Ab heute werden Projektstunden nur auf Montag bis Freitag,
-    ohne Feiertage und innerhalb des Projektzeitraums vorgeschlagen. Basis: 8 h pro Arbeitstag wie in der Kapazitätsrechnung;
-    Teilurlaub reduziert diese Kapazität. Standardaufgaben haben keine Tagesdaten und werden hier nicht separat abgezogen.
-    Projekte mit wenigen verfügbaren Tagen werden zuerst verteilt, danach Projekte mit ausgeprägten Wochentagsmustern, bei Gleichstand nach Projekt-ID.
-    Passt das historische Muster nicht auf die freien Tage, wird die Restmenge gleichmäßig verteilt.
-    Die Vorschläge sind keine Termine mit Uhrzeit.</p>
-  <p>Die Wochenstunden bleiben erhalten: Nicht unterbringbare Stunden stehen separat neben der Woche.
-    Wochen am Monatsrand werden vollständig innerhalb des gewählten Fiskaljahres berechnet;
-    eine Verteilung kann sich dadurch in den Nachbarmonat verschieben, niemals in eine andere Woche oder ein anderes FY.
-    Die Monatsnavigation bleibt im ausgewählten FY. „Heute“ springt außerhalb dieses FY an dessen nächsten Rand.</p>
+  <summary>Prompts</summary>
+  {{if .Private}}<p class="hint">KI-Planung und Speichern sind im privaten Modus gesperrt.</p>
+  {{else if not .AIReady}}<p class="hint">Für die KI-Planung zuerst einen <a href="/settings#ai">KI-Endpoint und ein Deployment auswählen</a>.</p>{{end}}
+  <form method="post" action="/month/prompt" class="form-stack month-prompt-form" data-autosave>
+    <label for="month-prompt">Planungsprompt
+      <textarea id="month-prompt" name="prompt" class="prompt" rows="1" maxlength="{{.PromptLimit}}"{{if .Private}} disabled{{end}}>{{.Prompt}}</textarea>
+    </label>
+    <label for="month-system-prompt">Systemprompt und Antwortformat
+      <textarea id="month-system-prompt" name="systemPrompt" class="prompt" rows="1" maxlength="{{.PromptLimit}}"{{if .Private}} disabled{{end}}>{{.SystemPrompt}}</textarea>
+    </label>
+    <span class="save-status" data-save-status data-save-quiet hidden role="status"></span>
+  </form>
+  <div id="month-response-field" class="form-stack month-response-field"{{if not .ModelResponse}} hidden{{end}}>
+    <label for="month-response" id="month-response-label">KI-Antwort dieser Vorschau (JSON zum Kopieren)</label>
+    <textarea id="month-response" class="prompt month-response" rows="1" readonly spellcheck="false">{{.ModelResponse}}</textarea>
+  </div>
+  <details open>
+    <summary>Zusätzliche Darstellungsvorgabe für die Planungsübersicht</summary>
+    <p class="hint">Diese Vorgabe wird bei jeder Anfrage an den Systemprompt angehängt, ohne deine gespeicherten Prompts zu verändern:</p>
+    <p class="hint">{{.ExplanationFormat}}</p>
+  </details>
+  <p class="hint">Beide Prompts werden als Konfiguration in der Datendatei gespeichert und gelten für neue KI-Vorschauen; ein leeres Feld verwendet den jeweiligen Standardprompt. Beim Regenerieren werden Projekt-/Wochenstunden, tatsächliche Tagesbuchungen der letzten zwölf Wochen, Projektzeiträume, Feiertage und Urlaub an den konfigurierten KI-Endpoint gesendet. Zugangsdaten sind kein Bestandteil des Planungskontexts.</p>
+  <p class="hint">Historische Buchungen sind nur Muster, keine neuen Planungsvorgaben. Ausschließlich vorhandene Forecast-Stunden je Projekt und Woche werden verteilt. Die serverseitige Prüfung bleibt unabhängig von deinen Prompts aktiv: zusätzliche Stunden oder Projekte sowie ein ungültiges Antwortformat werden abgelehnt.</p>
+  <p class="hint">Nur Tage ab heute im angezeigten Monat werden neu verteilt. Vergangene Buchungen, Urlaub und Nachbarmonate bleiben unverändert. Für die KI sind 8 h die reguläre Kapazität, keine Obergrenze: historische Überbuchungen dienen als Orientierung, höhere Werte werden direkt an den Tagen angezeigt. Keine Verschiebung zwischen Wochen. Ganztägiger Urlaub und Feiertage bleiben frei. Nicht verteilbare Stunden verhindern weiterhin das Speichern. Die lokale Ausgangsschätzung bleibt auf die reguläre Kapazität begrenzt.</p>
 </details>
+
+{{if .Preview}}
+<section class="card month-preview">
+  <h2>Planungsübersicht</h2>
+  {{if .Explanation}}<div class="month-explanation">{{monthExplanation .Explanation}}</div>{{end}}
+  {{if not .CanSave}}
+  <div class="msg error month-unallocated" role="alert">
+    <p>Die KI hat nicht alle Wochenstunden zugeordnet. Speichern ist deshalb gesperrt; es werden keine Stunden verworfen. Gründe laut KI:</p>
+    <ul>
+      {{range .Plan.Weeks}}{{$week := .}}{{range .Pending}}
+      <li><strong>{{.Name}} · FYW {{$week.FYWeek}} · {{hours .Hours}} h:</strong> <span class="month-unallocated-reason">{{.Basis}}</span></li>
+      {{end}}{{end}}
+    </ul>
+  </div>
+  {{end}}
+  <form method="post" action="/month/save" id="month-save" class="form-row">
+    <input type="hidden" name="preview" value="{{.Preview}}">
+    <button type="submit" class="btn primary"{{if not .CanSave}} disabled{{end}}>Forecast speichern</button>
+    <a class="btn" href="/month?month={{.Plan.Month}}">Vorschau verwerfen</a>
+  </form>
+</section>
+{{end}}
 
 <div class="month-scroll" tabindex="0" role="region" aria-label="Monatskalender mit Wochenübersicht">
 <table class="month-calendar">
-  <caption class="muted">{{.Plan.Label}} · Gestrichelt = Schätzung ab heute · Urlaub = Abwesenheit · Gelb = über Tageskapazität</caption>
+  <caption class="muted">{{.Plan.Label}} · {{if .Preview}}Gestrichelt = KI-Vorschau{{else if .Saved}}Gespeicherte Tagesverteilung{{else}}Gestrichelt = lokale Schätzung ab heute{{end}} · Urlaub = Abwesenheit · Gelb = über Tageskapazität</caption>
   <colgroup><col span="5"><col class="month-week-column"></colgroup>
   <tbody>
   {{range .Plan.Weeks}}
@@ -48,7 +75,7 @@
     <td class="month-day{{if not .InMonth}} adjacent{{end}}{{if .Holiday}} holiday{{end}}{{if .Today}} today{{end}}{{if not .InYear}} outyear{{end}}">
       <div class="month-date">
         <time datetime="{{.Date}}"{{if .Today}} aria-current="date" title="Heute"{{end}}>{{.Label}}</time>
-        {{if .InYear}}<span class="month-day-total" title="{{if .Past}}Gespeicherte Stunden{{else}}Geschätzte Stunden; gespeichert: {{hours .Stored}} h{{end}}">{{hours .Total}}/{{hours .Capacity}} h{{if gt .Over 0.0}} <span class="month-over" title="Über Tageskapazität">(+{{hours .Over}} h)</span>{{end}}</span>{{end}}
+        {{if .InYear}}<span class="month-day-total" title="{{if .Estimated}}Geschätzte Stunden; gespeichert: {{hours .Stored}} h{{else}}Gespeicherte Stunden{{end}}">{{hours .Total}}/{{hours .Capacity}} h{{if gt .Over 0.0}} <span class="month-over" title="Über Tageskapazität">(+{{hours .Over}} h)</span>{{end}}</span>{{end}}
       </div>
       {{if .Holiday}}<div class="month-holiday">{{.Holiday}}</div>{{end}}
       {{if .InYear}}
@@ -64,21 +91,28 @@
     {{end}}
     {{end}}
     <th scope="row" class="month-week">
-      <a href="/week/{{.FYWeek}}?weeks=1"><strong>KW {{.ISOWeek}} · W{{.FYWeek}}</strong></a>
-      <small class="muted">{{.Label}}</small>
-      <dl>
-        <dt>Gespeichert</dt><dd>{{hours .Stored}} h</dd>
-        <dt>Projektstunden</dt><dd>{{hours .Work}} h</dd>
-        <dt>Urlaub</dt><dd>{{hours .Vacation}} h</dd>
-        <dt>Kapazität</dt><dd>{{hours .Capacity}} h</dd>
-        <dt>Freier Saldo</dt><dd>{{hours .Free}} h</dd>
+      <div class="month-week-heading">
+        <strong id="fyw-{{.FYWeek}}">KW {{.ISOWeek}} · FYW {{.FYWeek}}</strong>
+        {{if gt .Over 0.0}}<span class="month-over" title="{{hours .Over}} h über Wochenkapazität">(+{{hours .Over}} h)</span>{{end}}
+      </div>
+      <dl class="month-week-summary">
+        <div class="month-summary-row"><dt>Kapazität:</dt><dd>{{hours .Capacity}} h</dd></div>
+        <div class="month-summary-row month-project-total" style="--project-color: {{$.Plan.VacationColor}}">
+          <dt>Urlaub/Feiertage</dt><dd>{{hours .Absence}} h</dd>
+        </div>
+        {{range .Projects}}
+        <div class="month-summary-row month-project-total" style="--project-color: {{if .Color}}{{.Color}}{{else}}#64748b{{end}}">
+          <dt>{{.Name}}</dt><dd>{{hours .Hours}} h</dd>
+        </div>
+        {{end}}
+        <div class="month-summary-row month-summary-total"><dt>Gesamt gebucht</dt><dd>{{hours .Stored}} h</dd></div>
+        <div class="month-summary-row"><dt>Verfügbar</dt><dd>{{hours .Free}} h</dd></div>
       </dl>
       {{if gt .WeekendStored 0.0}}<p class="muted">Davon am Wochenende gespeichert: {{hours .WeekendStored}} h (in der Wochensumme enthalten).</p>{{end}}
-      {{if gt .Over 0.0}}<p class="month-warning">{{hours .Over}} h über Wochenkapazität</p>{{end}}
       {{if gt .Unallocated 0.0}}
       <div class="month-warning"><strong>{{hours .Unallocated}} h nicht verteilbar</strong>
-        {{range .Pending}}<div>{{.Name}}: {{hours .Hours}} h</div>{{end}}
-        <small>Freie Tage bzw. Projektzeitraum reichen nicht aus. Diese Stunden bleiben Bestandteil des Wochen-Forecasts.</small>
+        {{range .Pending}}<div title="{{.Basis}}">{{.Name}}: {{hours .Hours}} h</div>{{end}}
+        <small>{{if $.Preview}}Die KI hat diese Stunden nicht zugeordnet. Gründe stehen in der Planungsübersicht.{{else}}Freie Tage bzw. Projektzeitraum reichen nicht aus.{{end}} Diese Stunden bleiben Bestandteil des Wochen-Forecasts.</small>
       </div>
       {{end}}
     </th>
@@ -87,4 +121,107 @@
   </tbody>
 </table>
 </div>
+{{template "autosave" .}}
+<script>
+(function () {
+  var generate = document.getElementById('month-generate');
+  var prompt = document.getElementById('month-prompt');
+  var systemPrompt = document.getElementById('month-system-prompt');
+  var modelResponse = document.getElementById('month-response');
+  var responseField = document.getElementById('month-response-field');
+  var save = document.getElementById('month-save');
+  var status = document.getElementById('month-ai-status');
+  var planningError = document.getElementById('month-planning-error');
+  var busy = false;
+  function resizePrompts() {
+    [prompt, systemPrompt, modelResponse].forEach(function (field) {
+      if (!field.offsetWidth) return;
+      field.style.height = 'auto';
+      field.style.height = (field.scrollHeight + field.offsetHeight - field.clientHeight) + 'px';
+    });
+  }
+  [prompt, systemPrompt].forEach(function (field) {
+    field.addEventListener('input', resizePrompts);
+  });
+  document.querySelector('.month-method').addEventListener('toggle', resizePrompts);
+  window.addEventListener('resize', resizePrompts);
+  resizePrompts();
+  function show(message, error) {
+    status.hidden = false;
+    status.className = 'msg' + (error ? ' error' : '');
+    status.textContent = message;
+  }
+  async function send(path, options) {
+    var endActivity = window.beginActivity();
+    try {
+      var response = await fetch(path, options);
+      if (response.status === 204) return {};
+      var result;
+      try { result = await response.json(); }
+      catch (_) { throw new Error('Die Serverantwort konnte nicht gelesen werden. Bitte erneut versuchen.'); }
+      if (!response.ok) {
+        if (typeof result.modelResponse === 'string') {
+          modelResponse.value = result.modelResponse;
+          document.getElementById('month-response-label').textContent = 'KI-Antwort der fehlgeschlagenen Anfrage (zum Kopieren)';
+          responseField.hidden = false;
+          document.querySelector('.month-method').open = true;
+          resizePrompts();
+        }
+        throw new Error(result.error || 'Die Planung konnte nicht verarbeitet werden.');
+      }
+      return result;
+    } finally {
+      endActivity();
+    }
+  }
+  generate.addEventListener('click', async function () {
+    if (busy || generate.disabled) return;
+    busy = true;
+    generate.disabled = true;
+    prompt.readOnly = true;
+    systemPrompt.readOnly = true;
+    var saveButton = save && save.querySelector('button');
+    var saveDisabled = saveButton && saveButton.disabled;
+    if (saveButton) saveButton.disabled = true;
+    status.hidden = true;
+    status.textContent = '';
+    if (planningError) planningError.hidden = true;
+    generate.setAttribute('aria-busy', 'true');
+    try {
+      var result = await send('/month/generate', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({month: generate.dataset.month, prompt: prompt.value, systemPrompt: systemPrompt.value})
+      });
+      window.location.assign(result.previewURL);
+    } catch (error) {
+      show(error.message, true);
+      generate.disabled = false;
+      prompt.readOnly = false;
+      systemPrompt.readOnly = false;
+      if (saveButton) saveButton.disabled = saveDisabled;
+      busy = false;
+    } finally {
+      generate.removeAttribute('aria-busy');
+    }
+  });
+  if (save) save.addEventListener('submit', async function (event) {
+    event.preventDefault();
+    var button = save.querySelector('button');
+    if (busy || button.disabled) return;
+    busy = true;
+    button.disabled = true;
+    generate.disabled = true;
+    show('Forecast wird gespeichert…');
+    try {
+      await send(save.action, {method: 'POST', body: new URLSearchParams(new FormData(save))});
+      window.location.assign('/month?month=' + encodeURIComponent(generate.dataset.month));
+    } catch (error) {
+      show(error.message, true);
+      button.disabled = false;
+      generate.disabled = false;
+      busy = false;
+    }
+  });
+})();
+</script>
 {{template "footer" .}}
