@@ -183,8 +183,9 @@ the observation above in the same week returns:
   Invalid stored data or a calendar mismatch also includes a German `error`.
 - ESXP's source precision limits the projection's precision. Inferred
   successful weeks are **not rounded to integers**.
-- The dashboard shows the rate, minimum and observation date. Private mode
-  replaces imported values with fictional sample data.
+- The dashboard shows the rate and minimum; the observation date remains in
+  the tooltip, not below the figures. Private mode replaces imported values
+  with fictional sample data.
 
 ## Reading
 

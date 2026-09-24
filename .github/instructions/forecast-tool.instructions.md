@@ -137,8 +137,9 @@ collects every requirement stated so far as the binding reference.
   week completes; the stale projection treats every unassessed week since the
   snapshot as incorrect. A changed FY start month disables the projection and
   asks for reimport. Missing values and no completed weeks have no projection.
-- The dashboard tile shows the imported percentage, FY-end minimum, stand date,
-  and stale/error state. The tooltip includes the maximum loss in percentage
+- The dashboard tile shows the imported percentage, FY-end minimum,
+  and stale/error state. The stand date is only in the tooltip, not below the
+  figures. The tooltip includes the maximum loss in percentage
   points. Private mode must replace every real accuracy snapshot with samples.
 - Both import fields are required; reject null/missing percentages, values
   outside 0–100, future dates, dates before FY start, and unknown fields.
@@ -396,14 +397,20 @@ collects every requirement stated so far as the binding reference.
   `models.DashboardRanges` is shared by the settings, validation and chart
   controls; `NormalizeSankeyRange` retains `4w` as its final fallback.
 - **KPI tiles (`.cards.kpi-row`, eight columns on wide screens, responsive
-  4/3/2-column layout below):** Week-to-date · Ø 6 Monate · Forecast Accuracy · Budget gesamt · Forecast
+  4/2/1-column layout below):** Week-to-date · Ø 6 Monate · Forecast Accuracy · Budget gesamt · Forecast
   gesamt · Offen bis Ziel · Assignments · Aktuelle FY-Woche. The count tile is
   called **Assignments**, not "Projekte": several assignments can belong to the
   same customer project. The working-time tile is **split**
   (`.kpi-split`): two figures of the same measure, booked and planned.
-  Forecast Accuracy also splits imported rate and FY-end minimum; on narrow
-  mobile screens its figures stack. Its stand date and stale/error state remain
-  visible. **Other tiles show only their value and label**; details live in a
+  Forecast Accuracy also splits imported rate and FY-end minimum.
+  The split headings ("Ø 6 Monate", "Forecast Accuracy") sit above the values;
+  each value keeps its caption below, including no-data placeholders.
+  All KPI cards share heading/value/caption/metadata tracks through CSS
+  subgrid, with the same figure and caption typography. Dashboard tiles
+  reserve the optional heading row even without a heading. Narrow screens use
+  fewer cards per row rather than stacking split values. Stale/error states
+  stay visible; the accuracy stand date is only in the tooltip.
+  **Other tiles show only their value and label**; details live in a
   multi-line `title` tooltip on the card (`&#10;` for the line breaks).
 - **Tile figures are never coloured.** `.kpi-value` always keeps the normal text
   colour — no red for a negative value, no orange for a rate below plan, and the
