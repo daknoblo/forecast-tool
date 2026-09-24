@@ -17,6 +17,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  browser:
+    uses: ./.github/workflows/browser-tests.yml
+
   # Gate the release on a green build. ci.yml runs in parallel on the same push,
   # so without this job a failing test would still publish a new :latest image.
   verify:
@@ -42,7 +45,7 @@ jobs:
 
   release:
     name: Build, Push & Sign
-    needs: verify
+    needs: [verify, browser]
     runs-on: ubuntu-latest
     outputs:
       image: ${{ steps.image.outputs.name }}

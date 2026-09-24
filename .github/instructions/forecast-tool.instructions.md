@@ -1100,6 +1100,13 @@ collects every requirement stated so far as the binding reference.
 
 ## Working conventions (for the agent)
 
+- UI regressions run through `TestBrowserRegression` with
+  `FORECAST_BROWSER_TESTS=1`. It starts isolated HTTP servers and temporary
+  stores, reuses `tools/screenshots`' pinned Playwright dependency, and mocks
+  AI responses locally. Never use real application data or external AI in tests.
+  The reusable `browser-tests.yml` workflow runs on CI and gates both main/tag
+  releases. Keep interactive behavior checks and measured KPI text alignment
+  at responsive breakpoints alongside the Go domain/API regression tests.
 - After completing and validating requested changes, automatically commit them
   and publish the next patch release unless the user explicitly says otherwise.
   Push the commit and an annotated version tag through the existing release

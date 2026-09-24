@@ -532,8 +532,30 @@ it via `depends_on`:
 
 ## Tests
 ```bash
-go test ./...
+go test -race ./...
 ```
+
+Every main push and pull request also runs Chromium regression tests against isolated
+Go test servers and temporary JSON stores. They reuse the existing Playwright
+dependency; AI responses are local fixtures, with no external AI calls or credentials.
+Coverage includes monthly prompt autosave/auto-sizing, concurrent activity and
+reduced motion, failed-model diagnostics, preview versus explicit save, blocked
+unallocated plans, private mode, accuracy import, retired routes, calendar links,
+and KPI alignment at mobile/desktop breakpoints with and without data.
+The same reusable workflow gates releases (including version tags): browser
+failures block image publication alongside the existing Go verification.
+
+Run those browser checks locally:
+```bash
+(cd tools/screenshots && npm ci && npx playwright install --only-shell chromium)
+FORECAST_BROWSER_TESTS=1 go test -race ./internal/web -run '^TestBrowserRegression$' -count=1 -v
+```
+
+Without `FORECAST_BROWSER_TESTS=1`, the normal Go suite does not require Node or a
+browser. CI explicitly enables it, so missing browser dependencies fail that job
+rather than silently skipping checks. Domain/API tests continue covering weekly
+allocation conservation, history-only projects, holidays/vacation overlap, fiscal
+boundaries, Forecast Accuracy projections, stale previews and persistence failures.
 
 ## Project structure & plan
 See [docs/PLAN.md](docs/PLAN.md) for the architecture and design decisions, and
