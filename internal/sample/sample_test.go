@@ -154,8 +154,7 @@ func TestSampleFillsAnyFiscalYear(t *testing.T) {
 	}
 }
 
-// Inactive projects are hidden from the forecast grid, so hours planned on them
-// would make the grid rows and the day totals disagree.
+// Inactive sample projects illustrate completed work without new forecast hours.
 func TestInactiveProjectsCarryNoForecast(t *testing.T) {
 	d := build(t, testDay)
 	inactive := map[string]string{}

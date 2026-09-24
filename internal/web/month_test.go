@@ -180,7 +180,7 @@ func TestFiscalWeekLabels(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	for _, path := range []string{"/", "/goal", "/week/1?weeks=1", "/week/1?weeks=4", "/month?month=2026-07"} {
+	for _, path := range []string{"/", "/goal", "/month?month=2026-07"} {
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, httptest.NewRequest("GET", path, nil))
 		if rec.Code != 200 || !strings.Contains(rec.Body.String(), "FYW 1") {

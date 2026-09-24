@@ -116,7 +116,7 @@ func TestDashboardAndGoalShareWeeklyUtilization(t *testing.T) {
 			for i, row := range rows {
 				week := summary.WeekTotals[i]
 				for _, want := range []string{
-					fmt.Sprintf(`href="/week/%d"`, week.Week),
+					fmt.Sprintf(`href="/month?month=%s#fyw-%d"`, week.Month, week.Week),
 					`<span class="weekrange">` + week.RangeLabel + `</span>`,
 					`<td class="num">` + formatHours(week.Hours) + ` h</td>`,
 					`class="util util-` + week.Status.Key + `"`,

@@ -326,7 +326,8 @@ Upserts a batch of entries. The key of each item is **(date, projectId)**.
   of the batch is still applied.
 - A date **outside the project's booking window** is accepted: such entries can be
   created, edited and deleted like any other. The window only drives the
-  `outOfWindow` warning and the visual hint in the forecast grid.
+  `outOfWindow` warning. The monthly calendar still displays existing entries;
+  newly generated plans respect the booking window.
 
 **Request**
 ```json

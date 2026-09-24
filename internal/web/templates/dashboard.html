@@ -63,12 +63,12 @@
     <div class="kpi-label">Offen bis Ziel</div>
   </div>
   {{end}}
-  <div class="card kpi" title="Assignments im Fiskaljahr {{.Settings.Year}} – inklusive Urlaub.&#10;&#10;Davon aktiv: {{.ActiveProjects}}&#10;Nur aktive Assignments erscheinen im Forecast-Raster.">
+  <div class="card kpi" title="Assignments im Fiskaljahr {{.Settings.Year}} – inklusive Urlaub.&#10;&#10;Davon aktiv: {{.ActiveProjects}}">
     <div class="kpi-value">{{len .Projects}}</div>
     <div class="kpi-label">Assignments</div>
   </div>
-  <div class="card kpi" title="FYW {{.CurrentWeek}} von {{.FYWeekCount}} im Fiskaljahr {{.Settings.Year}}{{if .CurrentRange}}&#10;{{.CurrentRange}}{{end}}&#10;&#10;Klick öffnet die Forecast-Ansicht dieser Woche.">
-    <div class="kpi-value"><a href="/week/{{.CurrentWeek}}">FYW {{.CurrentWeek}}</a></div>
+  <div class="card kpi" title="FYW {{.CurrentWeek}} von {{.FYWeekCount}} im Fiskaljahr {{.Settings.Year}}{{if .CurrentRange}}&#10;{{.CurrentRange}}{{end}}&#10;&#10;Klick öffnet diese Woche in der Monatsplanung.">
+    <div class="kpi-value"><a href="/month?month={{.CurrentMonth}}#fyw-{{.CurrentWeek}}">FYW {{.CurrentWeek}}</a></div>
     <div class="kpi-label">Aktuelle FY-Woche</div>
   </div>
 </section>

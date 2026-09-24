@@ -2,7 +2,6 @@ package forecast
 
 import (
 	"testing"
-	"time"
 
 	"github.com/daknoblo/forecast-tool/internal/holidays"
 	"github.com/daknoblo/forecast-tool/internal/models"
@@ -29,62 +28,39 @@ func boundaryData() models.Data {
 	}
 }
 
-// The first fiscal-year week reaches back into the previous fiscal year. Those
-// days are shown so they can still be edited, but their hours belong to the old
-// FY - the week total, the utilization and the holiday hours must not count
-// them, otherwise the grid and the dashboard report different weeks.
-func TestFirstWeekExcludesPreviousFiscalYearHours(t *testing.T) {
+func TestMonthlyAndWeeklyTotalsExcludeOtherFiscalYears(t *testing.T) {
 	d := boundaryData()
+	d.Entries = append(d.Entries,
+		models.Entry{Date: "2027-06-30", ProjectID: "new", Hours: 5},
+		models.Entry{Date: "2027-07-01", ProjectID: "new", Hours: 7},
+	)
 	cal := holidays.New(2027, "BY")
-
-	monday := FYWeekMonday(2027, 7, 1)
-	if got := monday.Format("2006-01-02"); got != "2026-06-29" {
-		t.Fatalf("week 1 starts on %s, want 2026-06-29", got)
-	}
-
-	wv := BuildWeek(d, cal, 1)
-	if wv.Total != 6 {
-		t.Errorf("week grid total = %v, want 6 (only 01.07. lies in FY 2027)", wv.Total)
-	}
-	if wv.ProjectTotals["old"] != 0 {
-		t.Errorf("week grid counts %v h of the previous FY for the old row", wv.ProjectTotals["old"])
-	}
-	if wv.UtilizationPct != 15 {
-		t.Errorf("utilization = %v %%, want 15 (6 of 40 h)", wv.UtilizationPct)
-	}
-	// The out-of-year days stay visible and keep their hours so they remain
-	// editable; only the roll-up ignores them.
-	if len(wv.Days) != 5 || wv.Days[0].InYear {
-		t.Fatalf("day 0 = %+v, want a visible out-of-year day", wv.Days[0])
-	}
-	if wv.Days[0].Hours["old"] != 8 {
-		t.Errorf("out-of-year cell lost its hours: %+v", wv.Days[0].Hours)
-	}
-
-	// The dashboard's weekly table is the reference the grid has to match.
 	ys := BuildYearSummary(d, cal)
-	if len(ys.WeekTotals) == 0 {
-		t.Fatal("no weekly totals")
-	}
-	if ys.WeekTotals[0].Hours != wv.Total {
-		t.Errorf("dashboard week 1 = %v h, grid = %v h", ys.WeekTotals[0].Hours, wv.Total)
-	}
-	// So is the dashboard sankey.
-	data := BuildSankey(d, cal, "1w", -CurrentFYWeek(2027, 7)+1)
-	if len(data.Buckets) > 0 && data.Buckets[0].Total != wv.Total {
-		t.Errorf("sankey week 1 = %v h, grid = %v h", data.Buckets[0].Total, wv.Total)
-	}
-}
-
-// A span starting on week 1 must not pick the previous year's hours up either.
-func TestSpanExcludesPreviousFiscalYearHours(t *testing.T) {
-	d := boundaryData()
-	sv := BuildSpan(d, holidays.New(2027, "BY"), 1, 2)
-	if sv.Total != 6 {
-		t.Errorf("span total = %v, want 6", sv.Total)
-	}
-	if sv.ProjectTotals["old"] != 0 {
-		t.Errorf("span counts %v h of the previous FY", sv.ProjectTotals["old"])
+	for _, tc := range []struct {
+		month, monday string
+		index         int
+		hours         float64
+	}{
+		{"2026-07-01", "2026-06-29", 0, 6},
+		{"2027-06-01", "2027-06-28", len(ys.WeekTotals) - 1, 5},
+	} {
+		plan := BuildStoredMonthPlan(d, cal, monthTestDate(tc.month), monthTestDate(tc.month))
+		w := monthTestWeek(t, plan, tc.monday)
+		if w.Stored != tc.hours || ys.WeekTotals[tc.index].Hours != tc.hours {
+			t.Fatalf("%s: calendar=%g, weekly=%g, want %g", tc.month, w.Stored, ys.WeekTotals[tc.index].Hours, tc.hours)
+		}
+		sankey := BuildSankey(d, cal, "1w", tc.index+1-CurrentFYWeek(2027, 7))
+		if len(sankey.Buckets) != 1 || sankey.Buckets[0].Total != tc.hours {
+			t.Fatalf("%s: Sankey does not match the calendar and weekly total: %+v", tc.month, sankey.Buckets)
+		}
+		if ys.WeekTotals[tc.index].Month != tc.month[:7] {
+			t.Fatalf("week links outside the FY: %+v", ys.WeekTotals[tc.index])
+		}
+		for _, day := range w.Days {
+			if !day.InYear && (day.Stored != 0 || day.Capacity != 0 || len(day.Events) != 0) {
+				t.Fatalf("out-of-FY day counted: %+v", day)
+			}
+		}
 	}
 }
 
@@ -120,66 +96,5 @@ func TestPreviousYearHoursReduceTheAvailableBudget(t *testing.T) {
 	// The goal counts by date, so it must not see the previous year either.
 	if gs := BuildGoalSummary(d, holidays.New(2027, "BY")); gs.Projected != 6 {
 		t.Errorf("goal projection = %v, want 6", gs.Projected)
-	}
-}
-
-// The same has to hold on the closing edge: the last FY week can run into the
-// next fiscal year.
-func TestLastWeekExcludesNextFiscalYearHours(t *testing.T) {
-	d := models.Data{
-		Settings: models.Settings{Year: 2027, FederalState: "BY", WeeklyTargetHours: 40, FiscalYearStartMonth: 7},
-		Projects: []models.Project{
-			{ID: "p1", AssignmentID: "1", Name: "Alpha", BudgetHours: 100, Active: true, FiscalYear: 2027},
-		},
-		Entries: []models.Entry{
-			{Date: "2027-06-30", ProjectID: "p1", Hours: 5}, // last day of FY 2027
-			{Date: "2027-07-01", ProjectID: "p1", Hours: 7}, // already FY 2028
-		},
-	}
-	cal := holidays.New(2027, "BY")
-	last := FYWeeks(2027, 7)
-	wv := BuildWeek(d, cal, last)
-
-	var inWeek bool
-	for _, c := range wv.Days {
-		if c.Date == "2027-07-01" {
-			inWeek = true
-		}
-	}
-	if !inWeek {
-		t.Skip("the last FY week does not reach into the next fiscal year this time")
-	}
-	if wv.Total != 5 {
-		t.Errorf("last week total = %v, want 5 (01.07. already belongs to FY 2028)", wv.Total)
-	}
-}
-
-// Public holidays outside the fiscal year must not inflate the week's holiday
-// hours either - the capacity calculation only counts in-FY holidays.
-func TestOutOfYearHolidaysDoNotCount(t *testing.T) {
-	// FY 2026 starts 01.01.2026 (January start), so week 1 begins on 29.12.2025
-	// and contains New Year's Day 01.01.2026 plus 31.12.2025, which is not one.
-	d := models.Data{
-		Settings: models.Settings{Year: 2026, FederalState: "BY", WeeklyTargetHours: 40, FiscalYearStartMonth: 1},
-		Projects: []models.Project{
-			{ID: "p1", AssignmentID: "1", Name: "Alpha", BudgetHours: 100, Active: true, FiscalYear: 2026},
-		},
-	}
-	cal := holidays.New(2026, "BY")
-	wv := BuildWeek(d, cal, 1)
-
-	fyStart, _ := FiscalYear(2026, 1)
-	var want float64
-	for _, c := range wv.Days {
-		day, err := time.Parse("2006-01-02", c.Date)
-		if err != nil {
-			t.Fatalf("parse %s: %v", c.Date, err)
-		}
-		if c.IsHoliday && !day.Before(fyStart) {
-			want += HolidayDayHours
-		}
-	}
-	if wv.HolidayHours != want {
-		t.Errorf("holiday hours = %v, want %v (only in-FY holidays)", wv.HolidayHours, want)
 	}
 }

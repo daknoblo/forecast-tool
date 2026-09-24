@@ -9,7 +9,7 @@ import (
 
 func TestSharedActivityIndicator(t *testing.T) {
 	f := newMonthAIFixture(t)
-	for _, route := range []string{"/", "/projects", "/goal", "/settings", "/week/1", "/month?month=" + f.month} {
+	for _, route := range []string{"/", "/projects", "/goal", "/settings", "/month?month=" + f.month} {
 		rec := httptest.NewRecorder()
 		f.server.Handler().ServeHTTP(rec, httptest.NewRequest("GET", route, nil))
 		body := rec.Body.String()
@@ -24,7 +24,7 @@ func TestSharedActivityIndicator(t *testing.T) {
 			t.Fatalf("%s: incorrect initial activity state", route)
 		}
 	}
-	for _, file := range []string{"partials.html", "week.html", "goal.html", "month.html"} {
+	for _, file := range []string{"partials.html", "goal.html", "month.html"} {
 		b, err := os.ReadFile("templates/" + file)
 		if err != nil {
 			t.Fatal(err)

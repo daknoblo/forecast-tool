@@ -32,14 +32,7 @@ type shotJob struct {
 
 // DemoShots lists the screenshots shown in the gallery. Every section of the
 // application appears at least once, so the gallery documents the whole tool.
-func DemoShots(week int) []Shot {
-	// Start one week early: the current week may not have a past day yet, and
-	// without one the screenshot cannot show the "gebucht" markers.
-	from := week - 1
-	if from < 1 {
-		from = 1
-	}
-	weekPath := fmt.Sprintf("/week/%d?weeks=3", from)
+func DemoShots() []Shot {
 	return []Shot{
 		{
 			File: "dashboard.png", Path: "/", FullPage: true,
@@ -52,14 +45,9 @@ func DemoShots(week int) []Shot {
 			Description: "Jede Spalte ist eine ISO-Woche. Bänder zeigen, wie sich die geplanten Stunden über die Projekte verteilen; Urlaubswochen nehmen die Projekte auf und geben sie wieder frei.",
 		},
 		{
-			File: "forecast.png", Path: weekPath, FullPage: true,
-			Title:       "Forecast-Raster",
-			Description: "Projekte × Tage über mehrere Wochen, ein Stundenwert pro Tag. Vergangene Tage gelten als gebucht, ab heute als Forecast. Eingaben speichern sich automatisch.",
-		},
-		{
 			File: "month.png", Path: "/month", FullPage: true,
 			Title:       "Monatsplanung",
-			Description: "Monatskalender mit Feiertagen, Urlaub, Wochenkapazität und einer rein lokalen, unverbindlichen Tagesverteilung der Forecast-Stunden.",
+			Description: "Monatskalender mit Feiertagen, Urlaub, Wochenkapazität, lokaler Schätzung und optionaler KI-Planung mit Vorschau und explizitem Speichern.",
 		},
 		{
 			File: "projects.png", Path: "/projects", FullPage: true,

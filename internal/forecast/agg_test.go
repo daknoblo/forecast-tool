@@ -27,34 +27,23 @@ func sampleData() models.Data {
 	}
 }
 
-func TestBuildWeekTotals(t *testing.T) {
+func TestYearWeekTotals(t *testing.T) {
 	d := sampleData()
 	cal := holidays.New(2026, "BY")
-	wv := BuildWeek(d, cal, 3)
+	ys := BuildYearSummary(d, cal)
+	wv := ys.WeekTotals[2]
 
-	if wv.Label != "FYW 3 · KW 03" {
+	if wv.Label != "FYW 3 · KW03" {
 		t.Errorf("week label = %q", wv.Label)
 	}
-	if label := BuildYearSummary(d, cal).WeekTotals[2].Label; label != "FYW 3 · KW03" {
-		t.Errorf("summary week label = %q", label)
-	}
-	if wv.Total != 22 {
-		t.Fatalf("week total = %v, want 22", wv.Total)
-	}
-	if wv.ProjectTotals["p1"] != 12 {
-		t.Errorf("p1 total = %v, want 12", wv.ProjectTotals["p1"])
-	}
-	if wv.ProjectTotals["p2"] != 10 {
-		t.Errorf("p2 total = %v, want 10", wv.ProjectTotals["p2"])
+	if wv.Hours != 22 {
+		t.Fatalf("week total = %v, want 22", wv.Hours)
 	}
 	if wv.UtilizationPct != 55 {
 		t.Errorf("utilization = %v, want 55", wv.UtilizationPct)
 	}
-	if len(wv.Days) != 5 {
-		t.Fatalf("days = %d, want 5", len(wv.Days))
-	}
-	if wv.Days[0].Date != "2026-01-12" {
-		t.Errorf("first day = %s, want 2026-01-12", wv.Days[0].Date)
+	if wv.Month != "2026-01" {
+		t.Errorf("calendar month = %s, want 2026-01", wv.Month)
 	}
 }
 
@@ -443,13 +432,6 @@ func TestBurndownEndsAtRemaining(t *testing.T) {
 	}
 }
 
-func TestMondayOfISOWeek(t *testing.T) {
-	m := MondayOfISOWeek(2026, 3)
-	if got := m.Format("2006-01-02"); got != "2026-01-12" {
-		t.Errorf("monday KW3 2026 = %s, want 2026-01-12", got)
-	}
-}
-
 func TestGoalSummaryTotals(t *testing.T) {
 	d := models.Data{
 		Settings: models.Settings{Year: 2026, FederalState: "BY", FiscalYearStartMonth: 1},
@@ -747,19 +729,12 @@ func vacationData() models.Data {
 
 func TestVacationCountsTowardsUtilization(t *testing.T) {
 	d := vacationData()
-	wv := BuildWeek(d, holidays.New(2026, "BY"), 3)
+	wv := BuildYearSummary(d, holidays.New(2026, "BY")).WeekTotals[2]
 
-	// The vacation project is displayed with its own per-project sum.
-	if wv.ProjectTotals["vacation-2026"] != 16 {
-		t.Errorf("vacation total = %v, want 16 (still displayed)", wv.ProjectTotals["vacation-2026"])
-	}
-	if wv.ProjectTotals["p1"] != 8 {
-		t.Errorf("p1 total = %v, want 8", wv.ProjectTotals["p1"])
-	}
 	// Vacation consumes available working time, so it counts towards the
 	// utilization/status basis.
-	if wv.Total != 24 {
-		t.Errorf("week total = %v, want 24 (vacation included)", wv.Total)
+	if wv.Hours != 24 {
+		t.Errorf("week total = %v, want 24 (vacation included)", wv.Hours)
 	}
 	if wv.Status.Key != "min" {
 		t.Errorf("status = %q, want min (24h <= 26h minimum)", wv.Status.Key)

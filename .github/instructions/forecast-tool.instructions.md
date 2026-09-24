@@ -44,11 +44,11 @@ collects every requirement stated so far as the binding reference.
   `assignmentId`. `startDate`/`endDate` (ISO `YYYY-MM-DD`, inclusive, both
   optional/`omitempty`) bound the **planned booking window**; empty = the whole
   fiscal year. `Project.Bookable(iso)` checks membership with a lexicographic
-  string comparison. Manual/API entry writes use it for warnings only; generated
+  string comparison. API entry writes use it for warnings only; generated
   monthly plans must respect it. `Validate` checks the date format and `startDate <= endDate`.
   `active` marks a project as **finished** rather than merely hiding it: an
-  inactive project drops out of the forecast grid **and** releases the budget it
-  never planned (see "Project booking window & burn rate").
+  inactive project releases the budget it never planned
+  (see "Project booking window & burn rate").
 - `Entry`: date (YYYY-MM-DD), projectId, hours. There is exactly **one** hours
   value per day and project; whether it counts as booked (actual) or forecast
   follows from the date (past days = booked, today and later = forecast). The
@@ -111,7 +111,7 @@ collects every requirement stated so far as the binding reference.
 - **H1 = the first 6 FY months**, **H2 = the last 6 FY months**.
 - Week and quarter views are FY-relative (a week index across the year boundary).
 - Display fiscal-week identifiers as `FYW 10` (with a space), never `W10`, across calendar,
-  forecast grid, dashboard and weekly tables. ISO calendar weeks remain `KW`.
+  dashboard and weekly tables. ISO calendar weeks remain `KW`.
 - Quarters are ordered from the FY start (e.g. Jul–Sep, Oct–Dec, Jan–Mar, Apr–Jun).
 - Projects always belong to exactly one fiscal year (never across); a project
   running into another FY is created anew there, so projects must be re-created
@@ -209,9 +209,9 @@ collects every requirement stated so far as the binding reference.
   read-only in the UI and ignored by both handlers. **Not deletable**
   (`handleProjectDelete` guard, `409` in the API; in the JSON editor `normalize`
   restores it).
-- Vacation hours are **planned day by day in the forecast grid** (no automatic
+- Vacation hours are **imported day by day through the API** (no automatic
   distribution). They **count towards the weekly utilization traffic light**
-  (`BuildWeek`/`BuildSpan` `Total`, `BuildYearSummary` `WeekTotals`), because
+  (`BuildYearSummary.WeekTotals`), because
   vacation consumes available working time, but **not towards the FY goal**
   (`BuildGoalSummary` skips vacation via `vacationSet`). In the dashboard Sankey
   vacation is an **ordinary band** like any other project. The flat vacation
@@ -252,19 +252,13 @@ collects every requirement stated so far as the binding reference.
   `forecast.FiscalYearOf(t, startMonth)` is the single rule (inverse of
   `FiscalYear`), so with a July start everything up to 30 June stays in the old
   FY and everything from 1 July counts towards the new one — even when it was
-  entered on the previous year's project row (the forecast grid's first/last
-  week can reach across the boundary).
-- **The forecast grid's out-of-year days are shown but never summed.** A
+  entered on the previous year's project row.
+- **Out-of-year days are never summed into the active FY.** A
   Monday-based FY week can start before the FY (e.g. FY 2027 begins on a
-  Wednesday, so week 1 runs from 29.06.) or end after it. Those cells stay
-  visible and writable — the hours belong to the neighbouring FY and reduce
-  *its* budget — but `buildWeek` keeps them out of `Total`, `ProjectTotals`,
-  `HolidayHours` and therefore out of the utilization, matching
+  Wednesday, so week 1 runs from 29.06.) or end after it. Hours belong to the
+  neighbouring FY and reduce *its* budget. Monthly planning,
   `BuildYearSummary.WeekTotals` (`FYWeekIndexOf` returns 0 outside the FY),
-  `BuildSankey` and `BuildGoalSummary`. The cell keeps its own `Total`, the day
-  column is marked `.outyear` with an "anderes FY" tag, and the live JS
-  recalculation skips inputs carrying `data-outyear` — otherwise the numbers
-  would jump on the next reload.
+  `BuildSankey` and `BuildGoalSummary` all respect that boundary.
   `BuildYearSummary` pools the hours per assignment and fiscal year
   (`groupKey` = assignment ID, or the project ID when there is none, e.g. the
   vacation project). Derived fields: `Consumed` (hours dated **inside** the FY),
@@ -284,8 +278,8 @@ collects every requirement stated so far as the binding reference.
   fiscal years is the normal continuation and stays allowed.
 - **Entries whose project no longer exists are ignored everywhere** —
   `BuildGoalSummary`, `BuildYearSummary` (incl. its weekly totals),
-  `BuildGoalFlow` and `BuildWeekToDate` all skip them, exactly like the grids,
-  which iterate `d.Projects`. Otherwise the goal page and the dashboard would
+  `BuildGoalFlow` and `BuildWeekToDate` all skip them, exactly like the monthly
+  calendar, which iterates `d.Projects`. Otherwise the goal page and the dashboard would
   report different totals. The write paths must not create such entries either:
   `models.Validate` rejects them, so a single orphan would make every later
   `store.Mutate` fail.
@@ -335,16 +329,11 @@ collects every requirement stated so far as the binding reference.
 - **`BuildYearSummary` takes `cal *holidays.Calendar`** (for holiday-accurate
   working days). Callers: `handleDashboard`/`handleProjects`/`handleGoal` (all
   have `s.calendar(d)`); tests pass `holidays.New(2026, "BY")`.
-- **The booking window never blocks a write.** Hours dated outside it must stay
-  **visible and editable everywhere** – the window is a planning hint, not a
-  barrier. In the forecast grid (`week.html`) such day cells keep their input and
-  are only marked (`td.day.closed` hatching + `input.hcell.outside` dashed
-  border + a title saying booking is still possible), driven by the template
-  function `bookable $p $d.Date`. `handleWeekSave`, `handleWeekCells` and
-  `POST /api/v1/entries/sync` accept them without a `p.Bookable` guard, so such
-  entries can be created, edited and deleted like any other. The only trace left
-  is `ProjectSummary.OutOfWindow` (a warning) and the burn-down, which plots the
-  window itself.
+- **The booking window never blocks an API entry write.** Hours dated outside it
+  remain visible and editable via the API – the window is a planning hint, not
+  an import barrier. `POST /api/v1/entries/sync` accepts them without a
+  `p.Bookable` guard. `ProjectSummary.OutOfWindow` warns about them and the
+  burn-down plots the window itself. Generated monthly plans respect the window.
 - The projects page shows window, working days, burn rate (h/week · h/day),
   remaining pace and, when applicable, the "outside the window" warning; the
   dashboard has the columns "Zeitraum" and "Burnrate".
@@ -372,9 +361,9 @@ collects every requirement stated so far as the binding reference.
   user reads to tell which version is deployed. Never read it from a file or an
   env var — it has to describe the binary.
 - **Navigation (header)** in this order and wording:
-  Dashboard (`/`) – Projekte (`/projects`) – Forecast (`/week`) – Monatsplanung (`/month`) – Ziele
+  Dashboard (`/`) – Projekte (`/projects`) – Monatsplanung (`/month`) – Ziele
   (`/goal`) – Einstellungen (`/settings`). The active-class keys remain
-  technically `dashboard`/`projects`/`week`/`month`/`goal`/`settings` (display and order
+  technically `dashboard`/`projects`/`month`/`goal`/`settings` (display and order
   only).
 - **Footer:** `{{appName}} · Fiskaljahr {{Year}} · {{version}}` on the left, on
   the right a link to the **project repository**
@@ -472,9 +461,15 @@ collects every requirement stated so far as the binding reference.
   table or weekly forecast/actual split. Columns in
   this order: Woche (link `FYW 1 · KW27` plus the grey `.weekrange` Mon–Fri range
   from `WeekTotal.RangeLabel`, e.g. "Mo. 29.06.2026 – Fr. 03.07.2026", on **one**
-  line) · "Soll Stunden" · "Gebuchte Stunden" · Status (directly next to the
+  line; link `/month?month={{.Month}}#fyw-{{.Week}}`) · "Soll Stunden" · "Gebuchte Stunden" · Status (directly next to the
   hours) · Auslastung (`.weekutil`, 28rem wide, bar + percentage in a `.barrow`
   flex row so the bar fills the column).
+- `WeekTotal.Month` is the month of the Monday clamped upward to FY start.
+  Every fiscal week links to a unique `fyw-N` anchor in that calendar, including
+  partial first/last weeks. The dashboard's current-week tile uses the same target.
+- **Monatsplanung is the only planning page.** The retired weekly editor has no
+  routes, template, write handlers or grid-specific builders/styles. Forecast
+  entries, the import API and shared weekly calculations remain supported.
 - **The weekly tables (dashboard and goal page) list every week from 1 up to
   `YearSummary.LastPlannedWeek`** — the highest fiscal-year week that carries
   hours. Weeks without hours are shown as well, so gaps in the plan are visible;
@@ -572,7 +567,7 @@ collects every requirement stated so far as the binding reference.
   Full vacation days without project work show 0/0 h without an overtime badge; partial vacation
   reduces the denominator. Preserve absence tiles and original entries.
   Local estimation, AI previews and saved plans use the same net calculation.
-  Leave Forecast, dashboard, goals and AI context/validation semantics unchanged;
+  Leave dashboard, goals and AI context/validation semantics unchanged;
   AI already excludes absence time when deriving available planning hours.
   The heading contains title, month/Today navigation and regenerate button in
   one row on wide screens, wrapping responsively; remove both header subtitles.
@@ -629,7 +624,7 @@ collects every requirement stated so far as the binding reference.
   during requests/navigation, respecting reduced-motion preferences.
   `beginActivity()` returns an idempotent completion callback; pair calls with
   `finally` and track concurrent operations independently. Connect monthly
-  generation/saving, all autosaves, weekly cell writes and goal chat; native
+  generation/saving, all autosaves and goal chat; native
   same-tab forms/navigation are tracked centrally, excluding canceled actions,
   hash-only links, exports and new tabs. FY changes use `requestSubmit()`.
   Reset navigation state on `pageshow` for browser back/forward restoration.
@@ -697,9 +692,8 @@ collects every requirement stated so far as the binding reference.
 - Locked while the mode is on: the **export** (link hidden *and* `GET /export`
   answers 403), the **fiscal-year switch** (`POST /fy` is a no-op, the select is
   `disabled`), the **data chat** (it would send the *real* figures), the
-  **project forms** (create/edit/delete) and the **forecast grid** (cells
-  `readonly`, no "clear" buttons; the live-total and auto-save JavaScript bails
-  out early on `table[data-private]`).
+  **project forms** (create/edit/delete) and **monthly planning mutations**
+  (prompt editing, generation and saving).
 - The JSON API (`/api/v1`) is deliberately **not** affected (machine interface).
 
 ## Working time per Werktag (§3 ArbZG)
@@ -851,11 +845,6 @@ collects every requirement stated so far as the binding reference.
   `#e2e8f0`, axes `#94a3b8` and every axis label `#475569`. The same applies to
   the goal flow, whose ribbons run at `fill-opacity 0.42`. Keep the swatches in
   `.flow-legend`/`.goalbar-legend` in sync with these values.
-- **Forecast grid layout:** the project-name column (`.pname`) is wide (~240 px),
-  all values are centred (except `.pname`), project rows are separated by a
-  horizontal rule (`tbody td` border-bottom 2px) and the week-total column
-  (`.weeksum`) is narrow. These rules live in `static/style.css` (no markup
-  needed in `week.html`).
 - **Central FY dropdown top right in the header** (where year/state are shown):
   switches the active fiscal year globally, works from **every** page and returns
   to the originating page (route `POST /fy`, redirect to the referer path). When
@@ -878,52 +867,12 @@ collects every requirement stated so far as the binding reference.
   side by side, under a single caption row. The inputs are therefore **not**
   wrapped in `<label>` – they carry `aria-label` plus an explanatory `title`.
   "Zu hoch" has no threshold of its own and shows a muted "dazwischen" instead.
-- **Forecast page (`/week`):** the grid is **grouped per week** (`.Span.Blocks`):
-  after the five day columns each week has a **week-total column** (`.weeksum`,
-  hours per project), and at the far right a **grand-total column** across all
-  visible weeks (`.grandsum`). Weeks are delimited by a thicker left border on
-  the first day (`.weekstart`); **month ends** by a coloured right rule
-  (`.monthend`, set through `DayCell.MonthEnd`: the next visible weekday falls
-  into a new month). Past (booked) days are subtly marked (`td.day.past`, badge
-  "gebucht"). The `tfoot` row "Stunden / Tag" (`.dayfoot`) is **centred**
-  (`td.center`) and carries week/grand totals too. Header, day and footer rows
-  all iterate over `.Span.Blocks` → `.Days` so the columns stay aligned; the
-  week-total headers are `rowspan=2`.
-- **Burn-rate banner (`/week`):** above the table, directly **below** the centred
-  control row, `.burnbanner` shows the combined burn rate
-  (`{{.Burn.PerWeek}}` h/week · `{{.Burn.PerWorkday}}` h/day) plus per-project
-  chips for all **active** projects whose booking window overlaps the visible
-  range. **Vacation is excluded** — the banner measures billable work, so time
-  off must not raise the rate the grid is judged against (its own row on the
-  projects page still shows a burn rate). Source:
-  `forecast.BuildSpanBurn(ys.Projects, spanStart, spanEnd)` in
-  `handleWeek` (`ys` = `BuildYearSummary(d, cal)`).
-- **Forecast control row & auto-save (`/week`):** above the table sits a
-  **centred** control row (`.week-controls`): the "visible weeks" switch is
-  flanked by a **«zurück»** button on the left and a **weiter»** button on the
-  right (`.btn.nav-btn`, disabled at the FY borders); below it the burn-rate
-  banner. There is **no save button** – changes are stored **automatically**:
-  typing (debounced) or leaving/Enter on a cell sends it via `fetch` (JSON,
-  `keepalive`) to **`POST /week/cells`**
-  (`{cells:[{date,projectId,hours}]}`; `hours<=0` deletes; only unknown projects
-  are skipped and counted; persistence via
-  `store.Mutate`). The page is **never reloaded** while entering data; a status
-  pill (`[data-save-status]`: "Automatisch gespeichert" / "Speichert…" /
-  "Gespeichert ✓" / "Fehler beim Speichern") gives feedback. Grid rows and inputs
-  are ~20 % larger; the **vacation row** is subtly tinted (`tr.vacrow`), and a
-  blank row (`tr.footspacer`) visually detaches the total/utilization rows in the
-  `tfoot`. The former bulk `POST /week/{week}` is kept as a fallback.
-- **Clear buttons** (`.clearbtn`, `type=button`, `data-clear-dates`) in the week
-  and day header rows clear all `input.hcell` with a matching `_<date>` suffix
-  via JavaScript; the cleared cells are auto-saved as well (`hours 0` → delete).
-  A **status row** in the `tfoot` shows the traffic-light dot plus the weekly
-  hours per week (`colspan=6`: 5 days + the total column).
 - **Projects page:** the KPI row shows budget, consumed, remaining, **burn rate**
   (h/week) and utilization; below it the window/burn-rate block
   (`.project-window`). When the assignment spans fiscal years (`SpansFY`) a
   `.fy-split` block lists one `.fy-chip` per fiscal year (`past` / `current` /
   `future`) with a short note that the attribution follows the booking date.
-- **No save buttons – everything saves itself.** Beside the forecast grid, the
+- **Project/settings edits auto-save.** The
   **project edit form** and all three **settings forms** are marked
   `data-autosave` and have no submit button. The shared `{{template "autosave"}}`
   block in `partials.html` posts the whole form via `fetch` (URL-encoded, so
@@ -941,10 +890,9 @@ collects every requirement stated so far as the binding reference.
   keeps its confirmation dialog. The vacation project has no delete button.
 - **Traffic-light dots** are rendered through the template partial
   `{{define "utilstatus"}}` (in `partials.html`): a coloured circle (`.util-dot`)
-  with a white symbol (↓ / OK / ↑ / ✕) plus label. They appear in the forecast
-  status row and in the "Status" column of the weekly tables on the dashboard
-  (`.Summary.WeekTotals`) and the goal page (`.WeekTotals`, passed by
-  `handleGoal` from an FY-filtered `BuildYearSummary`).
+  with a white symbol (↓ / OK / ↑ / ✕) plus label. They appear in the "Status"
+  column of the weekly tables on dashboard and goals (`.Summary.WeekTotals`,
+  from an FY-filtered `BuildYearSummary`).
 
 ## Security conventions
 
@@ -976,8 +924,8 @@ collects every requirement stated so far as the binding reference.
   always obtain them via `holidays.Get(year, state)` (memoized), never
   `holidays.New` in a request path.
 - The two template sets are cloned **once at startup**, never per request.
-- Aggregation helpers take a pre-built hours index where a caller loops
-  (`buildWeek` inside `BuildSpan`); avoid rebuilding `hoursIndex` per iteration
+- Aggregation helpers take a pre-built hours index where a caller loops;
+  avoid rebuilding `hoursIndex` per iteration
   and avoid `time.Parse` inside nested loops.
 - `web.render` renders into a buffer first so a template failure cannot emit a
   half-written page.

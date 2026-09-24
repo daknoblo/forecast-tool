@@ -19,8 +19,6 @@ import (
 	"time"
 
 	"github.com/daknoblo/forecast-tool/internal/docsite"
-	"github.com/daknoblo/forecast-tool/internal/forecast"
-	"github.com/daknoblo/forecast-tool/internal/models"
 	"github.com/daknoblo/forecast-tool/internal/storage"
 	"github.com/daknoblo/forecast-tool/internal/web"
 )
@@ -65,9 +63,8 @@ func run(out, repo, script string, withShots, requireShots bool) error {
 	defer shutdown()
 	_ = srv
 
-	week := forecast.CurrentFYWeek(forecast.FiscalYearOf(today, models.DefaultFiscalYearStartMonth), models.DefaultFiscalYearStartMonth)
-	pages := docsite.DemoPages(week)
-	shots := docsite.DemoShots(week)
+	pages := docsite.DemoPages()
+	shots := docsite.DemoShots()
 
 	fmt.Println("docsite: snapshotting the demo instance from", baseURL)
 	if err := docsite.Snapshot(baseURL, filepath.Join(out, "demo"), pages); err != nil {

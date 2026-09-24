@@ -227,9 +227,9 @@ func ProjectsForFY(ps []Project, year int) []Project {
 
 // VacationSystem marks the auto-managed, non-deletable vacation project of a
 // fiscal year. Apart from its budget (derived from the configured vacation
-// days) it behaves like any other project: it is editable, bookable in the
-// forecast grid and counts towards the weekly utilization. Only the FY goal
-// ignores it.
+// days) it behaves like any other project: it is editable and its imported
+// hours count towards weekly utilization, but not the FY goal. Monthly planning
+// treats those hours as an absence that reduces bookable capacity.
 const VacationSystem = "vacation"
 
 // VacationColor is the fixed colour of the vacation project so it is visually

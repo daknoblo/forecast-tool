@@ -92,7 +92,7 @@
     {{end}}
     <th scope="row" class="month-week">
       <div class="month-week-heading">
-        <a href="/week/{{.FYWeek}}?weeks=1"><strong>KW {{.ISOWeek}} · FYW {{.FYWeek}}</strong></a>
+        <strong id="fyw-{{.FYWeek}}">KW {{.ISOWeek}} · FYW {{.FYWeek}}</strong>
         {{if gt .Over 0.0}}<span class="month-over" title="{{hours .Over}} h über Wochenkapazität">(+{{hours .Over}} h)</span>{{end}}
       </div>
       <dl class="month-week-summary">
