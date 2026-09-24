@@ -320,11 +320,12 @@ type Entry struct {
 
 // Data is the full persisted document.
 type Data struct {
-	Settings        Settings                   `json:"settings"`
-	FiscalYears     map[int]FiscalYearSettings `json:"fiscalYears"`
-	Projects        []Project                  `json:"projects"`
-	Entries         []Entry                    `json:"entries"`
-	SavedMonthPlans map[string]string          `json:"savedMonthPlans,omitempty"`
+	Settings         Settings                   `json:"settings"`
+	FiscalYears      map[int]FiscalYearSettings `json:"fiscalYears"`
+	Projects         []Project                  `json:"projects"`
+	Entries          []Entry                    `json:"entries"`
+	SavedMonthPlans  map[string]string          `json:"savedMonthPlans,omitempty"`
+	ForecastAccuracy map[int]ForecastAccuracy   `json:"forecastAccuracy,omitempty"`
 }
 
 const MaxMonthPlanningPrompt = 8000
@@ -383,6 +384,14 @@ func (d Data) CurrentFY() FiscalYearSettings {
 // used before persisting data that was edited directly as JSON, so bad input
 // is rejected instead of corrupting the store.
 func Validate(d Data) error {
+	for year, accuracy := range d.ForecastAccuracy {
+		if !ValidYear(year) {
+			return fmt.Errorf("Ungültiges Fiskaljahr der Forecast Accuracy: %d", year)
+		}
+		if err := accuracy.Validate(); err != nil {
+			return err
+		}
+	}
 	if len([]rune(d.Settings.MonthPlanningPrompt)) > MaxMonthPlanningPrompt {
 		return fmt.Errorf("Der Planungsprompt darf höchstens %d Zeichen enthalten", MaxMonthPlanningPrompt)
 	}

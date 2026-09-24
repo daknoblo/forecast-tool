@@ -84,6 +84,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("GET /api/v1/projects/{id}", s.handleGetProject)
 	mux.HandleFunc("GET /api/v1/entries", s.handleListEntries)
 	mux.HandleFunc("GET /api/v1/goal", s.handleGetGoal)
+	mux.HandleFunc("GET /api/v1/forecast-accuracy/{year}", s.handleGetForecastAccuracy)
 
 	// Write endpoints (need the write token).
 	mux.HandleFunc("POST /api/v1/entries/sync", s.handleSyncEntries)
@@ -92,6 +93,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("DELETE /api/v1/projects/{id}", s.handleDeleteProject)
 	mux.HandleFunc("PUT /api/v1/settings", s.handleUpdateSettings)
 	mux.HandleFunc("PUT /api/v1/settings/fiscal-years/{year}", s.handleUpdateFYSettings)
+	mux.HandleFunc("PUT /api/v1/forecast-accuracy/{year}", s.handlePutForecastAccuracy)
 
 	return s.authMiddleware(mux)
 }

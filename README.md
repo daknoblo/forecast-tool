@@ -208,6 +208,15 @@ only renders the docs and the demo snapshot.
   the hours actually booked against the FY goal spread evenly over the year's
   weeks. Working 40 h where the even split only asks for 27.7 h shows as ~147 %
   (today is excluded while it is still running, vacation does not count)
+- **Forecast Accuracy** tile: the ESXP percentage for the selected FY beside
+  its worst-case FY-end minimum, assuming all remaining weeks are incorrect
+  (inclusive ±8 h tolerance). The external ESXP reader imports the percentage
+  and observation date via `PUT /api/v1/forecast-accuracy/{year}`.
+  The minimum is `percentage × completed FY weeks / total FY weeks`; the
+  current week is still at risk. Snapshots are stored per FY, missing data is
+  shown as a dash, and outdated observations are labelled rather than silently
+  extrapolated. The tooltip explains the maximum loss in percentage points.
+  See the [API contract and example](docs/API.md#esxp-forecast-accuracy).
 - **Working time per Werktag (§3 ArbZG)**: a split dashboard tile with the
   rolling 6-month average — the balancing period the law names — booked and
   planned side by side, plus a timeline on the goal page centred on today: six

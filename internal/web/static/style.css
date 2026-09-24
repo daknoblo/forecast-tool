@@ -146,18 +146,24 @@ h2 { font-size: 1.1rem; margin: 1.5rem 0 0.75rem; }
 /* split tile: two figures of the same measure side by side, each with its own
    caption underneath, separated by a rule */
 .kpi-split { display: flex; align-items: stretch; justify-content: center; }
-.kpi-split > a { display: flex; flex-direction: column; align-items: center; padding: 0 0.65rem; white-space: nowrap; }
-.kpi-split > a + a { border-left: 1px solid var(--line); }
+.kpi-split > a, .kpi-split > div { display: flex; flex-direction: column; align-items: center; padding: 0 0.65rem; white-space: nowrap; }
+.kpi-split > a + a, .kpi-split > div + div { border-left: 1px solid var(--line); }
+.kpi-split > div { flex: 1; min-width: 0; padding: 0 0.25rem; white-space: normal; }
+.kpi-split > div .kpi-part { white-space: nowrap; }
 .kpi-split .kpi-part { font-size: 1.35rem; line-height: 1.15; }
 .kpi-split small { font-size: 0.62rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
 .kpi-label { color: var(--muted); font-size: 0.85rem; }
 /* secondary KPI line, e.g. the cross-fiscal-year carry-over */
 .kpi-sub { color: var(--muted); font-size: 0.76rem; margin-top: 0.2rem; }
 /* dashboard KPI row: always split evenly across the full width */
-.kpi-row { grid-template-columns: repeat(7, minmax(0, 1fr)); }
-@media (max-width: 1600px) { .kpi-row { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.kpi-row { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+@media (max-width: 2000px) { .kpi-row { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (max-width: 1100px) { .kpi-row { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 760px) { .kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px) {
+  #forecast-accuracy .kpi-split { flex-direction: column; gap: 0.35rem; }
+  #forecast-accuracy .kpi-split > div + div { border-left: 0; }
+}
 
 /* private ("presentation") mode: the toggle plus the banner that keeps the
    sample data from being mistaken for the real thing */

@@ -120,6 +120,31 @@ collects every requirement stated so far as the binding reference.
   "Project booking window & burn rate").
 - Entries always belong to a date, which in turn falls into a fiscal year.
 
+## Imported Forecast Accuracy
+
+- `Data.ForecastAccuracy` stores one ESXP snapshot per FY: `percentage`
+  (0–100), `asOf` (UTC ISO date), and the observed `fiscalYearStartMonth`.
+  The external ESXP reader writes it through
+  `PUT /api/v1/forecast-accuracy/{year}`; GET returns the same computed summary.
+  Do not scrape ESXP here or reconstruct its rate from mutable entries.
+- The imported rate covers completed FY weeks, with inclusive ±8 h tolerance.
+  Worst-case FY-end accuracy is `percentage × completedWeeks / FYWeeks`.
+  The current Monday-based week is excluded from completed weeks; partial
+  boundary weeks follow the existing FY convention. The final partial week
+  completes on the first day after FY end. Never assume a fixed 52-week year
+  or round inferred successful weeks to integers.
+- Keep the denominator anchored to `asOf`. Mark snapshots stale after another
+  week completes; the stale projection treats every unassessed week since the
+  snapshot as incorrect. A changed FY start month disables the projection and
+  asks for reimport. Missing values and no completed weeks have no projection.
+- The dashboard tile shows the imported percentage, FY-end minimum, stand date,
+  and stale/error state. The tooltip includes the maximum loss in percentage
+  points. Private mode must replace every real accuracy snapshot with samples.
+- Both import fields are required; reject null/missing percentages, values
+  outside 0–100, future dates, dates before FY start, and unknown fields.
+  Reject older observations with 409; same-date corrections are allowed.
+  Deep-copy the map in storage; persist atomically and include it in exports.
+
 ## Per-fiscal-year settings
 
 - The hour configuration (gross hours, vacation, holidays, standard tasks) is
@@ -370,13 +395,15 @@ collects every requirement stated so far as the binding reference.
   links override it without saving. Legacy documents default to `4w`.
   `models.DashboardRanges` is shared by the settings, validation and chart
   controls; `NormalizeSankeyRange` retains `4w` as its final fallback.
-- **KPI tiles (`.cards.kpi-row`, seven columns, always evenly spread across the
-  width):** Week-to-date · Ø 6 Monate · Budget gesamt · Forecast
+- **KPI tiles (`.cards.kpi-row`, eight columns on wide screens, responsive
+  4/3/2-column layout below):** Week-to-date · Ø 6 Monate · Forecast Accuracy · Budget gesamt · Forecast
   gesamt · Offen bis Ziel · Assignments · Aktuelle FY-Woche. The count tile is
   called **Assignments**, not "Projekte": several assignments can belong to the
-  same customer project. The working-time tile is the only **split** one
+  same customer project. The working-time tile is **split**
   (`.kpi-split`): two figures of the same measure, booked and planned.
-  **Every tile shows only its value and label**; the details live in a
+  Forecast Accuracy also splits imported rate and FY-end minimum; on narrow
+  mobile screens its figures stack. Its stand date and stale/error state remain
+  visible. **Other tiles show only their value and label**; details live in a
   multi-line `title` tooltip on the card (`&#10;` for the line breaks).
 - **Tile figures are never coloured.** `.kpi-value` always keeps the normal text
   colour — no red for a negative value, no orange for a rate below plan, and the

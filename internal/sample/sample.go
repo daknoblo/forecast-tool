@@ -82,6 +82,7 @@ var weekHours = [...]float64{32, 37, 22, 35, 44, 29, 34, 61, 25, 38, 19, 33, 41,
 // base itself is never modified.
 func Data(now time.Time, base models.Data) models.Data {
 	d := base
+	d.ForecastAccuracy = nil
 	startMonth := d.Settings.FiscalYearStartMonth
 	if startMonth < 1 || startMonth > 12 {
 		startMonth = models.DefaultFiscalYearStartMonth
@@ -102,6 +103,11 @@ func Data(now time.Time, base models.Data) models.Data {
 	// A fiscal year the user is not currently living in still has to look
 	// populated, so the generator falls back to the closest day inside it.
 	ref := clamp(dayOf(now), fyStart, fyEnd)
+	if !fyStart.After(dayOf(now)) {
+		d.ForecastAccuracy = map[int]models.ForecastAccuracy{
+			year: {Percentage: 90, AsOf: ref.Format("2006-01-02"), FiscalYearStartMonth: startMonth},
+		}
+	}
 
 	d.Projects = buildProjects(year, fyStart, fyEnd, ref)
 	models.EnsureVacationProject(&d, year)

@@ -207,6 +207,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		"WorkloadPlan":   workloadPlan,
 		"WorkloadLimit":  forecast.WorkdayLimitHours,
 		"WeekToDate":     forecast.BuildWeekToDate(d, cal),
+		"Accuracy":       forecast.BuildForecastAccuracy(d, time.Now().UTC()),
 		"Projects":       projects,
 		"ActiveProjects": len(activeProjects(projects)),
 		"CurrentWeek":    curWeek,
@@ -1003,6 +1004,9 @@ func newID() string {
 // dropdown: every configured year plus a small range around the active one.
 func fyYears(d models.Data) []int {
 	set := map[int]bool{}
+	for y := range d.ForecastAccuracy {
+		set[y] = true
+	}
 	for y := range d.FiscalYears {
 		set[y] = true
 	}
