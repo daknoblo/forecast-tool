@@ -20,6 +20,35 @@ federal state. Run on a private network or behind an authenticated reverse proxy
 **Container:** [GHCR image](https://github.com/daknoblo/forecast-tool/pkgs/container/forecast-tool)
 · [Compose file](docker-compose.yml) · [Deployment guide](docs/DEPLOYMENT.md)
 
+## Features at a glance
+
+- **Projects and budgets:** track assignment budgets, booking windows and
+  carry-over between fiscal years.
+- **Monthly planning:** review daily project hours, vacation, public holidays
+  and weekly capacity in one calendar.
+- **Forecasts and goals:** compare booked and planned hours, utilization and
+  fiscal-year progress, including imported ESXP Forecast Accuracy.
+- **Optional AI assistance:** generate plans for review before saving, or ask
+  read-only questions about your data in chat.
+- **Private mode:** show generated sample data instead of your real figures
+  when sharing your screen.
+- **German and English:** switch the interface language in Settings without
+  changing your project names or custom content.
+- **Simple self-hosting:** run a container with a single JSON data file,
+  export your data or synchronize hours through the token-protected HTTP API.
+
+## A look inside
+
+| Dashboard | Monthly planning |
+|-----------|------------------|
+| [![Dashboard showing utilization, project budgets and fiscal-year progress](https://daknoblo.github.io/forecast-tool/screenshots/dashboard.png)](https://daknoblo.github.io/forecast-tool/screenshots/dashboard.png) | [![Monthly calendar showing project hours, vacation and weekly capacity](https://daknoblo.github.io/forecast-tool/screenshots/month.png)](https://daknoblo.github.io/forecast-tool/screenshots/month.png) |
+| See where your hours go and how your forecast compares with capacity and goals. | See which projects fill each day, where absences reduce capacity and where warnings need attention. |
+
+Click either preview for the full-size image. Both show the English interface
+with generated sample data and are refreshed by the documentation pipeline.
+Explore the [read-only demo](https://daknoblo.github.io/forecast-tool/demo/index.html)
+or the [complete screenshot gallery](https://daknoblo.github.io/forecast-tool/screenshots.html).
+
 ## Documentation
 
 - [Features and monthly planning](docs/FEATURES.md)
