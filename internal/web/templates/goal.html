@@ -1,136 +1,136 @@
 {{template "header" .}}
-<h1>Fiskaljahresziel {{.Settings.Year}}</h1>
-{{if .Goal.HasTarget}}<p class="hint">Zeitraum {{.Goal.StartLabel}} – {{.Goal.EndLabel}}</p>{{end}}
+<h1>{{t "Fiskaljahresziel"}} {{.Settings.Year}}</h1>
+{{if .Goal.HasTarget}}<p class="hint">{{t "Zeitraum"}} {{.Goal.StartLabel}} – {{.Goal.EndLabel}}</p>{{end}}
 
 {{if not .Goal.HasTarget}}
 <section class="card">
-  <p class="empty">Aus der Stundenkonfiguration ergibt sich noch kein Fiskaljahresziel. Pflege sie unter
-    <a href="/settings">Einstellungen</a> (Gesamtstunden abzüglich Urlaub, Feiertagen und Standard Tasks).</p>
+  <p class="empty">{{t "Aus der Stundenkonfiguration ergibt sich noch kein Fiskaljahresziel. Pflege sie unter"}}
+    <a href="/settings">{{t "Einstellungen"}}</a> {{t "(Gesamtstunden abzüglich Urlaub, Feiertagen und Standard Tasks)."}}</p>
 </section>
 {{else}}
 
 <section class="cards">
   <div class="card kpi">
-    <div class="kpi-value">{{hours .Goal.TargetHours}} h</div>
-    <div class="kpi-label">Fiskaljahresziel</div>
+    <div class="kpi-value">{{hours .Goal.TargetHours}} {{t "h"}}</div>
+    <div class="kpi-label">{{t "Fiskaljahresziel"}}</div>
   </div>
   <div class="card kpi">
-    <div class="kpi-value">{{hours .Goal.ActualTotal}} h</div>
-    <div class="kpi-label">Aktuell gebucht</div>
+    <div class="kpi-value">{{hours .Goal.ActualTotal}} {{t "h"}}</div>
+    <div class="kpi-label">{{t "Aktuell gebucht"}}</div>
   </div>
   <div class="card kpi">
-    <div class="kpi-value">{{hours .Goal.ForecastRemaining}} h</div>
-    <div class="kpi-label">Forecast</div>
+    <div class="kpi-value">{{hours .Goal.ForecastRemaining}} {{t "h"}}</div>
+    <div class="kpi-label">{{t "Forecast"}}</div>
   </div>
   <div class="card kpi">
-    <div class="kpi-value">{{hours .Goal.Projected}} h</div>
-    <div class="kpi-label">Hochrechnung</div>
+    <div class="kpi-value">{{hours .Goal.Projected}} {{t "h"}}</div>
+    <div class="kpi-label">{{t "Hochrechnung"}}</div>
   </div>
   <div class="card kpi">
     <div class="kpi-value">{{hours .Goal.PctProjected}} %</div>
-    <div class="kpi-label">Prognose %</div>
+    <div class="kpi-label">{{t "Prognose %"}}</div>
   </div>
-  <div class="card kpi" title="Fiskaljahresziel − gebucht − Forecast: die Stunden, die noch geplant werden müssen.">
-    <div class="kpi-value">{{hours .Goal.Remaining}} h</div>
-    <div class="kpi-label">Offen</div>
+  <div class="card kpi" title="{{t "Fiskaljahresziel − gebucht − Forecast: die Stunden, die noch geplant werden müssen."}}">
+    <div class="kpi-value">{{hours .Goal.Remaining}} {{t "h"}}</div>
+    <div class="kpi-label">{{t "Offen"}}</div>
   </div>
 </section>
 
 <section class="card">
-  <h2>Status</h2>
-  <p>Hochrechnung = Ist (vergangene Tage) + Forecast (ab heute). Feiertage werden nicht aufs Ziel angerechnet &ndash; nur gebuchte und Forecast-Stunden zählen.</p>
+  <h2>{{t "Status"}}</h2>
+  <p>{{t "Hochrechnung = Ist (vergangene Tage) + Forecast (ab heute). Feiertage werden nicht aufs Ziel angerechnet – nur gebuchte und Forecast-Stunden zählen."}}</p>
   <div class="goalbar">
     <div class="goalbar-track">
-      <span class="goalbar-actual" style="width:{{barWidth .Goal.PctActual}}%" title="Ist {{hours .Goal.PctActual}} %"></span>
-      <span class="goalbar-proj" style="width:{{barWidth .Goal.PctProjected}}%" title="Hochrechnung {{hours .Goal.PctProjected}} %"></span>
+      <span class="goalbar-actual" style="width:{{barWidth .Goal.PctActual}}%" title="{{t "Ist"}} {{hours .Goal.PctActual}} %"></span>
+      <span class="goalbar-proj" style="width:{{barWidth .Goal.PctProjected}}%" title="{{t "Hochrechnung"}} {{hours .Goal.PctProjected}} %"></span>
     </div>
     <div class="goalbar-legend">
-      <span><i class="sw actual"></i> Ist {{hours .Goal.PctActual}} %</span>
-      <span><i class="sw proj"></i> Hochrechnung {{hours .Goal.PctProjected}} %</span>
-      <span>Differenz zum Ziel: <strong class="{{if gt .Goal.Remaining 0.0}}negative{{end}}">{{hours .Goal.Remaining}} h</strong></span>
+      <span><i class="sw actual"></i> {{t "Ist"}} {{hours .Goal.PctActual}} %</span>
+      <span><i class="sw proj"></i> {{t "Hochrechnung"}} {{hours .Goal.PctProjected}} %</span>
+      <span>{{t "Differenz zum Ziel:"}} <strong class="{{if gt .Goal.Remaining 0.0}}negative{{end}}">{{hours .Goal.Remaining}} {{t "h"}}</strong></span>
     </div>
   </div>
   {{if .FYChart}}<div class="mini-chart">{{.FYChart}}</div>{{end}}
-  <p class="hint">Die Ziel-Diagramme markieren das erste Erreichen der roten Ziellinie. Das Datum ist ein Näherungswert aus der gezeichneten Monatskurve, kein tagesgenauer Buchungstermin.</p>
+  <p class="hint">{{t "Die Ziel-Diagramme markieren das erste Erreichen der roten Ziellinie. Das Datum ist ein Näherungswert aus der gezeichneten Monatskurve, kein tagesgenauer Buchungstermin."}}</p>
 </section>
 
 <section class="card">
-  <h2>Stundenfluss im Fiskaljahr</h2>
-  <p class="hint">Wohin die Stunden fließen: von den einzelnen Projekten in den jeweiligen Monat, von den Monaten ins Quartal, von den Quartalen ins Halbjahr und von beiden Halbjahren ins Fiskaljahr. Jede Spalte trägt dieselbe Gesamtsumme – nur die Aufteilung ändert sich. Urlaub zählt nicht mit. Fahre über einen Streifen für geplante und gebuchte Stunden samt Soll.</p>
+  <h2>{{t "Stundenfluss im Fiskaljahr"}}</h2>
+  <p class="hint">{{t "Wohin die Stunden fließen: von den einzelnen Projekten in den jeweiligen Monat, von den Monaten ins Quartal, von den Quartalen ins Halbjahr und von beiden Halbjahren ins Fiskaljahr. Jede Spalte trägt dieselbe Gesamtsumme – nur die Aufteilung ändert sich. Urlaub zählt nicht mit. Fahre über einen Streifen für geplante und gebuchte Stunden samt Soll."}}</p>
   <div class="flow-wrap">{{.FlowSVG}}</div>
   <div class="flow-legend">
-    <span><i class="sw done"></i> abgeschlossen</span>
-    <span><i class="sw current"></i> läuft</span>
-    <span><i class="sw upcoming"></i> steht noch aus</span>
-    <span><i class="sw split"></i> kräftiger Teil = gebucht, blasser Teil = Forecast</span>
+    <span><i class="sw done"></i> {{t "abgeschlossen"}}</span>
+    <span><i class="sw current"></i> {{t "läuft"}}</span>
+    <span><i class="sw upcoming"></i> {{t "steht noch aus"}}</span>
+    <span><i class="sw split"></i> {{t "kräftiger Teil = gebucht, blasser Teil = Forecast"}}</span>
   </div>
 </section>
 
 <section class="card">
-  <h2>FY-Kapazität</h2>
-  <p class="hint">Das Fiskaljahresziel wird nicht separat gepflegt – es ist das Ergebnis dieser Rechnung. Die Werte änderst du unter <a href="/settings">Einstellungen</a>.</p>
+  <h2>{{t "FY-Kapazität"}}</h2>
+  <p class="hint">{{t "Das Fiskaljahresziel wird nicht separat gepflegt – es ist das Ergebnis dieser Rechnung. Die Werte änderst du unter"}} <a href="/settings">{{t "Einstellungen"}}</a>.</p>
   <table class="grid compact">
     <tbody>
-      <tr><td>FY-Gesamtstunden (Wochentage à 8 h, ohne Wochenende)</td><td class="num">{{hours .Goal.WeekdayHours}} h</td><td class="num">{{.Goal.WeekdayDays}} Tage</td></tr>
-      <tr><td>– Urlaub</td><td class="num">{{hours .Goal.VacationHours}} h</td><td class="num">{{.Goal.VacationDays}} Tage</td></tr>
-      <tr><td>– Feiertage</td><td class="num">{{hours .Goal.HolidayHours}} h</td><td class="num">{{.Goal.HolidayDays}} Tage</td></tr>
-      <tr><td>– {{if .Goal.StandardTaskLabel}}{{.Goal.StandardTaskLabel}}{{else}}Standard Tasks{{end}}</td><td class="num">{{hours .Goal.StandardTaskHours}} h</td><td></td></tr>
-      <tr><td><strong>Verfügbare Arbeitsstunden (netto) = Fiskaljahresziel</strong></td><td class="num"><strong>{{hours .Goal.AvailableHours}} h</strong></td><td></td></tr>
-      <tr><td>Jahresziel in % der FY-Gesamtstunden</td><td class="num">{{hours .Goal.PctOfWeekdays}} %</td><td></td></tr>
+      <tr><td>{{t "FY-Gesamtstunden (Wochentage à 8 h, ohne Wochenende)"}}</td><td class="num">{{hours .Goal.WeekdayHours}} {{t "h"}}</td><td class="num">{{.Goal.WeekdayDays}} {{t "Tage"}}</td></tr>
+      <tr><td>{{t "– Urlaub"}}</td><td class="num">{{hours .Goal.VacationHours}} {{t "h"}}</td><td class="num">{{.Goal.VacationDays}} {{t "Tage"}}</td></tr>
+      <tr><td>{{t "– Feiertage"}}</td><td class="num">{{hours .Goal.HolidayHours}} {{t "h"}}</td><td class="num">{{.Goal.HolidayDays}} {{t "Tage"}}</td></tr>
+      <tr><td>– {{if .Goal.StandardTaskLabel}}{{.Goal.StandardTaskLabel}}{{else}}{{t "Standard Tasks"}}{{end}}</td><td class="num">{{hours .Goal.StandardTaskHours}} {{t "h"}}</td><td></td></tr>
+      <tr><td><strong>{{t "Verfügbare Arbeitsstunden (netto) = Fiskaljahresziel"}}</strong></td><td class="num"><strong>{{hours .Goal.AvailableHours}} {{t "h"}}</strong></td><td></td></tr>
+      <tr><td>{{t "Jahresziel in % der FY-Gesamtstunden"}}</td><td class="num">{{hours .Goal.PctOfWeekdays}} %</td><td></td></tr>
     </tbody>
   </table>
 </section>
 
 <section class="card">
-  <h2>Resttempo bis FY-Ende</h2>
+  <h2>{{t "Resttempo bis FY-Ende"}}</h2>
   <div class="cards">
     <div class="card kpi">
-      <div class="kpi-value">{{hours .Goal.RemainingGoal}} h</div>
-      <div class="kpi-label">Restliches Ziel (Ziel − Ist gebucht)</div>
+      <div class="kpi-value">{{hours .Goal.RemainingGoal}} {{t "h"}}</div>
+      <div class="kpi-label">{{t "Restliches Ziel (Ziel − Ist gebucht)"}}</div>
     </div>
     <div class="card kpi">
       <div class="kpi-value">{{.Goal.RemainingWorkdays}}</div>
-      <div class="kpi-label">Verbleibende Arbeitstage</div>
+      <div class="kpi-label">{{t "Verbleibende Arbeitstage"}}</div>
     </div>
     <div class="card kpi">
-      <div class="kpi-value">{{hours .Goal.RequiredPerDay}} h</div>
-      <div class="kpi-label">Benötigt pro Arbeitstag</div>
+      <div class="kpi-value">{{hours .Goal.RequiredPerDay}} {{t "h"}}</div>
+      <div class="kpi-label">{{t "Benötigt pro Arbeitstag"}}</div>
     </div>
   </div>
-  <p class="hint">Um das Ziel zu erreichen, müsstest du an den verbleibenden Arbeitstagen je {{hours .Goal.RequiredPerDay}} h real buchen.</p>
+  <p class="hint">{{t "Um das Ziel zu erreichen, müsstest du an den verbleibenden Arbeitstagen je"}} {{hours .Goal.RequiredPerDay}} {{t "h real buchen."}}</p>
 </section>
 
 <section class="card">
-  <h2>Soll-Tempo (gleichmäßig aufgeteilt)</h2>
+  <h2>{{t "Soll-Tempo (gleichmäßig aufgeteilt)"}}</h2>
   <table class="grid compact">
     <tbody>
-      <tr><td>Soll pro Woche</td><td class="num">{{hours .Goal.TargetPerWeek}} h</td></tr>
-      <tr><td>Soll pro Monat</td><td class="num">{{hours .Goal.TargetPerMonth}} h</td></tr>
-      <tr><td>Soll pro Quartal</td><td class="num">{{hours .Goal.TargetPerQuarter}} h</td></tr>
-      <tr><td>Arbeitstage gesamt</td><td class="num">{{.Goal.WorkingDaysYear}}</td></tr>
-      <tr><td>Arbeitstage vergangen</td><td class="num">{{.Goal.WorkingDaysDone}}</td></tr>
+      <tr><td>{{t "Soll pro Woche"}}</td><td class="num">{{hours .Goal.TargetPerWeek}} {{t "h"}}</td></tr>
+      <tr><td>{{t "Soll pro Monat"}}</td><td class="num">{{hours .Goal.TargetPerMonth}} {{t "h"}}</td></tr>
+      <tr><td>{{t "Soll pro Quartal"}}</td><td class="num">{{hours .Goal.TargetPerQuarter}} {{t "h"}}</td></tr>
+      <tr><td>{{t "Arbeitstage gesamt"}}</td><td class="num">{{.Goal.WorkingDaysYear}}</td></tr>
+      <tr><td>{{t "Arbeitstage vergangen"}}</td><td class="num">{{.Goal.WorkingDaysDone}}</td></tr>
     </tbody>
   </table>
 </section>
 
 <section class="card">
-  <h2>Halbjahre</h2>
-  <p class="hint">H1 = erste 6 Monate des Fiskaljahres, H2 = letzte 6. Ziel je Halbjahr = Jahresziel / 2. Das Diagramm zeigt eine durchgehende Kurve: grün bis heute (gebucht), ab dort orange gestrichelt (Hochrechnung), dazu das Ziel als rote Linie.</p>
+  <h2>{{t "Halbjahre"}}</h2>
+  <p class="hint">{{t "H1 = erste 6 Monate des Fiskaljahres, H2 = letzte 6. Ziel je Halbjahr = Jahresziel / 2. Das Diagramm zeigt eine durchgehende Kurve: grün bis heute (gebucht), ab dort orange gestrichelt (Hochrechnung), dazu das Ziel als rote Linie."}}</p>
   <div class="periods halves">
     {{$h1 := index .Goal.Halves 0}}
     {{$h2 := index .Goal.Halves 1}}
     <div class="period">
-      <h3>{{$h1.Label}}<span class="period-goal">Zielerreichung <strong>{{hours $h1.PctOfTarget}} %</strong></span></h3>
+      <h3>{{$h1.Label}}<span class="period-goal">{{t "Zielerreichung"}} <strong>{{hours $h1.PctOfTarget}} %</strong></span></h3>
       <div class="period-kpis">
-        <span>Forecast <strong>{{hours $h1.Forecast}} h</strong></span>
+        <span>{{t "Forecast"}} <strong>{{hours $h1.Forecast}} {{t "h"}}</strong></span>
       </div>
       <div class="bar"><span style="width:{{barWidth $h1.PctOfTarget}}%"></span></div>
       {{if .H1Chart}}<div class="mini-chart">{{.H1Chart}}</div>{{end}}
     </div>
     <div class="period">
-      <h3>{{$h2.Label}}<span class="period-goal">Zielerreichung <strong>{{hours $h2.PctOfTarget}} %</strong></span></h3>
+      <h3>{{$h2.Label}}<span class="period-goal">{{t "Zielerreichung"}} <strong>{{hours $h2.PctOfTarget}} %</strong></span></h3>
       <div class="period-kpis">
-        <span>Forecast <strong>{{hours $h2.Forecast}} h</strong></span>
+        <span>{{t "Forecast"}} <strong>{{hours $h2.Forecast}} {{t "h"}}</strong></span>
       </div>
       <div class="bar"><span style="width:{{barWidth $h2.PctOfTarget}}%"></span></div>
       {{if .H2Chart}}<div class="mini-chart">{{.H2Chart}}</div>{{end}}
@@ -139,15 +139,15 @@
 </section>
 
 <section class="card">
-  <h2>Quartale</h2>
-  <p class="hint">Ziel je Quartal = Jahresziel / 4. Das Diagramm zeigt eine durchgehende Kurve: grün bis heute (gebucht), ab dort orange gestrichelt (Hochrechnung), dazu das Quartalsziel als rote Linie.</p>
+  <h2>{{t "Quartale"}}</h2>
+  <p class="hint">{{t "Ziel je Quartal = Jahresziel / 4. Das Diagramm zeigt eine durchgehende Kurve: grün bis heute (gebucht), ab dort orange gestrichelt (Hochrechnung), dazu das Quartalsziel als rote Linie."}}</p>
   <div class="periods quarters">
     {{range $i, $q := .Goal.Quarters}}
     <div class="period">
-      <h3>{{$q.Label}}<span class="period-goal">Zielerreichung <strong>{{hours $q.PctOfTarget}} %</strong></span></h3>
+      <h3>{{$q.Label}}<span class="period-goal">{{t "Zielerreichung"}} <strong>{{hours $q.PctOfTarget}} %</strong></span></h3>
       <div class="period-kpis">
-        <span>Forecast <strong>{{hours $q.Forecast}} h</strong></span>
-        <span>Feiertage <strong>{{hours $q.Holiday}} h</strong></span>
+        <span>{{t "Forecast"}} <strong>{{hours $q.Forecast}} {{t "h"}}</strong></span>
+        <span>{{t "Feiertage"}} <strong>{{hours $q.Holiday}} {{t "h"}}</strong></span>
       </div>
       <div class="bar"><span style="width:{{barWidth $q.PctOfTarget}}%"></span></div>
       {{with index $.QuarterCharts $i}}<div class="mini-chart">{{.}}</div>{{end}}
@@ -157,20 +157,20 @@
 </section>
 
 <section class="card">
-  <h2>Monatsübersicht</h2>
+  <h2>{{t "Monatsübersicht"}}</h2>
   <table class="grid compact">
     <thead>
-      <tr><th>Monat</th><th class="num">Soll</th><th class="num">Forecast</th><th class="num">Ist</th><th class="num">Feiertage</th><th class="num">Hochrechnung</th><th>%</th></tr>
+      <tr><th>{{t "Monat"}}</th><th class="num">{{t "Soll"}}</th><th class="num">{{t "Forecast"}}</th><th class="num">{{t "Ist"}}</th><th class="num">{{t "Feiertage"}}</th><th class="num">{{t "Hochrechnung"}}</th><th>%</th></tr>
     </thead>
     <tbody>
     {{range .Goal.Months}}
       <tr>
         <td>{{.Label}}</td>
-        <td class="num">{{hours .Target}} h</td>
-        <td class="num">{{hours .Forecast}} h</td>
-        <td class="num ist">{{hours .Actual}} h</td>
-        <td class="num">{{hours .Holiday}} h</td>
-        <td class="num strong">{{hours .Projected}} h</td>
+        <td class="num">{{hours .Target}} {{t "h"}}</td>
+        <td class="num">{{hours .Forecast}} {{t "h"}}</td>
+        <td class="num ist">{{hours .Actual}} {{t "h"}}</td>
+        <td class="num">{{hours .Holiday}} {{t "h"}}</td>
+        <td class="num strong">{{hours .Projected}} {{t "h"}}</td>
         <td><small class="{{if lt .PctOfTarget 100.0}}negative{{end}}">{{hours .PctOfTarget}} %</small></td>
       </tr>
     {{end}}
@@ -183,31 +183,31 @@
 </section>
 
 <section class="card" id="arbeitszeit">
-  <h2>Arbeitszeit je Werktag (ArbZG)</h2>
-  <p class="hint">Monat für Monat die Stunden geteilt durch die <strong>Werktage</strong> – links die {{.Workload.MonthsBack}} vergangenen Monate mit den gebuchten Stunden, rechts ab heute der Forecast, so weit wie geplant ist (höchstens {{.Workload.MonthsAhead}} Monate). Werktage sind Montag bis Samstag ohne gesetzliche Feiertage; reine Urlaubstage und Urlaubsstunden bleiben außen vor, damit Urlaub den Schnitt weder hebt noch senkt.{{if .Workload.HorizonLabel}} Der Forecast reicht aktuell bis <strong>{{.Workload.HorizonLabel}}</strong>.{{end}}</p>
+  <h2>{{t "Arbeitszeit je Werktag (ArbZG)"}}</h2>
+  <p class="hint">{{t "Monat für Monat die Stunden geteilt durch die"}} <strong>{{t "Werktage"}}</strong> {{t "– links die"}} {{.Workload.MonthsBack}} {{t "vergangenen Monate mit den gebuchten Stunden, rechts ab heute der Forecast, so weit wie geplant ist (höchstens"}} {{.Workload.MonthsAhead}} {{t "Monate). Werktage sind Montag bis Samstag ohne gesetzliche Feiertage; reine Urlaubstage und Urlaubsstunden bleiben außen vor, damit Urlaub den Schnitt weder hebt noch senkt."}}{{if .Workload.HorizonLabel}} {{t "Der Forecast reicht aktuell bis"}} <strong>{{.Workload.HorizonLabel}}</strong>.{{end}}</p>
   <div class="mini-chart">{{.WorkloadSVG}}</div>
-  <p class="hint">Ein einzelner Monat über der roten Linie ist noch kein Verstoß: maßgeblich ist der Schnitt über den <strong>Ausgleichszeitraum von {{.Workload.Rolling}} Monaten</strong> – die dunkle Linie im Diagramm. Sie zeigt für jeden Monat den Schnitt der {{.Workload.Rolling}} Monate bis dahin und stützt sich rechts von „heute“ zunehmend auf den Forecast; daran siehst du, ob und wann die Planung die Bilanz wieder unter die Grenze bringt.{{if .WorkloadBack.HasData}} Aktuell liegt sie bei <strong>{{hours .WorkloadBack.PerDay}} h</strong> je Werktag ({{.WorkloadBack.StartLabel}} – {{.WorkloadBack.EndLabel}}), {{if .WorkloadBack.Over}}also <strong class="negative">{{hours .WorkloadBack.Headroom}} h über</strong>{{else}}mit einem Puffer von <strong>{{hours .WorkloadBack.Headroom}} h</strong> bis{{end}} zum zulässigen Rahmen von {{hours .WorkloadBack.MaxHours}} h.{{end}}</p>
-  <p class="hint">§3 ArbZG erlaubt werktäglich {{hours .WorkloadLimit}} h. Ein einzelner Werktag darf auf bis zu {{hours .WorkloadDayMax}} h verlängert werden, solange der Schnitt innerhalb von 6 Kalendermonaten bzw. 24 Wochen wieder bei {{hours .WorkloadLimit}} h liegt. Weil der Samstag Werktag ist, sind rechnerisch bis zu 48 h pro Woche möglich (mit Verlängerung bis 60 h). Vertraglich vereinbart sind 40 h pro Woche. Ab mehr als 6 h Arbeitszeit sind 30 Minuten Pause vorgeschrieben, ab mehr als 9 h 45 Minuten; Pausen zählen nicht als Arbeitszeit.</p>
+  <p class="hint">{{t "Ein einzelner Monat über der roten Linie ist noch kein Verstoß: maßgeblich ist der Schnitt über den"}} <strong>{{t "Ausgleichszeitraum von"}} {{.Workload.Rolling}} {{t "Monaten"}}</strong> {{t "– die dunkle Linie im Diagramm. Sie zeigt für jeden Monat den Schnitt der"}} {{.Workload.Rolling}} {{t "Monate bis dahin und stützt sich rechts von „heute“ zunehmend auf den Forecast; daran siehst du, ob und wann die Planung die Bilanz wieder unter die Grenze bringt."}}{{if .WorkloadBack.HasData}} {{t "Aktuell liegt sie bei"}} <strong>{{hours .WorkloadBack.PerDay}} {{t "h"}}</strong> {{t "je Werktag ("}}{{.WorkloadBack.StartLabel}} – {{.WorkloadBack.EndLabel}}), {{if .WorkloadBack.Over}}{{t "also"}} <strong class="negative">{{hours .WorkloadBack.Headroom}} {{t "h über"}}</strong>{{else}}{{t "mit einem Puffer von"}} <strong>{{hours .WorkloadBack.Headroom}} {{t "h"}}</strong> {{t "bis"}}{{end}} {{t "zum zulässigen Rahmen von"}} {{hours .WorkloadBack.MaxHours}} {{t "h."}}{{end}}</p>
+  <p class="hint">{{t "§3 ArbZG erlaubt werktäglich"}} {{hours .WorkloadLimit}} {{t "h. Ein einzelner Werktag darf auf bis zu"}} {{hours .WorkloadDayMax}} {{t "h verlängert werden, solange der Schnitt innerhalb von 6 Kalendermonaten bzw. 24 Wochen wieder bei"}} {{hours .WorkloadLimit}} {{t "h liegt. Weil der Samstag Werktag ist, sind rechnerisch bis zu 48 h pro Woche möglich (mit Verlängerung bis 60 h). Vertraglich vereinbart sind 40 h pro Woche. Ab mehr als 6 h Arbeitszeit sind 30 Minuten Pause vorgeschrieben, ab mehr als 9 h 45 Minuten; Pausen zählen nicht als Arbeitszeit."}}</p>
 </section>
 
 <section class="card" id="chat">
-  <h2>Chat with your data</h2>
+  <h2>{{t "Chat with your data"}}</h2>
   {{if .Private}}
-  <p class="hint">Im <strong>privaten Modus</strong> ist die Auswertung deaktiviert – sie würde deine echten Projektnamen und Stunden im Klartext an den KI-Endpoint senden, nicht die angezeigten Beispieldaten.</p>
+  <p class="hint">{{t "Im"}} <strong>{{t "privaten Modus"}}</strong> {{t "ist die Auswertung deaktiviert – sie würde deine echten Projektnamen und Stunden im Klartext an den KI-Endpoint senden, nicht die angezeigten Beispieldaten."}}</p>
   {{else if not .AIConfigured}}
-  <p class="hint">Die KI-Anbindung ist noch nicht vollständig konfiguriert. Wähle in den <a href="/settings#ai">Einstellungen</a> ein Foundry-Deployment aus oder richte einen manuellen Endpoint mit API-Key ein. Zugangsdaten werden ausschließlich über die Server-Umgebung bereitgestellt.</p>
+  <p class="hint">{{t "Die KI-Anbindung ist noch nicht vollständig konfiguriert. Wähle in den"}} <a href="/settings#ai">{{t "Einstellungen"}}</a> {{t "ein Foundry-Deployment aus oder richte einen manuellen Endpoint mit API-Key ein. Zugangsdaten werden ausschließlich über die Server-Umgebung bereitgestellt."}}</p>
   {{else}}
-  <p class="hint">Stelle Fragen zu deinen gebuchten und geplanten Stunden. An den KI-Endpoint geht eine kompakte Zusammenfassung des aktuellen Fiskaljahres (Projekte, Budgets, Stunden je Monat und Quartal) – nicht die Rohdatei.</p>
+  <p class="hint">{{t "Stelle Fragen zu deinen gebuchten und geplanten Stunden. An den KI-Endpoint geht eine kompakte Zusammenfassung des aktuellen Fiskaljahres (Projekte, Budgets, Stunden je Monat und Quartal) – nicht die Rohdatei."}}</p>
   <div class="chat" data-chat>
-    <label class="chat-preset">Vorlage
+    <label class="chat-preset">{{t "Vorlage"}}
       <select data-chat-preset>
-        <option value="">– eigene Frage –</option>
+        <option value="">{{t "– eigene Frage –"}}</option>
         {{range $i, $p := .ChatPresets}}<option value="{{$i}}">{{$p.Label}}</option>{{end}}
       </select>
     </label>
-    <textarea data-chat-input class="prompt" rows="3" placeholder="z. B. Welches Projekt hat mich dieses Jahr am meisten Zeit gekostet?"></textarea>
+    <textarea data-chat-input class="prompt" rows="3" placeholder="{{t "z. B. Welches Projekt hat mich dieses Jahr am meisten Zeit gekostet?"}}"></textarea>
     <div class="chat-actions">
-      <button type="button" class="btn primary" data-chat-send>Auswerten</button>
+      <button type="button" class="btn primary" data-chat-send>{{t "Auswerten"}}</button>
       <span class="chat-status" data-chat-status></span>
     </div>
     <div class="chat-answer" data-chat-answer hidden></div>
@@ -231,9 +231,9 @@
 
       send.addEventListener('click', function () {
         var prompt = input.value.trim();
-        if (!prompt) { status.textContent = 'Bitte gib eine Frage ein.'; status.className = 'chat-status error'; return; }
+        if (!prompt) { status.textContent = '{{t "Bitte gib eine Frage ein."}}'; status.className = 'chat-status error'; return; }
         send.disabled = true;
-        status.textContent = 'Wird ausgewertet…';
+        status.textContent = '{{t "Wird ausgewertet…"}}';
         status.className = 'chat-status busy';
         answer.hidden = true;
         var endActivity = window.beginActivity();
@@ -246,7 +246,7 @@
         }).then(function (r) {
           send.disabled = false;
           if (!r.ok) {
-            status.textContent = r.data.error || 'Auswertung fehlgeschlagen.';
+            status.textContent = r.data.error || '{{t "Auswertung fehlgeschlagen."}}';
             status.className = 'chat-status error';
             return;
           }
@@ -257,7 +257,7 @@
           answer.hidden = false;
         }).catch(function () {
           send.disabled = false;
-          status.textContent = 'Auswertung fehlgeschlagen.';
+          status.textContent = '{{t "Auswertung fehlgeschlagen."}}';
           status.className = 'chat-status error';
         }).finally(endActivity);
       });

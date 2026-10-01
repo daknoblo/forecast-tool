@@ -54,8 +54,9 @@ var demoProjects = []demoProject{
 // WriteDemoData builds a deterministic demo document and writes it to
 // dir/data.json. It is anchored on `today`, so the demo always shows a fiscal
 // year in progress: booked hours in the past, forecast hours ahead.
-func WriteDemoData(dir string, today time.Time) error {
+func WriteDemoData(dir string, today time.Time, language string) error {
 	d := buildDemoData(today)
+	d.Settings.Language = language
 	b, err := json.MarshalIndent(d, "", "  ")
 	if err != nil {
 		return err
@@ -78,11 +79,7 @@ func buildDemoData(today time.Time) models.Data {
 	d.Settings.FederalState = DemoState
 	d.Settings.FiscalYearStartMonth = demoStartMonth
 	d.Settings.WeeklyTargetHours = 40
-	d.Settings.AI = models.AISettings{
-		Endpoint:   "https://demo.example.com",
-		Deployment: "model-router",
-		APIVersion: "2024-10-21",
-	}
+	d.Settings.AI = models.AISettings{}
 	fySettings := models.FiscalYearSettings{
 		VacationDays:      30,
 		StandardTaskLabel: "Meetings & Orga",

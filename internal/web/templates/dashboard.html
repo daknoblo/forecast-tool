@@ -1,144 +1,140 @@
 {{template "header" .}}
-<h1>Dashboard · Fiskaljahr {{.Settings.Year}}</h1>
-<p class="hint">Zeitraum {{.FYStart}} – {{.FYEnd}}</p>
+<h1>{{t "Dashboard · Fiskaljahr"}} {{.Settings.Year}}</h1>
+<p class="hint">{{t "Zeitraum"}} {{.FYStart}} – {{.FYEnd}}</p>
 
 <section class="cards kpi-row">
   {{if .WeekToDate.HasData}}
-  <div class="card kpi" title="Auslastung seit FY-Start ({{.WeekToDate.StartLabel}}) bis {{.WeekToDate.ToLabel}} – heute zählt noch nicht.&#10;&#10;Ø {{hours .WeekToDate.PerWeek}} h/Woche tatsächlich gegenüber {{hours .WeekToDate.TargetPerWeek}} h/Woche geplant ({{hours .WeekToDate.DeltaPerWeek}} h Differenz).&#10;{{hours .WeekToDate.Hours}} von {{hours .WeekToDate.ExpectedHours}} h in {{hours .WeekToDate.ElapsedWeeks}} Wochen.&#10;&#10;Das FY-Ziel ist gleichmäßig auf {{.WeekToDate.FYWeeks}} Wochen verteilt; Urlaub zählt nicht aufs Ziel.">
+  <div class="card kpi" title="{{t "Auslastung seit FY-Start ("}}{{.WeekToDate.StartLabel}}{{t ") bis"}} {{.WeekToDate.ToLabel}} {{t "– heute zählt noch nicht. Ø"}} {{hours .WeekToDate.PerWeek}} {{t "h/Woche tatsächlich gegenüber"}} {{hours .WeekToDate.TargetPerWeek}} {{t "h/Woche geplant ("}}{{hours .WeekToDate.DeltaPerWeek}} {{t "h Differenz)."}}{{hours .WeekToDate.Hours}} {{t "von"}} {{hours .WeekToDate.ExpectedHours}} {{t "h in"}} {{hours .WeekToDate.ElapsedWeeks}} {{t "Wochen. Das FY-Ziel ist gleichmäßig auf"}} {{.WeekToDate.FYWeeks}} {{t "Wochen verteilt; Urlaub zählt nicht aufs Ziel."}}">
     <div class="kpi-value">{{pct .WeekToDate.RatePct}}</div>
-    <div class="kpi-label">Week-to-date</div>
+    <div class="kpi-label">{{t "Week-to-date"}}</div>
   </div>
   {{else}}
-  <div class="card kpi" title="Es gibt noch keine abgeschlossenen Tage im Fiskaljahr, oder für dieses Fiskaljahr ist kein Ziel hinterlegt.">
+  <div class="card kpi" title="{{t "Es gibt noch keine abgeschlossenen Tage im Fiskaljahr, oder für dieses Fiskaljahr ist kein Ziel hinterlegt."}}">
     <div class="kpi-value muted">–</div>
-    <div class="kpi-label">Week-to-date</div>
+    <div class="kpi-label">{{t "Week-to-date"}}</div>
   </div>
   {{end}}
   {{if or .Workload.HasData .WorkloadPlan.HasData}}
-  <div class="card kpi" title="Durchschnittliche Arbeitszeit je Werktag über 6 Monate – links das bereits Gebuchte, rechts das Geplante.&#10;&#10;{{if .Workload.HasData}}Rückblick {{.Workload.StartLabel}} – {{.Workload.EndLabel}}: {{hours .Workload.Hours}} h auf {{.Workload.Days}} Werktage, {{if .Workload.Over}}{{hours .Workload.Headroom}} h über{{else}}{{hours .Workload.Headroom}} h unter{{end}} dem zulässigen Rahmen von {{hours .Workload.MaxHours}} h.{{else}}Rückblick: noch keine gebuchten Stunden.{{end}}&#10;{{if .WorkloadPlan.HasData}}Forecast {{.WorkloadPlan.StartLabel}} – {{.WorkloadPlan.EndLabel}}: {{hours .WorkloadPlan.Hours}} h auf {{.WorkloadPlan.Days}} Werktage. Monate ohne Planung bleiben außen vor.{{else}}Forecast: noch nichts geplant.{{end}}&#10;&#10;Werktage sind Mo–Sa ohne Feiertage; Urlaubsstunden und reine Urlaubstage bleiben außen vor. §3 ArbZG erlaubt im Schnitt {{hours .WorkloadLimit}} h je Werktag.&#10;&#10;Details auf der Ziele-Seite.">
-    <div class="kpi-heading">Ø 6 Monate</div>
+  <div class="card kpi" title="{{t "Durchschnittliche Arbeitszeit je Werktag über 6 Monate – links das bereits Gebuchte, rechts das Geplante."}}{{if .Workload.HasData}}{{t "Rückblick"}} {{.Workload.StartLabel}} – {{.Workload.EndLabel}}: {{hours .Workload.Hours}} {{t "h auf"}} {{.Workload.Days}} {{t "Werktage,"}} {{if .Workload.Over}}{{hours .Workload.Headroom}} {{t "h über"}}{{else}}{{hours .Workload.Headroom}} {{t "h unter"}}{{end}} {{t "dem zulässigen Rahmen von"}} {{hours .Workload.MaxHours}} {{t "h."}}{{else}}{{t "Rückblick: noch keine gebuchten Stunden."}}{{end}}&#10;{{if .WorkloadPlan.HasData}}{{t "Forecast"}} {{.WorkloadPlan.StartLabel}} – {{.WorkloadPlan.EndLabel}}: {{hours .WorkloadPlan.Hours}} {{t "h auf"}} {{.WorkloadPlan.Days}} {{t "Werktage. Monate ohne Planung bleiben außen vor."}}{{else}}{{t "Forecast: noch nichts geplant."}}{{end}}{{t "Werktage sind Mo–Sa ohne Feiertage; Urlaubsstunden und reine Urlaubstage bleiben außen vor. §3 ArbZG erlaubt im Schnitt"}} {{hours .WorkloadLimit}} {{t "h je Werktag. Details auf der Ziele-Seite."}}">
+    <div class="kpi-heading">{{t "Ø 6 Monate"}}</div>
     <div class="kpi-value kpi-split">
-      <a href="/goal#arbeitszeit"><span class="kpi-part">{{if .Workload.HasData}}{{hours .Workload.PerDay}} h{{else}}–{{end}}</span><small>Rückblick</small></a>
-      <a href="/goal#arbeitszeit"><span class="kpi-part">{{if .WorkloadPlan.HasData}}{{hours .WorkloadPlan.PerDay}} h{{else}}–{{end}}</span><small>Forecast</small></a>
+      <a href="/goal#arbeitszeit"><span class="kpi-part">{{if .Workload.HasData}}{{hours .Workload.PerDay}} {{t "h"}}{{else}}–{{end}}</span><small>{{t "Rückblick"}}</small></a>
+      <a href="/goal#arbeitszeit"><span class="kpi-part">{{if .WorkloadPlan.HasData}}{{hours .WorkloadPlan.PerDay}} {{t "h"}}{{else}}–{{end}}</span><small>{{t "Forecast"}}</small></a>
     </div>
   </div>
   {{else}}
-  <div class="card kpi" title="Es sind weder in den letzten noch in den nächsten 6 Monaten Stunden erfasst.">
-    <div class="kpi-heading">Ø 6 Monate</div>
+  <div class="card kpi" title="{{t "Es sind weder in den letzten noch in den nächsten 6 Monaten Stunden erfasst."}}">
+    <div class="kpi-heading">{{t "Ø 6 Monate"}}</div>
     <div class="kpi-value kpi-split">
-      <a href="/goal#arbeitszeit"><span class="kpi-part muted">–</span><small>Rückblick</small></a>
-      <a href="/goal#arbeitszeit"><span class="kpi-part muted">–</span><small>Forecast</small></a>
+      <a href="/goal#arbeitszeit"><span class="kpi-part muted">–</span><small>{{t "Rückblick"}}</small></a>
+      <a href="/goal#arbeitszeit"><span class="kpi-part muted">–</span><small>{{t "Forecast"}}</small></a>
     </div>
   </div>
   {{end}}
-  <div class="card kpi" id="forecast-accuracy" title="Forecast Accuracy aus ESXP: Anteil abgeschlossener FY-Wochen mit höchstens ±8 h Abweichung zwischen Forecast und Ist-Buchungen. Der aktuelle Wert wird unverändert übernommen.&#10;{{if .Accuracy.HasData}}Stand {{.Accuracy.AsOfLabel}}: {{.Accuracy.EvaluatedWeeks}} bewertete von {{.Accuracy.TotalWeeks}} FY-Wochen.&#10;{{if .Accuracy.HasProjection}}Minimum am FY-Ende: {{pct .Accuracy.Percentage}} × {{.Accuracy.EvaluatedWeeks}} / {{.Accuracy.TotalWeeks}} = {{pct .Accuracy.MinimumPct}}. Maximaler Rückgang: {{hours .Accuracy.DrawdownPoints}} Prozentpunkte.&#10;Alle {{.Accuracy.RemainingWeeks}} ab diesem Stand noch unbewerteten Wochen, einschließlich der damaligen aktuellen Woche, gelten im Worst Case als falsch.{{else}}Noch keine abgeschlossene Wochenbasis oder geänderter FY-Kalender: kein Mindestwert berechenbar.{{end}}{{else}}Noch kein ESXP-Wert für dieses Fiskaljahr über die API übertragen.{{end}}&#10;Berechnung auf Basis des importierten Prozentwerts; Rundungen in ESXP können das Ergebnis beeinflussen. Angebrochene FY-Randwochen zählen wie im Forecast als Wochen.">
-    <div class="kpi-heading">Forecast Accuracy</div>
+  <div class="card kpi" id="forecast-accuracy" title="{{t "Forecast Accuracy aus ESXP: Anteil abgeschlossener FY-Wochen mit höchstens ±8 h Abweichung zwischen Forecast und Ist-Buchungen. Der aktuelle Wert wird unverändert übernommen."}}{{if .Accuracy.HasData}}{{t "Stand"}} {{.Accuracy.AsOfLabel}}: {{.Accuracy.EvaluatedWeeks}} {{t "bewertete von"}} {{.Accuracy.TotalWeeks}} {{t "FY-Wochen."}}{{if .Accuracy.HasProjection}}{{t "Minimum am FY-Ende:"}} {{pct .Accuracy.Percentage}} × {{.Accuracy.EvaluatedWeeks}} / {{.Accuracy.TotalWeeks}} = {{pct .Accuracy.MinimumPct}}{{t ". Maximaler Rückgang:"}} {{hours .Accuracy.DrawdownPoints}} {{t "Prozentpunkte. Alle"}} {{.Accuracy.RemainingWeeks}} {{t "ab diesem Stand noch unbewerteten Wochen, einschließlich der damaligen aktuellen Woche, gelten im Worst Case als falsch."}}{{else}}{{t "Noch keine abgeschlossene Wochenbasis oder geänderter FY-Kalender: kein Mindestwert berechenbar."}}{{end}}{{else}}{{t "Noch kein ESXP-Wert für dieses Fiskaljahr über die API übertragen."}}{{end}}{{t "Berechnung auf Basis des importierten Prozentwerts; Rundungen in ESXP können das Ergebnis beeinflussen. Angebrochene FY-Randwochen zählen wie im Forecast als Wochen."}}">
+    <div class="kpi-heading">{{t "Forecast Accuracy"}}</div>
     <div class="kpi-value kpi-split">
-      <div><span class="kpi-part">{{if .Accuracy.HasData}}{{pct .Accuracy.Percentage}}{{else}}–{{end}}</span><small>Aktuell · ESXP</small></div>
-      <div><span class="kpi-part">{{if .Accuracy.HasProjection}}{{pct .Accuracy.MinimumPct}}{{else}}–{{end}}</span><small>Minimum FY-Ende</small></div>
+      <div><span class="kpi-part">{{if .Accuracy.HasData}}{{pct .Accuracy.Percentage}}{{else}}–{{end}}</span><small>{{t "Aktuell · ESXP"}}</small></div>
+      <div><span class="kpi-part">{{if .Accuracy.HasProjection}}{{pct .Accuracy.MinimumPct}}{{else}}–{{end}}</span><small>{{t "Minimum FY-Ende"}}</small></div>
     </div>
     {{if or .Accuracy.Stale .Accuracy.Error}}
     <div class="kpi-sub">
-      {{if .Accuracy.Stale}}<div>Stand veraltet · ESXP neu synchronisieren</div>{{end}}
-      {{if .Accuracy.Error}}<div role="alert">{{.Accuracy.Error}}</div>{{end}}
+      {{if .Accuracy.Stale}}<div>{{t "Stand veraltet · ESXP neu synchronisieren"}}</div>{{end}}
+      {{if .Accuracy.Error}}<div role="alert">{{t .Accuracy.Error}}</div>{{end}}
     </div>
     {{end}}
   </div>
-  <div class="card kpi" title="Summe der Assignment-Budgets für das Fiskaljahr {{.Settings.Year}} – ohne Urlaubsprojekt.&#10;&#10;Budget der Assignments insgesamt: {{hours .Summary.TotalBudget}} h&#10;{{if .Summary.HasCarryOver}}Davon in früheren Fiskaljahren verbraucht: −{{hours .Summary.TotalCarryOver}} h&#10;{{end}}{{if .Summary.HasReleased}}Durch inaktive Projekte freigegeben: −{{hours .Summary.TotalReleased}} h&#10;{{end}}In diesem Fiskaljahr verfügbar: {{hours .Summary.TotalAvailable}} h&#10;&#10;Bereits verplant (gebucht + Forecast): {{hours .Summary.TotalHours}} h&#10;Budget noch nicht verplant: {{hours .Summary.TotalRemaining}} h">
-    <div class="kpi-value">{{hours .Summary.TotalAvailable}} h</div>
-    <div class="kpi-label">Budget gesamt</div>
+  <div class="card kpi" title="{{t "Summe der Assignment-Budgets für das Fiskaljahr"}} {{.Settings.Year}} {{t "– ohne Urlaubsprojekt. Budget der Assignments insgesamt:"}} {{hours .Summary.TotalBudget}} {{t "h"}}{{if .Summary.HasCarryOver}}{{t "Davon in früheren Fiskaljahren verbraucht: −"}}{{hours .Summary.TotalCarryOver}} {{t "h"}}{{end}}{{if .Summary.HasReleased}}{{t "Durch inaktive Projekte freigegeben: −"}}{{hours .Summary.TotalReleased}} {{t "h"}}{{end}}{{t "In diesem Fiskaljahr verfügbar:"}} {{hours .Summary.TotalAvailable}} {{t "h Bereits verplant (gebucht + Forecast):"}} {{hours .Summary.TotalHours}} {{t "h Budget noch nicht verplant:"}} {{hours .Summary.TotalRemaining}} {{t "h"}}">
+    <div class="kpi-value">{{hours .Summary.TotalAvailable}} {{t "h"}}</div>
+    <div class="kpi-label">{{t "Budget gesamt"}}</div>
   </div>
-  <div class="card kpi" title="Stunden, die ab heute im Fiskaljahr {{.Settings.Year}} geplant sind ({{.FYStart}} – {{.FYEnd}}) – ohne Urlaub.&#10;&#10;Bereits gebucht (vergangene Tage): {{hours .Summary.TotalActual}} h&#10;Gebucht + Forecast zusammen: {{hours .Summary.TotalHours}} h{{if .Goal.HasTarget}}&#10;Noch offen bis FY-Ziel: {{hours .Goal.Remaining}} h{{end}}">
-    <div class="kpi-value">{{hours .Summary.TotalForecast}} h</div>
-    <div class="kpi-label">Forecast gesamt</div>
+  <div class="card kpi" title="{{t "Stunden, die ab heute im Fiskaljahr"}} {{.Settings.Year}} {{t "geplant sind ("}}{{.FYStart}} – {{.FYEnd}}{{t ") – ohne Urlaub. Bereits gebucht (vergangene Tage):"}} {{hours .Summary.TotalActual}} {{t "h Gebucht + Forecast zusammen:"}} {{hours .Summary.TotalHours}} {{t "h"}}{{if .Goal.HasTarget}}{{t "Noch offen bis FY-Ziel:"}} {{hours .Goal.Remaining}} {{t "h"}}{{end}}">
+    <div class="kpi-value">{{hours .Summary.TotalForecast}} {{t "h"}}</div>
+    <div class="kpi-label">{{t "Forecast gesamt"}}</div>
   </div>
   {{if .Goal.HasTarget}}
-  <div class="card kpi" title="FY-Stundenziel für das gesamte Fiskaljahr {{.Settings.Year}} ({{.FYStart}} – {{.FYEnd}}), abzüglich allem, was schon gebucht oder geplant ist.&#10;&#10;{{hours .Goal.TargetHours}} h Jahresziel&#10;− {{hours .Goal.ActualTotal}} h gebucht&#10;− {{hours .Goal.ForecastRemaining}} h Forecast&#10;= {{hours .Goal.Remaining}} h offen&#10;&#10;Urlaub zählt nicht aufs Ziel. Das Ziel ergibt sich aus der Stundenkonfiguration in den Einstellungen.">
-    <div class="kpi-value">{{hours .Goal.Remaining}} h</div>
-    <div class="kpi-label">Offen bis Ziel</div>
+  <div class="card kpi" title="{{t "FY-Stundenziel für das gesamte Fiskaljahr"}} {{.Settings.Year}} ({{.FYStart}} – {{.FYEnd}}{{t "), abzüglich allem, was schon gebucht oder geplant ist."}}{{hours .Goal.TargetHours}} {{t "h Jahresziel −"}} {{hours .Goal.ActualTotal}} {{t "h gebucht −"}} {{hours .Goal.ForecastRemaining}} {{t "h Forecast ="}} {{hours .Goal.Remaining}} {{t "h offen Urlaub zählt nicht aufs Ziel. Das Ziel ergibt sich aus der Stundenkonfiguration in den Einstellungen."}}">
+    <div class="kpi-value">{{hours .Goal.Remaining}} {{t "h"}}</div>
+    <div class="kpi-label">{{t "Offen bis Ziel"}}</div>
   </div>
   {{else}}
-  <div class="card kpi" title="Für das Fiskaljahr {{.Settings.Year}} ergibt die Stundenkonfiguration kein Ziel. Pflege sie in den Einstellungen unter „Stundenkonfiguration“.">
+  <div class="card kpi" title="{{t "Für das Fiskaljahr"}} {{.Settings.Year}} {{t "ergibt die Stundenkonfiguration kein Ziel. Pflege sie in den Einstellungen unter „Stundenkonfiguration“."}}">
     <div class="kpi-value muted">–</div>
-    <div class="kpi-label">Offen bis Ziel</div>
+    <div class="kpi-label">{{t "Offen bis Ziel"}}</div>
   </div>
   {{end}}
-  <div class="card kpi" title="Assignments im Fiskaljahr {{.Settings.Year}} – inklusive Urlaub.&#10;&#10;Davon aktiv: {{.ActiveProjects}}">
+  <div class="card kpi" title="{{t "Assignments im Fiskaljahr"}} {{.Settings.Year}} {{t "– inklusive Urlaub. Davon aktiv:"}} {{.ActiveProjects}}">
     <div class="kpi-value">{{len .Projects}}</div>
-    <div class="kpi-label">Assignments</div>
+    <div class="kpi-label">{{t "Assignments"}}</div>
   </div>
-  <div class="card kpi" title="FYW {{.CurrentWeek}} von {{.FYWeekCount}} im Fiskaljahr {{.Settings.Year}}{{if .CurrentRange}}&#10;{{.CurrentRange}}{{end}}&#10;&#10;Klick öffnet diese Woche in der Monatsplanung.">
-    <div class="kpi-value"><a href="/month?month={{.CurrentMonth}}#fyw-{{.CurrentWeek}}">FYW {{.CurrentWeek}}</a></div>
-    <div class="kpi-label">Aktuelle FY-Woche</div>
+  <div class="card kpi" title="{{t "FYW"}} {{.CurrentWeek}} {{t "von"}} {{.FYWeekCount}} {{t "im Fiskaljahr"}} {{.Settings.Year}}{{if .CurrentRange}}&#10;{{.CurrentRange}}{{end}}{{t "Klick öffnet diese Woche in der Monatsplanung."}}">
+    <div class="kpi-value"><a href="/month?month={{.CurrentMonth}}#fyw-{{.CurrentWeek}}">{{t "FYW"}} {{.CurrentWeek}}</a></div>
+    <div class="kpi-label">{{t "Aktuelle FY-Woche"}}</div>
   </div>
 </section>
 
 <section class="card sankey-card">
   <div class="sankey-head">
-    <h2>Auslastung</h2>
-    <span class="sankey-meta">{{.Sankey.RangeLabel}} · Summe {{hours .Sankey.Total}} h · frei {{hours .Sankey.FreeTotal}} h</span>
+    <h2>{{t "Auslastung"}}</h2>
+    <span class="sankey-meta">{{.Sankey.RangeLabel}} {{t "· Summe"}} {{hours .Sankey.Total}} {{t "h · frei"}} {{hours .Sankey.FreeTotal}} {{t "h"}}</span>
   </div>
   <div class="sankey-nav">
-    {{if .Sankey.CanPrev}}<a class="btn nav-btn" href="/?sankey={{.Sankey.RangeKey}}&amp;soff={{.Sankey.PrevOffset}}" title="Zeitraum zurück">‹ zurück</a>{{else}}<span class="btn nav-btn disabled">‹ zurück</span>{{end}}
-    {{if ne .Sankey.Offset 0}}<a class="btn nav-btn" href="/?sankey={{.Sankey.RangeKey}}" title="Zurück zur aktuellen Woche">Heute</a>{{else}}<span class="btn nav-btn disabled" title="Der aktuelle Zeitraum wird bereits angezeigt">Heute</span>{{end}}
-    {{if .Sankey.CanNext}}<a class="btn nav-btn" href="/?sankey={{.Sankey.RangeKey}}&amp;soff={{.Sankey.NextOffset}}" title="Zeitraum weiter">weiter ›</a>{{else}}<span class="btn nav-btn disabled">weiter ›</span>{{end}}
+    {{if .Sankey.CanPrev}}<a class="btn nav-btn" href="/?sankey={{.Sankey.RangeKey}}&amp;soff={{.Sankey.PrevOffset}}" title="{{t "Zeitraum zurück"}}">{{t "‹ zurück"}}</a>{{else}}<span class="btn nav-btn disabled">{{t "‹ zurück"}}</span>{{end}}
+    {{if ne .Sankey.Offset 0}}<a class="btn nav-btn" href="/?sankey={{.Sankey.RangeKey}}" title="{{t "Zurück zur aktuellen Woche"}}">{{t "Heute"}}</a>{{else}}<span class="btn nav-btn disabled" title="{{t "Der aktuelle Zeitraum wird bereits angezeigt"}}">{{t "Heute"}}</span>{{end}}
+    {{if .Sankey.CanNext}}<a class="btn nav-btn" href="/?sankey={{.Sankey.RangeKey}}&amp;soff={{.Sankey.NextOffset}}" title="{{t "Zeitraum weiter"}}">{{t "weiter ›"}}</a>{{else}}<span class="btn nav-btn disabled">{{t "weiter ›"}}</span>{{end}}
   </div>
   <div class="span-ctl sankey-ctl">
-    <span class="span-ctl-label">Zeitraum:</span>
-    {{range .SankeyRanges}}<a class="chip{{if eq .Key $.Sankey.RangeKey}} active{{end}}" href="/?sankey={{.Key}}">{{.Label}}</a>{{end}}
+    <span class="span-ctl-label">{{t "Zeitraum:"}}</span>
+    {{range .SankeyRanges}}<a class="chip{{if eq .Key $.Sankey.RangeKey}} active{{end}}" href="/?sankey={{.Key}}">{{t .Label}}</a>{{end}}
   </div>
-  {{if ne .Sankey.Offset 0}}<p class="hint sankey-shift">Verschobener Zeitraum – „Heute“ springt zurück zur aktuellen Woche.</p>{{end}}
+  {{if ne .Sankey.Offset 0}}<p class="hint sankey-shift">{{t "Verschobener Zeitraum – „Heute“ springt zurück zur aktuellen Woche."}}</p>{{end}}
   <div class="sankey-wrap">{{.SankeySVG}}</div>
-  {{if not .Sankey.Projects}}<p class="hint">Keine geplanten Projektstunden im gewählten Zeitraum.</p>{{end}}
-  <h3 class="chart-sub">Freie Kapazität</h3>
+  {{if not .Sankey.Projects}}<p class="hint">{{t "Keine geplanten Projektstunden im gewählten Zeitraum."}}</p>{{end}}
+  <h3 class="chart-sub">{{t "Freie Kapazität"}}</h3>
   <div class="sankey-wrap">{{.FreeTimeSVG}}</div>
 </section>
 
-<h2>Budgets</h2>
+<h2>{{t "Budgets"}}</h2>
 {{if .Summary.Projects}}
 {{if .Summary.HasCarryOver}}
-<p class="hint">Ein Assignment kann über mehrere Fiskaljahre laufen. Die Spalte <strong>Übertrag</strong> zeigt die Stunden,
-  die in <em>früheren</em> Fiskaljahren bereits auf dieselbe Assignment ID gebucht wurden – sie werden vom Budget abgezogen,
-  bevor Rest und Burnrate berechnet werden.</p>
+<p class="hint">{{t "Ein Assignment kann über mehrere Fiskaljahre laufen. Die Spalte"}} <strong>{{t "Übertrag"}}</strong> {{t "zeigt die Stunden, die in"}} <em>{{t "früheren"}}</em> {{t "Fiskaljahren bereits auf dieselbe Assignment ID gebucht wurden – sie werden vom Budget abgezogen, bevor Rest und Burnrate berechnet werden."}}</p>
 {{end}}
 {{if .Summary.HasReleased}}
-<p class="hint">Ein <strong>inaktives</strong> Projekt ist abgeschlossen: Gebuchte und geplante Stunden bleiben erhalten, das nicht verplante
-  Restbudget wird freigegeben und zählt weder in Budget noch in Rest oder Burnrate. Insgesamt sind das
-  <strong>{{hours .Summary.TotalReleased}} h</strong>.</p>
+<p class="hint">{{t "Ein"}} <strong>{{t "inaktives"}}</strong> {{t "Projekt ist abgeschlossen: Gebuchte und geplante Stunden bleiben erhalten, das nicht verplante Restbudget wird freigegeben und zählt weder in Budget noch in Rest oder Burnrate. Insgesamt sind das"}}
+  <strong>{{hours .Summary.TotalReleased}} {{t "h"}}</strong>.</p>
 {{end}}
-<p class="hint">Die Balken <strong>Verplant</strong> und <strong>Gebucht</strong> beziehen sich auf das in diesem Fiskaljahr
-  <em>verfügbare</em> Budget (Budget abzüglich Übertrag). „Verplant 100 %“ heißt also: die verfügbaren Stunden sind
-  vollständig verplant, egal ob schon gebucht oder noch Forecast.</p>
+<p class="hint">{{t "Die Balken"}} <strong>{{t "Verplant"}}</strong> {{t "und"}} <strong>{{t "Gebucht"}}</strong> {{t "beziehen sich auf das in diesem Fiskaljahr"}}
+  <em>{{t "verfügbare"}}</em> {{t "Budget (Budget abzüglich Übertrag). „Verplant 100 %“ heißt also: die verfügbaren Stunden sind vollständig verplant, egal ob schon gebucht oder noch Forecast."}}</p>
 <table class="grid budgets">
   <thead>
-    <tr><th>Projekt</th><th class="num">Budget</th>{{if .Summary.HasCarryOver}}<th class="num">Übertrag</th>{{end}}<th class="num">Forecast</th><th class="num">Gebucht</th><th class="num">Rest</th><th>Zeitraum</th><th class="num burncol">Burnrate</th><th class="utilcol">Auslastung</th></tr>
+    <tr><th>{{t "Projekt"}}</th><th class="num">{{t "Budget"}}</th>{{if .Summary.HasCarryOver}}<th class="num">{{t "Übertrag"}}</th>{{end}}<th class="num">{{t "Forecast"}}</th><th class="num">{{t "Gebucht"}}</th><th class="num">{{t "Rest"}}</th><th>{{t "Zeitraum"}}</th><th class="num burncol">{{t "Burnrate"}}</th><th class="utilcol">{{t "Auslastung"}}</th></tr>
   </thead>
   <tbody>
   {{range .Summary.Projects}}
     <tr>
-      <td><span class="dot" style="background:{{.Project.Color}}"></span>{{.Project.Name}}{{if .Project.AssignmentID}} <code class="assignmentid">{{.Project.AssignmentID}}</code>{{end}}{{if not .Project.Active}} <em title="Inaktiv – nicht verplantes Restbudget{{if gt .Released 0.0}} ({{hours .Released}} h){{end}} ist freigegeben">(inaktiv)</em>{{end}}</td>
-      <td class="num">{{hours .Project.BudgetHours}} h</td>
-      {{if $.Summary.HasCarryOver}}<td class="num carrycol">{{if gt .CarryOver 0.0}}<span title="in früheren Fiskaljahren auf dieselbe Assignment ID gebucht">−{{hours .CarryOver}} h</span>{{else}}<span class="muted">–</span>{{end}}</td>{{end}}
-      <td class="num">{{hours .Forecast}} h</td>
-      <td class="num ist">{{hours .Actual}} h</td>
-      <td class="num {{if lt .Remaining 0.0}}negative{{end}}">{{hours .Remaining}} h</td>
-      <td><small>{{.StartLabel}} – {{.EndLabel}} <span class="muted">({{.RemainingLabel}})</span>{{if gt .OutOfWindow 0.0}} <span class="warn" title="außerhalb des Zeitraums gebucht">⚠ {{hours .OutOfWindow}} h</span>{{end}}</small></td>
-      <td class="num burncol"><small title="Verfügbares Budget ({{hours .AvailableBudget}} h) gleichmäßig über {{.WindowWorkdays}} Arbeitstage">{{hours .BurnPerWeek}} h/Woche</small>{{if gt .RemainingWorkdays 0}}<small class="muted" title="Noch nicht verplantes Budget über {{.RemainingWorkdays}} verbleibende Arbeitstage">offen {{hours .RequiredPerWeek}} h/Woche</small>{{end}}</td>
+      <td><span class="dot" style="background:{{.Project.Color}}"></span>{{.Project.Name}}{{if .Project.AssignmentID}} <code class="assignmentid">{{.Project.AssignmentID}}</code>{{end}}{{if not .Project.Active}} <em title="{{t "Inaktiv – nicht verplantes Restbudget"}}{{if gt .Released 0.0}} ({{hours .Released}} {{t "h)"}}{{end}} {{t "ist freigegeben"}}">{{t "(inaktiv)"}}</em>{{end}}</td>
+      <td class="num">{{hours .Project.BudgetHours}} {{t "h"}}</td>
+      {{if $.Summary.HasCarryOver}}<td class="num carrycol">{{if gt .CarryOver 0.0}}<span title="{{t "in früheren Fiskaljahren auf dieselbe Assignment ID gebucht"}}">−{{hours .CarryOver}} {{t "h"}}</span>{{else}}<span class="muted">–</span>{{end}}</td>{{end}}
+      <td class="num">{{hours .Forecast}} {{t "h"}}</td>
+      <td class="num ist">{{hours .Actual}} {{t "h"}}</td>
+      <td class="num {{if lt .Remaining 0.0}}negative{{end}}">{{hours .Remaining}} {{t "h"}}</td>
+      <td><small>{{.StartLabel}} – {{.EndLabel}} <span class="muted">({{.RemainingLabel}})</span>{{if gt .OutOfWindow 0.0}} <span class="warn" title="{{t "außerhalb des Zeitraums gebucht"}}">⚠ {{hours .OutOfWindow}} {{t "h"}}</span>{{end}}</small></td>
+      <td class="num burncol"><small title="{{t "Verfügbares Budget ("}}{{hours .AvailableBudget}} {{t "h) gleichmäßig über"}} {{.WindowWorkdays}} {{t "Arbeitstage"}}">{{hours .BurnPerWeek}} {{t "h/Woche"}}</small>{{if gt .RemainingWorkdays 0}}<small class="muted" title="{{t "Noch nicht verplantes Budget über"}} {{.RemainingWorkdays}} {{t "verbleibende Arbeitstage"}}">{{t "offen"}} {{hours .RequiredPerWeek}} {{t "h/Woche"}}</small>{{end}}</td>
       <td class="utilcol">
         {{if gt .CarryOver 0.0}}
-        <div class="barrow" title="Anteil des gesamten Assignment-Budgets ({{hours .Project.BudgetHours}} h), der in früheren Fiskaljahren verbraucht wurde">
-          <span class="barkey">Übertrag</span>
+        <div class="barrow" title="{{t "Anteil des gesamten Assignment-Budgets ("}}{{hours .Project.BudgetHours}} {{t "h), der in früheren Fiskaljahren verbraucht wurde"}}">
+          <span class="barkey">{{t "Übertrag"}}</span>
           <div class="bar"><span style="width:{{barWidth .CarryOverPct}}%;background:{{.Project.Color}};opacity:0.2"></span></div>
           <small>{{hours .CarryOverPct}} %</small>
         </div>
         {{end}}
-        <div class="barrow" title="Gebucht + Forecast ({{hours .Consumed}} h) vom in diesem Fiskaljahr verfügbaren Budget ({{hours .AvailableBudget}} h) – 100 % heißt, die verfügbaren Stunden sind komplett verplant">
-          <span class="barkey">Verplant</span>
+        <div class="barrow" title="{{t "Gebucht + Forecast ("}}{{hours .Consumed}} {{t "h) vom in diesem Fiskaljahr verfügbaren Budget ("}}{{hours .AvailableBudget}} {{t "h) – 100 % heißt, die verfügbaren Stunden sind komplett verplant"}}">
+          <span class="barkey">{{t "Verplant"}}</span>
           <div class="bar"><span style="width:{{barWidth .PlannedPct}}%;background:{{.Project.Color}};opacity:0.45"></span></div>
           <small>{{hours .PlannedPct}} %</small>
         </div>
-        <div class="barrow" title="Bereits gebucht ({{hours .Actual}} h) vom in diesem Fiskaljahr verfügbaren Budget ({{hours .AvailableBudget}} h)">
-          <span class="barkey">Gebucht</span>
+        <div class="barrow" title="{{t "Bereits gebucht ("}}{{hours .Actual}} {{t "h) vom in diesem Fiskaljahr verfügbaren Budget ("}}{{hours .AvailableBudget}} {{t "h)"}}">
+          <span class="barkey">{{t "Gebucht"}}</span>
           <div class="bar"><span style="width:{{barWidth .ActualPct}}%;background:{{.Project.Color}}"></span></div>
           <small>{{hours .ActualPct}} %</small>
         </div>
@@ -148,7 +144,7 @@
   </tbody>
 </table>
 {{else}}
-<p class="empty">Noch keine Projekte. Lege im Bereich <a href="/projects">Projekte</a> dein erstes Projekt an.</p>
+<p class="empty">{{t "Noch keine Projekte. Lege im Bereich"}} <a href="/projects">{{t "Projekte"}}</a> {{t "dein erstes Projekt an."}}</p>
 {{end}}
 
 {{template "weeklyutilization" .Summary}}

@@ -11,6 +11,7 @@ import (
 	"github.com/daknoblo/forecast-tool/internal/ai"
 	"github.com/daknoblo/forecast-tool/internal/forecast"
 	"github.com/daknoblo/forecast-tool/internal/holidays"
+	"github.com/daknoblo/forecast-tool/internal/i18n"
 	"github.com/daknoblo/forecast-tool/internal/models"
 )
 
@@ -174,7 +175,7 @@ func projectMonthLines(d models.Data, cal *holidays.Calendar) []string {
 // document and the model only sees aggregated numbers.
 func (s *Server) handleGoalChat(w http.ResponseWriter, r *http.Request) {
 	if isPrivate(r) {
-		writeJSONError(w, http.StatusForbidden, "Im privaten Modus ist die Auswertung deaktiviert.")
+		s.localizedJSONError(w, r, http.StatusForbidden, "Im privaten Modus ist die Auswertung deaktiviert.")
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<16)
@@ -184,12 +185,12 @@ func (s *Server) handleGoalChat(w http.ResponseWriter, r *http.Request) {
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&in); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "Ungültige Anfrage.")
+		s.localizedJSONError(w, r, http.StatusBadRequest, "Ungültige Anfrage.")
 		return
 	}
 	prompt := capLen(trim(in.Prompt), maxChatPrompt)
 	if prompt == "" {
-		writeJSONError(w, http.StatusBadRequest, "Bitte gib eine Frage ein.")
+		s.localizedJSONError(w, r, http.StatusBadRequest, "Bitte gib eine Frage ein.")
 		return
 	}
 
@@ -197,7 +198,7 @@ func (s *Server) handleGoalChat(w http.ResponseWriter, r *http.Request) {
 	cfg, err := s.aiConfig(r.Context(), d.Settings.AI)
 	if err != nil {
 		s.logger.Warn("ai configuration unavailable", "error", err)
-		writeJSONError(w, http.StatusServiceUnavailable, err.Error())
+		s.localizedJSONError(w, r, http.StatusServiceUnavailable, err.Error())
 		return
 	}
 
@@ -206,10 +207,10 @@ func (s *Server) handleGoalChat(w http.ResponseWriter, r *http.Request) {
 	user := "Daten:\n" + context + "\nFrage des Nutzers:\n" + prompt
 
 	s.logger.Info("chat requested", "promptChars", len(prompt), "contextChars", len(context))
-	answer, err := ai.Ask(r.Context(), cfg, chatSystemPrompt, user, s.logger)
+	answer, err := ai.Ask(r.Context(), cfg, i18n.Text(d.Settings.Language, chatSystemPrompt), user, s.logger)
 	if err != nil {
 		s.logger.Error("chat failed", "error", err)
-		writeJSONError(w, http.StatusBadGateway, err.Error())
+		s.localizedJSONError(w, r, http.StatusBadGateway, err.Error())
 		return
 	}
 

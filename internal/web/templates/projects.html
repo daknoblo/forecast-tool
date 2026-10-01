@@ -1,22 +1,21 @@
 {{template "header" .}}
-<h1>Projekte <span class="fy-badge">FY {{.Settings.Year}}</span></h1>
-<p class="hint">Projekte gehören zum aktiven Fiskaljahr ({{.Settings.Year}}). Über die FY-Auswahl oben rechts wechselst du das Jahr; läuft ein Projekt über das FY hinaus, lege es im neuen FY erneut an – mit <strong>derselben Assignment ID</strong>. Die im Vorjahr bereits gebuchten Stunden werden dann automatisch als „Übertrag“ vom Budget abgezogen.</p>
+<h1>{{t "Projekte"}} <span class="fy-badge">{{t "FY"}} {{.Settings.Year}}</span></h1>
+<p class="hint">{{t "Projekte gehören zum aktiven Fiskaljahr ("}}{{.Settings.Year}}{{t "). Über die FY-Auswahl oben rechts wechselst du das Jahr; läuft ein Projekt über das FY hinaus, lege es im neuen FY erneut an – mit"}} <strong>{{t "derselben Assignment ID"}}</strong>{{t ". Die im Vorjahr bereits gebuchten Stunden werden dann automatisch als „Übertrag“ vom Budget abgezogen."}}</p>
 
 {{if .Private}}
-<p class="hint">Der <strong>private Modus</strong> ist aktiv: Die folgenden Projekte sind Beispieldaten und das Bearbeiten ist gesperrt.
-  Schalte ihn oben rechts aus, um deine echten Projekte zu pflegen.</p>
+<p class="hint">{{t "Der"}} <strong>{{t "private Modus"}}</strong> {{t "ist aktiv: Die folgenden Projekte sind Beispieldaten und das Bearbeiten ist gesperrt. Schalte ihn oben rechts aus, um deine echten Projekte zu pflegen."}}</p>
 {{else}}
 <section class="card">
-  <h2>Neues Projekt</h2>
+  <h2>{{t "Neues Projekt"}}</h2>
   <form method="post" action="/projects" class="form-row">
-    <label>Name <input type="text" name="name" required></label>
-    <label>Assignment ID <input type="text" name="assignmentId" placeholder="5641245" required></label>
-    <label>Budget (h) <input type="text" inputmode="decimal" name="budget" value="0"></label>
-    <label>Start <input type="date" name="startDate"></label>
-    <label>Ende <input type="date" name="endDate"></label>
-    <button type="submit" class="btn primary">Anlegen</button>
+    <label>{{t "Name"}} <input type="text" name="name" required></label>
+    <label>{{t "Assignment ID"}} <input type="text" name="assignmentId" placeholder="5641245" required></label>
+    <label>{{t "Budget (h)"}} <input type="text" inputmode="decimal" name="budget" value="0"></label>
+    <label>{{t "Start"}} <input type="date" name="startDate"></label>
+    <label>{{t "Ende"}} <input type="date" name="endDate"></label>
+    <button type="submit" class="btn primary">{{t "Anlegen"}}</button>
   </form>
-  <p class="hint">Die <strong>Assignment ID</strong> identifiziert das Projekt eindeutig (Pflichtfeld, z. B. <code>5641245</code>). Die Farbe wird automatisch aus einer kontrastreichen Palette vergeben. Du kannst sie unter „Bearbeiten“ jederzeit ändern. Start/Ende grenzen den Buchungszeitraum ein – ohne Angabe gilt das ganze Fiskaljahr.</p>
+  <p class="hint">{{t "Die"}} <strong>{{t "Assignment ID"}}</strong> {{t "identifiziert das Projekt eindeutig (Pflichtfeld, z. B."}} <code>5641245</code>{{t "). Die Farbe wird automatisch aus einer kontrastreichen Palette vergeben. Du kannst sie unter „Bearbeiten“ jederzeit ändern. Start/Ende grenzen den Buchungszeitraum ein – ohne Angabe gilt das ganze Fiskaljahr."}}</p>
 </section>
 {{end}}
 
@@ -24,43 +23,43 @@
 {{range .Views}}
 <section class="card project">
   <div class="project-head">
-    <h2><span class="dot" style="background:{{.Summary.Project.Color}}"></span>{{.Summary.Project.Name}}{{if .Summary.Project.AssignmentID}} <code class="assignmentid">{{.Summary.Project.AssignmentID}}</code>{{end}}{{if .Summary.Project.IsVacation}} <span class="fy-badge">automatisch · Urlaub</span>{{end}}{{if not .Summary.Project.Active}} <span class="fy-badge inactive" title="Inaktiv: nicht verplantes Restbudget ist freigegeben.">inaktiv</span>{{end}}</h2>
+    <h2><span class="dot" style="background:{{.Summary.Project.Color}}"></span>{{.Summary.Project.Name}}{{if .Summary.Project.AssignmentID}} <code class="assignmentid">{{.Summary.Project.AssignmentID}}</code>{{end}}{{if .Summary.Project.IsVacation}} <span class="fy-badge">{{t "automatisch · Urlaub"}}</span>{{end}}{{if not .Summary.Project.Active}} <span class="fy-badge inactive" title="{{t "Inaktiv: nicht verplantes Restbudget ist freigegeben."}}">{{t "inaktiv"}}</span>{{end}}</h2>
     <div class="project-kpis">
-      <span>Budget <strong>{{hours .Summary.Project.BudgetHours}} h</strong></span>
-      {{if gt .Summary.CarryOver 0.0}}<span title="in früheren Fiskaljahren auf dieselbe Assignment ID gebucht">Übertrag <strong>−{{hours .Summary.CarryOver}} h</strong></span>
-      <span>Verfügbar <strong>{{hours .Summary.AvailableBudget}} h</strong></span>{{end}}
-      {{if gt .Summary.Released 0.0}}<span title="Nicht verplante Reststunden – freigegeben, weil das Projekt inaktiv ist">Freigegeben <strong>−{{hours .Summary.Released}} h</strong></span>{{end}}
-      <span>Forecast <strong>{{hours .Summary.Forecast}} h</strong></span>
-      <span>Ist gebucht <strong>{{hours .Summary.Actual}} h</strong></span>
-      <span class="{{if lt .Summary.Remaining 0.0}}negative{{end}}">Rest <strong>{{hours .Summary.Remaining}} h</strong></span>
-      {{if gt .Summary.FutureFY 0.0}}<span title="liegt datumsmäßig bereits im nächsten Fiskaljahr">Späteres FY <strong>{{hours .Summary.FutureFY}} h</strong></span>{{end}}
-      <span>Burnrate <strong>{{hours .Summary.BurnPerWeek}} h/Woche</strong></span>
-      <span>Auslastung <strong>{{hours .Summary.UtilizationPct}} %</strong></span>
+      <span>{{t "Budget"}} <strong>{{hours .Summary.Project.BudgetHours}} {{t "h"}}</strong></span>
+      {{if gt .Summary.CarryOver 0.0}}<span title="{{t "in früheren Fiskaljahren auf dieselbe Assignment ID gebucht"}}">{{t "Übertrag"}} <strong>−{{hours .Summary.CarryOver}} {{t "h"}}</strong></span>
+      <span>{{t "Verfügbar"}} <strong>{{hours .Summary.AvailableBudget}} {{t "h"}}</strong></span>{{end}}
+      {{if gt .Summary.Released 0.0}}<span title="{{t "Nicht verplante Reststunden – freigegeben, weil das Projekt inaktiv ist"}}">{{t "Freigegeben"}} <strong>−{{hours .Summary.Released}} {{t "h"}}</strong></span>{{end}}
+      <span>{{t "Forecast"}} <strong>{{hours .Summary.Forecast}} {{t "h"}}</strong></span>
+      <span>{{t "Ist gebucht"}} <strong>{{hours .Summary.Actual}} {{t "h"}}</strong></span>
+      <span class="{{if lt .Summary.Remaining 0.0}}negative{{end}}">{{t "Rest"}} <strong>{{hours .Summary.Remaining}} {{t "h"}}</strong></span>
+      {{if gt .Summary.FutureFY 0.0}}<span title="{{t "liegt datumsmäßig bereits im nächsten Fiskaljahr"}}">{{t "Späteres FY"}} <strong>{{hours .Summary.FutureFY}} {{t "h"}}</strong></span>{{end}}
+      <span>{{t "Burnrate"}} <strong>{{hours .Summary.BurnPerWeek}} {{t "h/Woche"}}</strong></span>
+      <span>{{t "Auslastung"}} <strong>{{hours .Summary.UtilizationPct}} %</strong></span>
     </div>
   </div>
 
   {{if .Summary.SpansFY}}
   <div class="fy-split">
-    <span class="fy-split-head">Stunden je Fiskaljahr</span>
+    <span class="fy-split-head">{{t "Stunden je Fiskaljahr"}}</span>
     {{range .Summary.FYSplit}}
-    <span class="fy-chip{{if .Current}} current{{else if .Past}} past{{else}} future{{end}}">{{.Label}} <strong>{{hours .Hours}} h</strong></span>
+    <span class="fy-chip{{if .Current}} current{{else if .Past}} past{{else}} future{{end}}">{{.Label}} <strong>{{hours .Hours}} {{t "h"}}</strong></span>
     {{end}}
-    <small class="fy-split-hint">Die Zuordnung folgt dem <strong>Datum</strong> der Buchung: Dieses Assignment läuft über die Fiskaljahres­grenze, daher zählen Stunden bis zum FY-Ende ins alte und ab FY-Beginn ins neue Fiskaljahr.</small>
+    <small class="fy-split-hint">{{t "Die Zuordnung folgt dem"}} <strong>{{t "Datum"}}</strong> {{t "der Buchung: Dieses Assignment läuft über die Fiskaljahres­grenze, daher zählen Stunden bis zum FY-Ende ins alte und ab FY-Beginn ins neue Fiskaljahr."}}</small>
   </div>
   {{end}}
 
   <div class="project-window">
-    <span>Zeitraum <strong>{{.Summary.StartLabel}} – {{.Summary.EndLabel}}</strong>{{if .Summary.HasCustomWindow}} <span class="tag">eigener Zeitraum</span>{{end}}</span>
-    <span>Arbeitstage <strong>{{.Summary.WindowWorkdays}}</strong></span>
-    <span>Burnrate <strong>{{hours .Summary.BurnPerWeek}} h/Woche</strong> · {{hours .Summary.BurnPerWorkday}} h/Tag</span>
+    <span>{{t "Zeitraum"}} <strong>{{.Summary.StartLabel}} – {{.Summary.EndLabel}}</strong>{{if .Summary.HasCustomWindow}} <span class="tag">{{t "eigener Zeitraum"}}</span>{{end}}</span>
+    <span>{{t "Arbeitstage"}} <strong>{{.Summary.WindowWorkdays}}</strong></span>
+    <span>{{t "Burnrate"}} <strong>{{hours .Summary.BurnPerWeek}} {{t "h/Woche"}}</strong> · {{hours .Summary.BurnPerWorkday}} {{t "h/Tag"}}</span>
     {{if gt .Summary.RemainingWorkdays 0}}
-    <span>Noch zu verplanen <strong>{{hours .Summary.RequiredPerWorkday}} h/Tag</strong> <small>({{.Summary.RemainingWorkdays}} Arbeitstage bis Ende)</small></span>
+    <span>{{t "Noch zu verplanen"}} <strong>{{hours .Summary.RequiredPerWorkday}} {{t "h/Tag"}}</strong> <small>({{.Summary.RemainingWorkdays}} {{t "Arbeitstage bis Ende)"}}</small></span>
     {{end}}
     {{if gt .Summary.CarryOver 0.0}}
-    <span class="tag">Übertrag aus früheren Fiskaljahren berücksichtigt</span>
+    <span class="tag">{{t "Übertrag aus früheren Fiskaljahren berücksichtigt"}}</span>
     {{end}}
     {{if gt .Summary.OutOfWindow 0.0}}
-    <span class="warn">⚠ {{hours .Summary.OutOfWindow}} h außerhalb des Zeitraums gebucht</span>
+    <span class="warn">⚠ {{hours .Summary.OutOfWindow}} {{t "h außerhalb des Zeitraums gebucht"}}</span>
     {{end}}
   </div>
 
@@ -68,49 +67,49 @@
 
   {{if not $.Private}}
   <details>
-    <summary>Bearbeiten</summary>
+    <summary>{{t "Bearbeiten"}}</summary>
     <form method="post" action="/projects/{{.Summary.Project.ID}}/update" class="form-stack edit-form" data-autosave>
       <div class="form-row">
-        <label>Name <input type="text" name="name" value="{{.Summary.Project.Name}}"></label>
-        <label>Assignment ID <input type="text" name="assignmentId" value="{{.Summary.Project.AssignmentID}}" placeholder="5641245" {{if not .Summary.Project.IsVacation}}required{{end}}></label>
+        <label>{{t "Name"}} <input type="text" name="name" value="{{.Summary.Project.Name}}"></label>
+        <label>{{t "Assignment ID"}} <input type="text" name="assignmentId" value="{{.Summary.Project.AssignmentID}}" placeholder="5641245" {{if not .Summary.Project.IsVacation}}required{{end}}></label>
         {{if .Summary.Project.IsVacation}}
-        <label>Budget (h) <input type="text" value="{{hoursRaw .Summary.Project.BudgetHours}}" readonly title="Ergibt sich aus den Urlaubstagen in den Einstellungen"></label>
+        <label>{{t "Budget (h)"}} <input type="text" value="{{hoursRaw .Summary.Project.BudgetHours}}" readonly title="{{t "Ergibt sich aus den Urlaubstagen in den Einstellungen"}}"></label>
         {{else}}
-        <label>Budget (h) <input type="text" inputmode="decimal" name="budget" value="{{hoursRaw .Summary.Project.BudgetHours}}"></label>
+        <label>{{t "Budget (h)"}} <input type="text" inputmode="decimal" name="budget" value="{{hoursRaw .Summary.Project.BudgetHours}}"></label>
         {{end}}
       </div>
       <div class="form-row">
-        <label>Start <input type="date" name="startDate" value="{{.Summary.Project.StartDate}}"></label>
-        <label>Ende <input type="date" name="endDate" value="{{.Summary.Project.EndDate}}"></label>
-        <label>Farbe <input type="color" name="color" value="{{.Summary.Project.Color}}"></label>
+        <label>{{t "Start"}} <input type="date" name="startDate" value="{{.Summary.Project.StartDate}}"></label>
+        <label>{{t "Ende"}} <input type="date" name="endDate" value="{{.Summary.Project.EndDate}}"></label>
+        <label>{{t "Farbe"}} <input type="color" name="color" value="{{.Summary.Project.Color}}"></label>
         {{if .Summary.Project.Active}}
         <button type="submit" class="btn" name="active" value="0" formaction="/projects/{{.Summary.Project.ID}}/active" formnovalidate
-                title="Gebuchte und geplante Stunden bleiben erhalten. Das nicht verplante Restbudget wird freigegeben und zählt nicht mehr in Budget, Rest und Burnrate.">Auf inaktiv setzen</button>
+                title="{{t "Gebuchte und geplante Stunden bleiben erhalten. Das nicht verplante Restbudget wird freigegeben und zählt nicht mehr in Budget, Rest und Burnrate."}}">{{t "Auf inaktiv setzen"}}</button>
         {{else}}
         <button type="submit" class="btn primary" name="active" value="1" formaction="/projects/{{.Summary.Project.ID}}/active" formnovalidate
-                title="Das volle Budget zählt wieder und das Projekt wird wieder als aktiv geführt.">Wieder aktivieren</button>
+                title="{{t "Das volle Budget zählt wieder und das Projekt wird wieder als aktiv geführt."}}">{{t "Wieder aktivieren"}}</button>
         {{end}}
         {{if not .Summary.Project.IsVacation}}
         <button type="submit" class="btn danger" formaction="/projects/{{.Summary.Project.ID}}/delete" formnovalidate
-                onclick="return confirm('Projekt und alle erfassten Stunden löschen?');">Löschen</button>
+                onclick="return confirm('{{t "Projekt und alle erfassten Stunden löschen?"}}');">{{t "Löschen"}}</button>
         {{end}}
-        <span class="save-status ok" data-save-status>Automatisch gespeichert</span>
+        <span class="save-status ok" data-save-status>{{t "Automatisch gespeichert"}}</span>
       </div>
     </form>
     {{if .Summary.Project.IsVacation}}
-    <p class="hint">Urlaub wird tageweise über die API importiert und in der <a href="/month">Monatsplanung</a> angezeigt. Dort reduziert er die buchbare Kapazität. Die Stunden zählen in die Wochenauslastung auf Dashboard und Ziele, aber nicht aufs Jahresziel. Das <strong>Budget</strong> ergibt sich aus den Urlaubstagen in den <a href="/settings">Einstellungen</a> (Tage à 8 h). Löschen ist nicht möglich.</p>
+    <p class="hint">{{t "Urlaub wird tageweise über die API importiert und in der"}} <a href="/month">{{t "Monatsplanung"}}</a> {{t "angezeigt. Dort reduziert er die buchbare Kapazität. Die Stunden zählen in die Wochenauslastung auf Dashboard und Ziele, aber nicht aufs Jahresziel. Das"}} <strong>{{t "Budget"}}</strong> {{t "ergibt sich aus den Urlaubstagen in den"}} <a href="/settings">{{t "Einstellungen"}}</a> {{t "(Tage à 8 h). Löschen ist nicht möglich."}}</p>
     {{end}}
     {{if .Summary.Project.Active}}
-    <p class="hint">„Auf inaktiv setzen“ schließt das Projekt ab: Alle bereits gebuchten und geplanten Stunden bleiben unverändert erhalten, aber die <strong>nicht verplanten Reststunden</strong> werden freigegeben – sie zählen dann nicht mehr in Budget, Rest, Burnrate und Hochrechnung, weil sie voraussichtlich nicht mehr abgerufen werden.</p>
+    <p class="hint">{{t "„Auf inaktiv setzen“ schließt das Projekt ab: Alle bereits gebuchten und geplanten Stunden bleiben unverändert erhalten, aber die"}} <strong>{{t "nicht verplanten Reststunden"}}</strong> {{t "werden freigegeben – sie zählen dann nicht mehr in Budget, Rest, Burnrate und Hochrechnung, weil sie voraussichtlich nicht mehr abgerufen werden."}}</p>
     {{else}}
-    <p class="hint">Dieses Projekt ist <strong>inaktiv</strong>: {{if gt .Summary.Released 0.0}}{{hours .Summary.Released}} h nicht verplantes Restbudget sind freigegeben und zählen nicht mehr mit. {{end}}Gebuchte und geplante Stunden bleiben erhalten. „Wieder aktivieren“ macht das rückgängig.</p>
+    <p class="hint">{{t "Dieses Projekt ist"}} <strong>{{t "inaktiv"}}</strong>: {{if gt .Summary.Released 0.0}}{{hours .Summary.Released}} {{t "h nicht verplantes Restbudget sind freigegeben und zählen nicht mehr mit."}} {{end}}{{t "Gebuchte und geplante Stunden bleiben erhalten. „Wieder aktivieren“ macht das rückgängig."}}</p>
     {{end}}
   </details>
   {{end}}
 </section>
 {{end}}
 {{else}}
-<p class="empty">Noch keine Projekte angelegt.</p>
+<p class="empty">{{t "Noch keine Projekte angelegt."}}</p>
 {{end}}
 
 {{if not .Private}}{{template "autosave" .}}{{end}}

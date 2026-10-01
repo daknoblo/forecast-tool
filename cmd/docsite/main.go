@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/daknoblo/forecast-tool/internal/docsite"
@@ -29,21 +30,38 @@ func main() {
 	script := flag.String("capture", filepath.Join("tools", "screenshots", "capture.mjs"), "Playwright capture script")
 	withShots := flag.Bool("screenshots", true, "capture screenshots (needs node + playwright)")
 	requireShots := flag.Bool("require-screenshots", false, "fail when the screenshots cannot be captured")
+	language := flag.String("language", "de", "demo application language: de or en")
 	flag.Parse()
 
-	if err := run(*out, *repo, *script, *withShots, *requireShots); err != nil {
+	if err := run(*out, *repo, *script, *withShots, *requireShots, *language); err != nil {
 		fmt.Fprintln(os.Stderr, "docsite:", err)
 		os.Exit(1)
 	}
 }
 
-func run(out, repo, script string, withShots, requireShots bool) error {
-	if err := os.RemoveAll(out); err != nil {
+func run(out, repo, script string, withShots, requireShots bool, language string) error {
+	if language != "de" && language != "en" {
+		return fmt.Errorf("unsupported demo language %q; use de or en", language)
+	}
+	if requireShots && !withShots {
+		return fmt.Errorf("-require-screenshots cannot be combined with -screenshots=false")
+	}
+	if _, err := os.Lstat(out); err == nil {
+		return fmt.Errorf("output already exists: %s; choose a new directory", out)
+	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	if err := os.MkdirAll(out, 0o750); err != nil {
+	restore, err := isolateDemo()
+	if err != nil {
 		return err
 	}
+	defer restore()
+
+	staging, err := os.MkdirTemp(filepath.Dir(out), ".forecast-docsite-")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.RemoveAll(staging) }()
 
 	dataDir, err := os.MkdirTemp("", "forecast-demo-")
 	if err != nil {
@@ -52,7 +70,7 @@ func run(out, repo, script string, withShots, requireShots bool) error {
 	defer func() { _ = os.RemoveAll(dataDir) }()
 
 	today := time.Now().UTC()
-	if err := docsite.WriteDemoData(dataDir, today); err != nil {
+	if err := docsite.WriteDemoData(dataDir, today, language); err != nil {
 		return fmt.Errorf("demo data: %w", err)
 	}
 
@@ -63,21 +81,27 @@ func run(out, repo, script string, withShots, requireShots bool) error {
 	defer shutdown()
 	_ = srv
 
-	pages := docsite.DemoPages()
-	shots := docsite.DemoShots()
+	pages, err := docsite.DiscoverDemoPages(baseURL)
+	if err != nil {
+		return fmt.Errorf("discover navigation: %w", err)
+	}
+	shots := docsite.DemoShots(pages)
 
 	fmt.Println("docsite: snapshotting the demo instance from", baseURL)
-	if err := docsite.Snapshot(baseURL, filepath.Join(out, "demo"), pages); err != nil {
+	if err := docsite.Snapshot(baseURL, filepath.Join(staging, "demo"), pages); err != nil {
 		return err
 	}
 
 	if withShots {
 		fmt.Println("docsite: capturing screenshots")
-		if err := docsite.CaptureScreenshots(script, baseURL, filepath.Join(out, "screenshots"), shots); err != nil {
+		if err := docsite.CaptureScreenshots(script, baseURL, filepath.Join(staging, "screenshots"), shots, language); err != nil {
 			if requireShots {
 				return err
 			}
 			fmt.Fprintln(os.Stderr, "docsite: skipping screenshots:", err)
+			if err := os.RemoveAll(filepath.Join(staging, "screenshots")); err != nil {
+				return err
+			}
 			shots = nil
 		}
 	} else {
@@ -85,11 +109,52 @@ func run(out, repo, script string, withShots, requireShots bool) error {
 	}
 
 	fmt.Println("docsite: rendering the documentation pages")
-	if err := docsite.BuildSite(repo, out, shots, pages, today.Format("02.01.2006")); err != nil {
+	if err := docsite.BuildSite(repo, staging, shots, pages, today.Format("2006-01-02")); err != nil {
+		return err
+	}
+	if err := docsite.ValidateSite(staging, len(shots) > 0); err != nil {
+		return fmt.Errorf("validate site: %w", err)
+	}
+	if err := os.Rename(staging, out); err != nil {
 		return err
 	}
 	fmt.Println("docsite: wrote", out)
 	return nil
+}
+
+// isolateDemo applies only inside the short-lived docsite process. Neither
+// inherited credentials nor outbound HTTP connections belong in a public demo.
+func isolateDemo() (func(), error) {
+	saved := map[string]string{}
+	for _, item := range os.Environ() {
+		key, value, _ := strings.Cut(item, "=")
+		if strings.HasPrefix(key, "AZURE_") || strings.HasPrefix(key, "FORECAST_") || key == "DATA_DIR" {
+			saved[key] = value
+			if err := os.Unsetenv(key); err != nil {
+				return nil, err
+			}
+		}
+	}
+	old := http.DefaultTransport
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+			host, _, err := net.SplitHostPort(address)
+			if err != nil || !net.ParseIP(host).IsLoopback() {
+				return nil, fmt.Errorf("demo blocks outbound connection to %s", address)
+			}
+			return (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, network, address)
+		},
+	}
+	http.DefaultTransport = transport
+	return func() {
+		transport.CloseIdleConnections()
+		http.DefaultTransport = old
+		for key, value := range saved {
+			if err := os.Setenv(key, value); err != nil {
+				fmt.Fprintln(os.Stderr, "docsite: restore environment:", err)
+			}
+		}
+	}, nil
 }
 
 // startDemoServer runs the real application against the demo document on a
@@ -112,7 +177,7 @@ func startDemoServer(dataDir string) (*http.Server, string, func(), error) {
 		return nil, "", nil, err
 	}
 	httpSrv := &http.Server{
-		Handler:           srv.Handler(),
+		Handler:           readOnlyDemo(srv.Handler()),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	go func() {
@@ -132,6 +197,16 @@ func startDemoServer(dataDir string) (*http.Server, string, func(), error) {
 		_ = httpSrv.Shutdown(ctx)
 	}
 	return httpSrv, baseURL, shutdown, nil
+}
+
+func readOnlyDemo(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/export" {
+			http.Error(w, "Static demo: operation disabled", http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func waitReady(url string) error {

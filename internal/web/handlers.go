@@ -18,6 +18,7 @@ import (
 	"github.com/daknoblo/forecast-tool/internal/api"
 	"github.com/daknoblo/forecast-tool/internal/forecast"
 	"github.com/daknoblo/forecast-tool/internal/holidays"
+	"github.com/daknoblo/forecast-tool/internal/i18n"
 	"github.com/daknoblo/forecast-tool/internal/models"
 	"github.com/daknoblo/forecast-tool/internal/storage"
 )
@@ -44,7 +45,7 @@ type Server struct {
 	foundry *foundryState
 	monthAI monthAIState
 
-	tpl *template.Template
+	tpl map[string]*template.Template
 
 	staticFS http.Handler
 }
@@ -68,9 +69,21 @@ func NewServer(store *storage.Store, logger *slog.Logger) (*Server, error) {
 		"pct":      func(f float64) string { return formatHours(f) + " %" },
 		"barWidth": barWidth,
 	}
-	tpl, err := template.New("").Funcs(funcs).ParseFS(templateFS, "templates/*.html")
-	if err != nil {
-		return nil, err
+	templates := make(map[string]*template.Template)
+	for _, language := range []string{i18n.German, i18n.English} {
+		funcs["t"] = func(message string) string { return i18n.Text(language, message) }
+		funcs["language"] = func() string { return language }
+		funcs["defaultLabel"] = func(value, original string) string {
+			if value == original {
+				return i18n.Text(language, original)
+			}
+			return value
+		}
+		tpl, err := template.New("").Funcs(funcs).ParseFS(templateFS, "templates/*.html")
+		if err != nil {
+			return nil, err
+		}
+		templates[language] = tpl
 	}
 	sub, err := fs.Sub(staticFS, "static")
 	if err != nil {
@@ -80,7 +93,7 @@ func NewServer(store *storage.Store, logger *slog.Logger) (*Server, error) {
 		store:    store,
 		logger:   logger,
 		foundry:  newFoundryState(),
-		tpl:      tpl,
+		tpl:      templates,
 		staticFS: http.StripPrefix("/static/", cacheForever(http.FileServer(http.FS(sub)))),
 	}, nil
 }
@@ -118,7 +131,7 @@ func (s *Server) Handler() http.Handler {
 	root := http.NewServeMux()
 	// The unauthenticated HTML UI additionally requires state-changing requests
 	// to originate from this site (CSRF defence).
-	root.Handle("/", requireSameOrigin(mux))
+	root.Handle("/", s.withLanguage(requireSameOrigin(mux)))
 	// JSON API for external clients (token-protected; the HTML UI stays open).
 	// It is mounted outside the same-origin guard on purpose: it authenticates
 	// with a bearer token, which a cross-site form post can never supply.
@@ -139,12 +152,14 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, dat
 		m["Private"] = isPrivate(r)
 	}
 	var buf bytes.Buffer
-	if err := s.tpl.ExecuteTemplate(&buf, name, data); err != nil {
+	language := s.requestLanguage(r)
+	if err := s.tpl[language].ExecuteTemplate(&buf, name, data); err != nil {
 		s.logger.Error("template render failed", "template", name, "error", err)
-		http.Error(w, "render error", http.StatusInternalServerError)
+		http.Error(w, s.translate(r, "Die Seite konnte nicht dargestellt werden."), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Content-Language", language)
 	w.Header().Set("Content-Length", strconv.Itoa(buf.Len()))
 	_, _ = w.Write(buf.Bytes())
 }
@@ -199,12 +214,12 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		"CurrentRange":   curWeekRange,
 		"CurrentMonth":   curMonth,
 		"FYWeekCount":    len(ys.WeekTotals),
-		"FYStart":        fyStart.Format("02.01.2006"),
-		"FYEnd":          fyEnd.Format("02.01.2006"),
+		"FYStart":        i18n.Date(d.Settings.Language, fyStart),
+		"FYEnd":          i18n.Date(d.Settings.Language, fyEnd),
 		"Sankey":         sankey,
 		"SankeyRanges":   forecast.SankeyRanges,
-		"SankeySVG":      sankeySVG(sankey),
-		"FreeTimeSVG":    freeTimeSVG(sankey),
+		"SankeySVG":      sankeySVG(sankey, d.Settings.Language),
+		"FreeTimeSVG":    freeTimeSVG(sankey, d.Settings.Language),
 	})
 }
 
@@ -234,7 +249,7 @@ func (s *Server) handleProjects(w http.ResponseWriter, r *http.Request) {
 		pts := forecast.BuildBurndown(d, ps.Project.ID, ps.StartDate, ps.EndDate, ps.AvailableBudget)
 		views = append(views, projView{
 			Summary:  ps,
-			Burndown: burndownSVG(pts, ps.AvailableBudget, ps.Project.Color),
+			Burndown: burndownSVG(pts, ps.AvailableBudget, ps.Project.Color, d.Settings.Language),
 		})
 	}
 	sort.Slice(views, func(i, j int) bool {
@@ -251,7 +266,7 @@ func (s *Server) handleProjects(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad form", http.StatusBadRequest)
+		http.Error(w, s.translate(r, "Ungültiges Formular."), http.StatusBadRequest)
 		return
 	}
 	name := capLen(trim(r.FormValue("name")), 200)
@@ -292,7 +307,7 @@ func (s *Server) handleProjectCreate(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleProjectUpdate(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad form", http.StatusBadRequest)
+		http.Error(w, s.translate(r, "Ungültiges Formular."), http.StatusBadRequest)
 		return
 	}
 	id := r.PathValue("id")
@@ -347,7 +362,7 @@ func (s *Server) handleProjectUpdate(w http.ResponseWriter, r *http.Request) {
 // budget that was never planned — see forecast.ProjectSummary.Released.
 func (s *Server) handleProjectActive(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad form", http.StatusBadRequest)
+		http.Error(w, s.translate(r, "Ungültiges Formular."), http.StatusBadRequest)
 		return
 	}
 	id := r.PathValue("id")
@@ -397,6 +412,7 @@ func (s *Server) handleProjectDelete(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 	d := s.viewData(r)
+	presets := localizedChatPresets(d.Settings.Language)
 	cal := s.calendar(d)
 	gs := forecast.BuildGoalSummary(d, cal)
 	ys := forecast.BuildYearSummary(d, cal)
@@ -428,21 +444,21 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 			}
 			return v
 		}
-		fyChart = progressSVG(labels, cumulative(act), cumulative(proj), gs.TargetHours, pos, true, start)
+		fyChart = progressSVG(labels, cumulative(act), cumulative(proj), gs.TargetHours, pos, true, start, d.Settings.Language)
 		h1Chart = progressSVG(labels[:6], cumulative(act[:6]), cumulative(proj[:6]),
-			round1(gs.TargetHours/2), clamp(pos, 6), false, start)
+			round1(gs.TargetHours/2), clamp(pos, 6), false, start, d.Settings.Language)
 		h2Chart = progressSVG(labels[6:], cumulative(act[6:]), cumulative(proj[6:]),
-			round1(gs.TargetHours/2), clamp(pos-6, 6), false, start.AddDate(0, 6, 0))
+			round1(gs.TargetHours/2), clamp(pos-6, 6), false, start.AddDate(0, 6, 0), d.Settings.Language)
 		for q := 0; q < 4; q++ {
 			from, to := q*3, q*3+3
 			quarterCharts[q] = progressSVG(labels[from:to], cumulative(act[from:to]), cumulative(proj[from:to]),
-				round1(gs.TargetHours/4), clamp(pos-float64(from), 3), false, start.AddDate(0, from, 0))
+				round1(gs.TargetHours/4), clamp(pos-float64(from), 3), false, start.AddDate(0, from, 0), d.Settings.Language)
 		}
 	}
 
 	promptsJSON, err := json.Marshal(func() []string {
-		out := make([]string, len(chatPresets))
-		for i, p := range chatPresets {
+		out := make([]string, len(presets))
+		for i, p := range presets {
 			out[i] = p.Prompt
 		}
 		return out
@@ -461,13 +477,13 @@ func (s *Server) handleGoal(w http.ResponseWriter, r *http.Request) {
 		"H1Chart":         h1Chart,
 		"H2Chart":         h2Chart,
 		"QuarterCharts":   quarterCharts,
-		"FlowSVG":         goalFlowSVG(forecast.BuildGoalFlow(d, cal)),
+		"FlowSVG":         goalFlowSVG(forecast.BuildGoalFlow(d, cal), d.Settings.Language),
 		"Workload":        workload,
-		"WorkloadSVG":     workloadTimelineSVG(workload),
+		"WorkloadSVG":     workloadTimelineSVG(workload, d.Settings.Language),
 		"WorkloadBack":    forecast.BuildWorkload(d, forecast.WorkloadTileMonths),
 		"WorkloadLimit":   forecast.WorkdayLimitHours,
 		"WorkloadDayMax":  forecast.LongDayHours,
-		"ChatPresets":     chatPresets,
+		"ChatPresets":     presets,
 		"ChatPromptsJSON": template.JS(promptsJSON), // #nosec G203 -- JSON-encoded constants, no user input
 		"AIConfigured":    s.aiReady(d.Settings.AI),
 		"AIKeyEnv":        aiAPIKeyEnv,
@@ -497,8 +513,8 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		"DataSize":        formatBytes(s.store.FileSize()),
 		"FY":              fy,
 		"Capacity":        capacity,
-		"FYStart":         fyStart.Format("02.01.2006"),
-		"FYEnd":           fyEnd.Format("02.01.2006"),
+		"FYStart":         i18n.Date(d.Settings.Language, fyStart),
+		"FYEnd":           i18n.Date(d.Settings.Language, fyEnd),
 		"AIKeyEnv":        aiAPIKeyEnv,
 		"AIKeySet":        trim(os.Getenv(aiAPIKeyEnv)) != "",
 		"AIKeyInStore":    trim(d.Settings.AI.APIKey) != "",
@@ -512,7 +528,24 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad form", http.StatusBadRequest)
+		http.Error(w, s.translate(r, "Ungültiges Formular."), http.StatusBadRequest)
+		return
+	}
+	if r.FormValue("section") == "language" {
+		language := r.FormValue("language")
+		if !i18n.Valid(language) {
+			http.Error(w, s.translate(r, "Ungültige Sprache; erlaubt sind de und en"), http.StatusBadRequest)
+			return
+		}
+		if err := s.store.Mutate(func(d *models.Data) error {
+			d.Settings.Language = language
+			return nil
+		}); err != nil {
+			s.logger.Error("language save failed", "error", err)
+			http.Error(w, s.translate(r, "Die Sprache konnte nicht gespeichert werden."), http.StatusInternalServerError)
+			return
+		}
+		s.settingsSaved(w, r)
 		return
 	}
 	if trim(r.FormValue("section")) == "ai" {
@@ -527,6 +560,16 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 		optLabel := capLen(trim(r.FormValue("utilOptimalLabel")), 60)
 		highLabel := capLen(trim(r.FormValue("utilHighLabel")), 60)
 		overLabel := capLen(trim(r.FormValue("utilOverLabel")), 60)
+		canonical := func(value, original string) string {
+			if value == s.translate(r, original) {
+				return original
+			}
+			return value
+		}
+		minLabel = canonical(minLabel, models.DefaultMinLabel)
+		optLabel = canonical(optLabel, "Optimal")
+		highLabel = canonical(highLabel, "Zu hoch")
+		overLabel = canonical(overLabel, "Überbucht")
 		_ = s.store.Update(func(d *models.Data) error {
 			if minErr == nil && minH >= 0 {
 				d.Settings.Utilization.MinHours = minH
@@ -563,7 +606,7 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	stdHours, stdErr := strconv.ParseFloat(normalizeNum(r.FormValue("standardTaskHours")), 64)
 	dashboardRange := trim(r.FormValue("dashboardRange"))
 	if r.PostForm.Has("dashboardRange") && !models.ValidDashboardRange(dashboardRange) {
-		http.Error(w, "Ungültiger Dashboard-Zeitraum", http.StatusBadRequest)
+		http.Error(w, s.translate(r, "Ungültiger Dashboard-Zeitraum"), http.StatusBadRequest)
 		return
 	}
 	err := s.store.Update(func(d *models.Data) error {
@@ -614,7 +657,7 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		s.logger.Error("settings save failed", "error", err)
-		http.Error(w, "Einstellungen konnten nicht gespeichert werden", http.StatusInternalServerError)
+		http.Error(w, s.translate(r, "Einstellungen konnten nicht gespeichert werden"), http.StatusInternalServerError)
 		return
 	}
 	s.settingsSaved(w, r)
@@ -636,12 +679,12 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 	// The private mode shows sample data; exporting would hand out the real
 	// document behind it.
 	if isPrivate(r) {
-		http.Error(w, "im privaten Modus deaktiviert", http.StatusForbidden)
+		http.Error(w, s.translate(r, "im privaten Modus deaktiviert"), http.StatusForbidden)
 		return
 	}
 	b, err := s.store.Marshal()
 	if err != nil {
-		http.Error(w, "export failed", http.StatusInternalServerError)
+		http.Error(w, s.translate(r, "Der Export ist fehlgeschlagen."), http.StatusInternalServerError)
 		return
 	}
 	filename := "forecast-export-" + time.Now().Format("2006-01-02") + ".json"
@@ -673,7 +716,7 @@ func effectiveAI(a models.AISettings) models.AISettings {
 // dropdown in the header) and returns to the page the user came from.
 func (s *Server) handleSetActiveFY(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad form", http.StatusBadRequest)
+		http.Error(w, s.translate(r, "Ungültiges Formular."), http.StatusBadRequest)
 		return
 	}
 	// The private mode is a read-only view on sample data; switching the year

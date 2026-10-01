@@ -569,6 +569,7 @@ type aiInput struct {
 }
 
 type settingsInput struct {
+	Language                  *string    `json:"language"`
 	Year                      *int       `json:"year"`
 	FederalState              *string    `json:"federalState"`
 	WeeklyTargetHours         *float64   `json:"weeklyTargetHours"`
@@ -620,6 +621,12 @@ func (s *Server) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 	err := s.store.Mutate(func(d *models.Data) error {
 		if in.Year != nil {
 			d.Settings.Year = *in.Year
+		}
+		if in.Language != nil {
+			if *in.Language != "de" && *in.Language != "en" {
+				return fmt.Errorf("Ungültige Sprache; erlaubt sind de und en")
+			}
+			d.Settings.Language = *in.Language
 		}
 		if in.FederalState != nil {
 			d.Settings.FederalState = strings.TrimSpace(*in.FederalState)

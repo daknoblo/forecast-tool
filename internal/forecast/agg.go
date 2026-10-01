@@ -2,6 +2,7 @@ package forecast
 
 import (
 	"fmt"
+	"github.com/daknoblo/forecast-tool/internal/i18n"
 	"sort"
 	"strings"
 	"time"
@@ -127,12 +128,16 @@ func knownProjects(ps []models.Project) map[string]bool {
 }
 
 // formatDayDot turns an ISO date (YYYY-MM-DD) into German DD.MM.YYYY.
-func formatDayDot(iso string) string {
+func formatDayDot(iso string, languages ...string) string {
+	language := ""
+	if len(languages) > 0 {
+		language = languages[0]
+	}
 	t, err := time.Parse("2006-01-02", iso)
 	if err != nil {
 		return iso
 	}
-	return t.Format("02.01.2006")
+	return i18n.Date(language, t)
 }
 
 // shortWeekdays are the abbreviated German weekday names, indexed by
@@ -141,8 +146,8 @@ var shortWeekdays = []string{"So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"}
 
 // formatDayWithWeekday renders a date with its short weekday, e.g.
 // "Mo. 01.07.2027".
-func formatDayWithWeekday(t time.Time) string {
-	return shortWeekdays[int(t.Weekday())] + ". " + t.Format("02.01.2006")
+func formatDayWithWeekday(t time.Time, language string) string {
+	return i18n.Text(language, shortWeekdays[int(t.Weekday())]) + ". " + i18n.Date(language, t)
 }
 
 // FYHours is the share of an assignment's hours that falls into one fiscal
@@ -524,10 +529,10 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 			ActualPct:          aPct,
 			StartDate:          wStart.Format("2006-01-02"),
 			EndDate:            wEnd.Format("2006-01-02"),
-			StartLabel:         wStart.Format("02.01.2006"),
-			EndLabel:           wEnd.Format("02.01.2006"),
+			StartLabel:         i18n.Date(d.Settings.Language, wStart),
+			EndLabel:           i18n.Date(d.Settings.Language, wEnd),
 			HasCustomWindow:    p.StartDate != "" || p.EndDate != "",
-			RemainingLabel:     remainingLabel(today, wEnd),
+			RemainingLabel:     i18n.Text(d.Settings.Language, remainingLabel(today, wEnd)),
 			WindowWorkdays:     workdays,
 			BurnPerWeek:        burnPerWeek,
 			BurnPerWorkday:     burnPerWorkday,
@@ -584,8 +589,8 @@ func BuildYearSummary(d models.Data, cal *holidays.Calendar) YearSummary {
 			Week:           w,
 			ISOWeek:        isoWeek,
 			Month:          first.Format("2006-01"),
-			Label:          fmt.Sprintf("FYW %d · KW%02d", w, isoWeek),
-			RangeLabel:     formatDayWithWeekday(monday) + " – " + formatDayWithWeekday(monday.AddDate(0, 0, 4)),
+			Label:          i18n.Format(d.Settings.Language, "FYW %d · KW%02d", w, isoWeek),
+			RangeLabel:     formatDayWithWeekday(monday, d.Settings.Language) + " – " + formatDayWithWeekday(monday.AddDate(0, 0, 4), d.Settings.Language),
 			Hours:          hrs,
 			TargetHours:    d.Settings.WeeklyTargetHours,
 			UtilizationPct: util,
@@ -652,8 +657,8 @@ func BuildWeekToDate(d models.Data, cal *holidays.Calendar) WeekToDate {
 		Week:          week,
 		ISOWeek:       isoWeek,
 		FYWeeks:       weeks,
-		StartLabel:    fyStart.Format("02.01.2006"),
-		ToLabel:       now.AddDate(0, 0, -1).Format("02.01.2006"),
+		StartLabel:    i18n.Date(d.Settings.Language, fyStart),
+		ToLabel:       i18n.Date(d.Settings.Language, now.AddDate(0, 0, -1)),
 		TargetPerWeek: round1(target / float64(weeks)),
 	}
 
@@ -792,7 +797,7 @@ func buildWorkloadTimeline(d models.Data, now time.Time) WorkloadTimeline {
 		if e := monthEnd(horizon); e.After(last) {
 			last = e
 		}
-		t.HorizonLabel = horizon.Format("02.01.2006")
+		t.HorizonLabel = i18n.Date(d.Settings.Language, horizon)
 	}
 	if last.After(limit) {
 		last = limit
@@ -813,9 +818,9 @@ func buildWorkloadTimeline(d models.Data, now time.Time) WorkloadTimeline {
 			to = last
 		}
 		p := WorkloadMonth{
-			Label: monthShort[int(m.Month())-1],
+			Label: i18n.Text(d.Settings.Language, monthShort[int(m.Month())-1]),
 			Year:  m.Year(),
-			Range: m.Format("02.01.2006") + " – " + to.Format("02.01.2006"),
+			Range: i18n.Date(d.Settings.Language, m) + " – " + i18n.Date(d.Settings.Language, to),
 		}
 		for day := m; !day.After(to); day = day.AddDate(0, 0, 1) {
 			iso := day.Format(isoDate)
@@ -864,13 +869,13 @@ func buildWorkloadTimeline(d models.Data, now time.Time) WorkloadTimeline {
 			p.HasRolling = true
 			p.Rolling = round1(rh / float64(rd))
 			p.RollingOver = p.Rolling > WorkdayLimitHours
-			p.RollingFrom = m.AddDate(0, -lead, 0).Format("02.01.2006")
+			p.RollingFrom = i18n.Date(d.Settings.Language, m.AddDate(0, -lead, 0))
 		}
 		t.Months = append(t.Months, p)
 	}
 	if len(t.Months) > 0 {
-		t.StartLabel = first.Format("02.01.2006")
-		t.EndLabel = last.Format("02.01.2006")
+		t.StartLabel = i18n.Date(d.Settings.Language, first)
+		t.EndLabel = i18n.Date(d.Settings.Language, last)
 	}
 	return t
 }
@@ -953,7 +958,7 @@ func workloadDays(d models.Data, fromISO, toISO string) (map[string]float64, map
 }
 
 func buildWorkload(d models.Data, months int, now time.Time, ahead bool) Workload {
-	w := Workload{Months: months, Label: monthsLabel(months), Ahead: ahead}
+	w := Workload{Months: months, Label: i18n.Text(d.Settings.Language, monthsLabel(months)), Ahead: ahead}
 	if months < 1 {
 		return w
 	}
@@ -999,7 +1004,7 @@ func buildWorkload(d models.Data, months int, now time.Time, ahead bool) Workloa
 		hours := work[iso]
 		w.Hours += hours
 		if hours > w.PeakHours {
-			w.PeakHours, w.PeakLabel = hours, day.Format("02.01.2006")
+			w.PeakHours, w.PeakLabel = hours, i18n.Date(d.Settings.Language, day)
 		}
 		if hours > LongDayHours {
 			w.LongDays++
@@ -1020,8 +1025,8 @@ func buildWorkload(d models.Data, months int, now time.Time, ahead bool) Workloa
 	}
 	// The labels describe the period the figure is actually built from, which is
 	// shorter than the requested window once months have been left out.
-	w.StartLabel = first.Format("02.01.2006")
-	w.EndLabel = last.Format("02.01.2006")
+	w.StartLabel = i18n.Date(d.Settings.Language, first)
+	w.EndLabel = i18n.Date(d.Settings.Language, last)
 	w.Skipped = len(skipped)
 	w.HasData = true
 	w.Hours = round1(w.Hours)
@@ -1280,8 +1285,8 @@ func BuildGoalSummary(d models.Data, cal *holidays.Calendar) GoalSummary {
 	gs := GoalSummary{
 		TargetHours: round1(target),
 		HasTarget:   target > 0,
-		StartLabel:  fyStart.Format("02.01.2006"),
-		EndLabel:    fyEnd.Format("02.01.2006"),
+		StartLabel:  i18n.Date(d.Settings.Language, fyStart),
+		EndLabel:    i18n.Date(d.Settings.Language, fyEnd),
 	}
 	quarters := make([]PeriodStat, 4)
 	months := make([]PeriodStat, 12)
@@ -1340,7 +1345,7 @@ func BuildGoalSummary(d models.Data, cal *holidays.Calendar) GoalSummary {
 	for i := 0; i < 4; i++ {
 		fm := (startMonth - 1 + i*3) % 12     // first calendar month of FY quarter (0..11)
 		lm := (startMonth - 1 + i*3 + 2) % 12 // last calendar month
-		quarters[i].Label = fmt.Sprintf("Q%d (%s–%s)", i+1, monthShort[fm], monthShort[lm])
+		quarters[i].Label = fmt.Sprintf("Q%d (%s–%s)", i+1, i18n.Text(d.Settings.Language, monthShort[fm]), i18n.Text(d.Settings.Language, monthShort[lm]))
 		quarters[i].Target = round1(target / 4)
 		quarters[i].Actual = round1(quarters[i].Actual)
 		quarters[i].Forecast = round1(quarters[i].Forecast)
@@ -1352,7 +1357,7 @@ func BuildGoalSummary(d models.Data, cal *holidays.Calendar) GoalSummary {
 	}
 	for i := 0; i < 12; i++ {
 		cm := (startMonth - 1 + i) % 12
-		months[i].Label = monthNames[cm]
+		months[i].Label = i18n.Text(d.Settings.Language, monthNames[cm])
 		months[i].Target = round1(target / 12)
 		months[i].Actual = round1(months[i].Actual)
 		months[i].Forecast = round1(months[i].Forecast)
@@ -1419,7 +1424,7 @@ func BuildGoalSummary(d models.Data, cal *holidays.Calendar) GoalSummary {
 		}
 		fmH := (startMonth - 1 + half*6) % 12
 		lmH := (startMonth - 1 + half*6 + 5) % 12
-		ps.Label = fmt.Sprintf("%d. Halbjahr (%s–%s)", half+1, monthShort[fmH], monthShort[lmH])
+		ps.Label = i18n.Format(d.Settings.Language, "%d. Halbjahr (%s–%s)", half+1, i18n.Text(d.Settings.Language, monthShort[fmH]), i18n.Text(d.Settings.Language, monthShort[lmH]))
 		ps.Target = round1(target / 2)
 		ps.Forecast = round1(ps.Forecast)
 		ps.Actual = round1(ps.Actual)
@@ -1631,7 +1636,7 @@ func BuildGoalFlow(d models.Data, cal *holidays.Calendar) GoalFlow {
 
 	monthLabel := func(m int) (short, long string) {
 		cm := (startMonth - 1 + m) % 12
-		return monthShort[cm], monthNames[cm]
+		return i18n.Text(d.Settings.Language, monthShort[cm]), i18n.Text(d.Settings.Language, monthNames[cm])
 	}
 	monthColors := [12]string{}
 	quarterColors, halfColors := [4]string{}, [2]string{}
@@ -1651,7 +1656,7 @@ func BuildGoalFlow(d models.Data, cal *holidays.Calendar) GoalFlow {
 		flow.Stages[1] = append(flow.Stages[1], GoalFlowNode{
 			ID: fmt.Sprintf("m:%d", m), Label: short, Title: long,
 			Color: color, Hours: round1(v), Booked: round1(monthsBooked[m]),
-			Target: round1(target / 12), PctOfTarget: pct(v, target/12), StateLabel: state,
+			Target: round1(target / 12), PctOfTarget: pct(v, target/12), StateLabel: i18n.Text(d.Settings.Language, state),
 		})
 	}
 	for q := 0; q < 4; q++ {
@@ -1666,7 +1671,7 @@ func BuildGoalFlow(d models.Data, cal *holidays.Calendar) GoalFlow {
 			ID: fmt.Sprintf("q:%d", q), Label: fmt.Sprintf("Q%d", q+1),
 			Title: fmt.Sprintf("Q%d (%s–%s)", q+1, fm, lm),
 			Color: color, Hours: round1(quarters[q]), Booked: round1(quartersBooked[q]),
-			Target: round1(target / 4), PctOfTarget: pct(quarters[q], target/4), StateLabel: state,
+			Target: round1(target / 4), PctOfTarget: pct(quarters[q], target/4), StateLabel: i18n.Text(d.Settings.Language, state),
 		})
 	}
 	for half := 0; half < 2; half++ {
@@ -1679,17 +1684,17 @@ func BuildGoalFlow(d models.Data, cal *holidays.Calendar) GoalFlow {
 		lm, _ := monthLabel(half*6 + 5)
 		flow.Stages[3] = append(flow.Stages[3], GoalFlowNode{
 			ID: fmt.Sprintf("h:%d", half), Label: fmt.Sprintf("H%d", half+1),
-			Title: fmt.Sprintf("%d. Halbjahr (%s–%s)", half+1, fm, lm),
+			Title: i18n.Format(d.Settings.Language, "%d. Halbjahr (%s–%s)", half+1, fm, lm),
 			Color: color, Hours: round1(halves[half]), Booked: round1(halvesBooked[half]),
-			Target: round1(target / 2), PctOfTarget: pct(halves[half], target/2), StateLabel: state,
+			Target: round1(target / 2), PctOfTarget: pct(halves[half], target/2), StateLabel: i18n.Text(d.Settings.Language, state),
 		})
 	}
 	if flow.Total > 0 {
 		yearColor, yearState := goalFlowState(0, 12, monthsDone)
 		flow.Stages[4] = []GoalFlowNode{{
-			ID: "y", Label: fmt.Sprintf("FY %d", year), Title: fmt.Sprintf("Fiskaljahr %d", year),
+			ID: "y", Label: fmt.Sprintf("FY %d", year), Title: i18n.Format(d.Settings.Language, "Fiskaljahr %d", year),
 			Color: yearColor, Hours: round1(flow.Total), Booked: round1(flow.Booked),
-			Target: round1(target), PctOfTarget: pct(flow.Total, target), StateLabel: yearState,
+			Target: round1(target), PctOfTarget: pct(flow.Total, target), StateLabel: i18n.Text(d.Settings.Language, yearState),
 		}}
 	}
 
@@ -1954,8 +1959,8 @@ func BuildSankey(d models.Data, cal *holidays.Calendar, rangeKey string, offset 
 		monday := FYWeekMonday(year, startMonth, startWeek+wi)
 		_, iso := monday.ISOWeek()
 		bucket := SankeyBucket{
-			Label:    fmt.Sprintf("KW%02d", iso),
-			SubLabel: monday.Format("02.01."),
+			Label:    i18n.Format(d.Settings.Language, "KW%02d", iso),
+			SubLabel: i18n.ShortDate(d.Settings.Language, monday),
 			Hours:    map[string]float64{},
 		}
 		for i := 0; i < 5; i++ {
@@ -2012,7 +2017,7 @@ func BuildSankey(d models.Data, cal *holidays.Calendar, rangeKey string, offset 
 	data.CapacityTotal = round1(data.CapacityTotal)
 	data.FreeTotal = round1(data.CapacityTotal - data.Total)
 	if firstISO != "" {
-		data.RangeLabel = formatDayDot(firstISO) + " – " + formatDayDot(lastISO)
+		data.RangeLabel = formatDayDot(firstISO, d.Settings.Language) + " – " + formatDayDot(lastISO, d.Settings.Language)
 	}
 	return data
 }

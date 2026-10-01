@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/daknoblo/forecast-tool/internal/holidays"
+	"github.com/daknoblo/forecast-tool/internal/i18n"
 	"github.com/daknoblo/forecast-tool/internal/models"
 )
 
@@ -71,9 +72,9 @@ func buildMonthPlan(d models.Data, cal *holidays.Calendar, month, now time.Time,
 	historyEnd := mondayOf(now.UTC())
 	historyStart := historyEnd.AddDate(0, 0, -7*monthHistoryWeeks)
 	plan := MonthPlan{
-		Month: month.Format("2006-01"), Label: fmt.Sprintf("%s %d", monthNames[month.Month()-1], month.Year()),
-		HistoryFrom:   historyStart.Format("02.01.2006"),
-		HistoryTo:     historyEnd.AddDate(0, 0, -1).Format("02.01.2006"),
+		Month: month.Format("2006-01"), Label: fmt.Sprintf("%s %d", i18n.Text(d.Settings.Language, monthNames[month.Month()-1]), month.Year()),
+		HistoryFrom:   i18n.Date(d.Settings.Language, historyStart),
+		HistoryTo:     i18n.Date(d.Settings.Language, historyEnd.AddDate(0, 0, -1)),
 		VacationColor: models.VacationColor,
 	}
 	for _, project := range d.Projects {
@@ -93,7 +94,7 @@ func buildMonthPlan(d models.Data, cal *holidays.Calendar, month, now time.Time,
 	index := hoursIndex(d.Entries)
 	var histories map[string]monthHistory
 	if estimate {
-		histories = buildMonthHistories(projects, index, historyEnd, d.Settings.FederalState)
+		histories = buildMonthHistories(projects, index, historyEnd, d.Settings.FederalState, d.Settings.Language)
 	}
 	end := month.AddDate(0, 1, 0)
 	for monday := mondayOf(month); monday.Before(end); monday = monday.AddDate(0, 0, 7) {
@@ -104,7 +105,7 @@ func buildMonthPlan(d models.Data, cal *holidays.Calendar, month, now time.Time,
 		}
 		w := MonthWeek{
 			ISOWeek: isoWeek, FYWeek: FYWeekIndexOf(d.Settings.Year, d.Settings.FiscalYearStartMonth, anchor),
-			Label: monday.Format("02.01.") + " – " + monday.AddDate(0, 0, 6).Format("02.01."),
+			Label: i18n.ShortDate(d.Settings.Language, monday) + " – " + i18n.ShortDate(d.Settings.Language, monday.AddDate(0, 0, 6)),
 		}
 		remaining := make(map[string]float64)
 		projectHours := make(map[string]float64)
@@ -112,7 +113,7 @@ func buildMonthPlan(d models.Data, cal *holidays.Calendar, month, now time.Time,
 			date := monday.AddDate(0, 0, i)
 			iso := date.Format("2006-01-02")
 			day := MonthDay{
-				Date: iso, Label: monthWeekdayNames[i] + " " + date.Format("02.01."), Holiday: cal.Name(iso),
+				Date: iso, Label: i18n.Text(d.Settings.Language, monthWeekdayNames[i]) + " " + i18n.ShortDate(d.Settings.Language, date), Holiday: i18n.Text(d.Settings.Language, cal.Name(iso)),
 				InMonth: date.Month() == month.Month(), InYear: !date.Before(fyStart) && !date.After(fyEnd),
 				Today: iso == today, Past: iso < today, Weekend: i >= 5,
 				Estimated: estimate && iso >= today,

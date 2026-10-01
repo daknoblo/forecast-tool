@@ -3,10 +3,11 @@ name: Pages
 # Publishes the documentation site: rendered Markdown, an automatically
 # captured screenshot gallery and a clickable static snapshot of the
 # application running on generated demo data. Everything is rebuilt from
-# scratch on every push, so a new feature ships with up-to-date docs.
+# scratch on every build. Authors maintain prose; UI references are generated.
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -14,7 +15,7 @@ permissions:
 
 # Never cancel a running deployment: GitHub Pages allows only one at a time.
 concurrency:
-  group: pages
+  group: pages-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -49,12 +50,29 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Build site
-        run: go run ./cmd/docsite -out site -require-screenshots
+        run: |
+          go run ./cmd/docsite -out site -language en -require-screenshots
+          go run ./cmd/docsite -out site-de -language de -require-screenshots
+
+      - name: Test documentation builder
+        run: go test -race ./internal/docsite ./cmd/docsite
+
+      - name: Upload review artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: docs-preview-${{ github.sha }}
+          path: |
+            site
+            site-de
+          include-hidden-files: true
+          retention-days: 14
 
       - name: Configure Pages
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: actions/configure-pages@v6
 
       - name: Upload artifact
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v5
         with:
           path: site
@@ -62,6 +80,7 @@ jobs:
           include-hidden-files: true
 
   deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     name: Deploy to GitHub Pages
     needs: build
     runs-on: ubuntu-latest

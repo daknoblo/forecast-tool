@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/daknoblo/forecast-tool/internal/forecast"
+	"github.com/daknoblo/forecast-tool/internal/i18n"
 	"github.com/daknoblo/forecast-tool/internal/models"
 )
 
@@ -16,7 +17,7 @@ func (s *Server) handleMonth(w http.ResponseWriter, r *http.Request) {
 		var err error
 		month, err = time.Parse("2006-01", value)
 		if err != nil {
-			http.Error(w, "Ungültiger Monat (JJJJ-MM erwartet).", http.StatusBadRequest)
+			http.Error(w, s.translate(r, "Ungültiger Monat (JJJJ-MM erwartet)."), http.StatusBadRequest)
 			return
 		}
 	}
@@ -29,14 +30,14 @@ func (s *Server) handleMonth(w http.ResponseWriter, r *http.Request) {
 		plan = forecast.BuildStoredMonthPlan(d, s.calendar(d), month, now)
 	}
 	if isPrivate(r) {
-		prompt = forecast.DefaultMonthPlanningPrompt
-		systemPrompt = forecast.MonthPlanningSystemPrompt
+		prompt = i18n.Text(d.Settings.Language, forecast.DefaultMonthPlanningPrompt)
+		systemPrompt = i18n.Text(d.Settings.Language, forecast.MonthPlanningSystemPrompt)
 	}
 	page := map[string]any{
 		"Active": "month", "Wide": true, "Settings": d.Settings, "FYYears": fyYears(d),
 		"Plan": plan, "Prompt": prompt, "PromptLimit": models.MaxMonthPlanningPrompt,
 		"SystemPrompt": systemPrompt, "Saved": saved,
-		"ExplanationFormat": forecast.MonthPlanningExplanationFormat,
+		"ExplanationFormat": i18n.Text(d.Settings.Language, forecast.MonthPlanningExplanationFormat),
 		"CanGenerate":       !isPrivate(r) && !month.AddDate(0, 1, 0).Before(now) && s.aiReady(d.Settings.AI),
 		"AIReady":           s.aiReady(d.Settings.AI),
 	}
@@ -90,7 +91,7 @@ func (s *Server) previewMonthPlan(d models.Data, month, now time.Time, preview m
 				for k := range day.Events {
 					if !day.Events[k].Vacation {
 						day.Events[k].Estimated = true
-						day.Events[k].Basis = "KI-Vorschau"
+						day.Events[k].Basis = i18n.Text(d.Settings.Language, "KI-Vorschau")
 					}
 				}
 			}

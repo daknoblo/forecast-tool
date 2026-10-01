@@ -1,5 +1,5 @@
 {{define "header"}}<!DOCTYPE html>
-<html lang="de">
+<html lang="{{language}}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -10,34 +10,34 @@
 <header class="topbar">
   <div class="brand">📊 {{appName}}</div>
   <nav>
-    <a href="/" class="{{if eq .Active "dashboard"}}active{{end}}">Dashboard</a>
-    <a href="/projects" class="{{if eq .Active "projects"}}active{{end}}">Projekte</a>
-    <a href="/month" class="{{if eq .Active "month"}}active{{end}}">Monatsplanung</a>
-    <a href="/goal" class="{{if eq .Active "goal"}}active{{end}}">Ziele</a>
-    <a href="/settings" class="{{if eq .Active "settings"}}active{{end}}">Einstellungen</a>
+    <a href="/" class="{{if eq .Active "dashboard"}}active{{end}}">{{t "Dashboard"}}</a>
+    <a href="/projects" class="{{if eq .Active "projects"}}active{{end}}">{{t "Projekte"}}</a>
+    <a href="/month" class="{{if eq .Active "month"}}active{{end}}">{{t "Monatsplanung"}}</a>
+    <a href="/goal" class="{{if eq .Active "goal"}}active{{end}}">{{t "Ziele"}}</a>
+    <a href="/settings" class="{{if eq .Active "settings"}}active{{end}}">{{t "Einstellungen"}}</a>
   </nav>
   <div class="year">
-    <span id="activity" class="activity" title="Keine laufenden Datenübertragungen" aria-busy="false">
+    <span id="activity" class="activity" title="{{t "Keine laufenden Datenübertragungen"}}" aria-busy="false">
       <span class="activity-spinner" aria-hidden="true"></span>
-      <span class="activity-text" role="status">Keine laufenden Datenübertragungen</span>
+      <span class="activity-text" role="status">{{t "Keine laufenden Datenübertragungen"}}</span>
     </span>
     <form method="post" action="/private" class="privswitch">
       <button type="submit" class="privbtn{{if .Private}} on{{end}}" aria-pressed="{{if .Private}}true{{else}}false{{end}}"
-              title="{{if .Private}}Privater Modus aktiv – angezeigt werden Beispieldaten. Klicken zum Ausschalten.{{else}}Privater Modus: echte Projekte und Stunden durch Beispieldaten ersetzen{{end}}">
+              title="{{if .Private}}{{t "Privater Modus aktiv – angezeigt werden Beispieldaten. Klicken zum Ausschalten."}}{{else}}{{t "Privater Modus: echte Projekte und Stunden durch Beispieldaten ersetzen"}}{{end}}">
         {{if .Private}}
         <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" fill="currentColor"><path d="M8 3.2c3.5 0 6.3 2.1 7.4 4.8-.5 1.2-1.3 2.2-2.3 3l-1.1-1.1c.7-.5 1.3-1.2 1.7-1.9C12.6 6 10.5 4.7 8 4.7c-.6 0-1.2.1-1.7.2L5.1 3.7c.9-.3 1.9-.5 2.9-.5zM2.6 2.3l11.1 11.1-1 1-2.1-2.1c-.8.3-1.7.4-2.6.4-3.5 0-6.3-2.1-7.4-4.8.5-1.4 1.5-2.6 2.7-3.4L1.6 3.3l1-1zM4.4 5.5c-.9.6-1.7 1.4-2.1 2.5C3.4 10 5.5 11.3 8 11.3c.5 0 1-.1 1.4-.2l-1-1a2.1 2.1 0 0 1-2.5-2.5l-1.5-1.1z"/></svg>
         {{else}}
         <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" fill="currentColor"><path d="M8 3C4.5 3 1.7 5.1.6 8c1.1 2.9 3.9 5 7.4 5s6.3-2.1 7.4-5c-1.1-2.9-3.9-5-7.4-5zm0 8.3A3.3 3.3 0 1 1 8 4.7a3.3 3.3 0 0 1 0 6.6zm0-1.6a1.7 1.7 0 1 0 0-3.4 1.7 1.7 0 0 0 0 3.4z"/></svg>
         {{end}}
-        <span>Privat</span>
+        <span>{{t "Privat"}}</span>
       </button>
     </form>
     <form method="post" action="/fy" class="fyswitch">
-      <label for="fySelect">FY</label>
-      <select id="fySelect" name="year" onchange="this.form.requestSubmit()"{{if .Private}} disabled title="Im privaten Modus gesperrt"{{end}}>
+      <label for="fySelect">{{t "FY"}}</label>
+      <select id="fySelect" name="year" onchange="this.form.requestSubmit()"{{if .Private}} disabled title="{{t "Im privaten Modus gesperrt"}}"{{end}}>
         {{range .FYYears}}<option value="{{.}}"{{if eq . $.Settings.Year}} selected{{end}}>{{.}}</option>{{end}}
       </select>
-      <noscript><button type="submit">OK</button></noscript>
+      <noscript><button type="submit">{{t "OK"}}</button></noscript>
     </form>
     <span class="state">{{.Settings.FederalState}}</span>
   </div>
@@ -50,7 +50,7 @@
   var navigating = false;
   function render() {
     var active = navigating || pending.size > 0;
-    var message = active ? 'Daten werden abgerufen oder gespeichert' : 'Keine laufenden Datenübertragungen';
+    var message = active ? '{{t "Daten werden abgerufen oder gespeichert"}}' : '{{t "Keine laufenden Datenübertragungen"}}';
     indicator.classList.toggle('busy', active);
     indicator.setAttribute('aria-busy', String(active));
     indicator.title = message;
@@ -93,17 +93,17 @@
   });
 })();
 </script>
-{{if .Private}}<div class="privnote" role="status">Privater Modus: Alle Projekte, Budgets und Stunden auf dieser Seite sind <strong>frei erfundene Beispieldaten</strong>. Deine echten Daten sind unverändert und werden erst wieder angezeigt, wenn du den Modus oben rechts ausschaltest.</div>{{end}}
+{{if .Private}}<div class="privnote" role="status">{{t "Privater Modus: Alle Projekte, Budgets und Stunden auf dieser Seite sind"}} <strong>{{t "frei erfundene Beispieldaten"}}</strong>{{t ". Deine echten Daten sind unverändert und werden erst wieder angezeigt, wenn du den Modus oben rechts ausschaltest."}}</div>{{end}}
 <main{{if .Wide}} class="wide"{{end}}>
 {{end}}
 
 {{define "footer"}}
 </main>
 <footer class="foot{{if .Wide}} wide{{end}}">
-  <span>{{appName}} · Fiskaljahr {{.Settings.Year}} · <span class="ver" title="Installierte Version">{{version}}</span></span>
-  <a class="ghlink" href="https://github.com/daknoblo/forecast-tool" target="_blank" rel="noopener noreferrer" aria-label="Projekt auf GitHub">
+  <span>{{appName}} {{t "· Fiskaljahr"}} {{.Settings.Year}} · <span class="ver" title="{{t "Installierte Version"}}">{{version}}</span></span>
+  <a class="ghlink" href="https://github.com/daknoblo/forecast-tool" target="_blank" rel="noopener noreferrer" aria-label="{{t "Projekt auf GitHub"}}">
     <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-    <span>github.com/daknoblo/forecast-tool</span>
+    <span>{{t "github.com/daknoblo/forecast-tool"}}</span>
   </a>
 </footer>
 </body>
@@ -135,7 +135,7 @@
       var reload = field.hasAttribute('data-reload');
       inflight++;
       var endActivity = window.beginActivity();
-      setStatus('saving', 'Speichert\u2026');
+      setStatus('saving', '{{t "Speichert…"}}');
       // URLSearchParams posts as application/x-www-form-urlencoded, which is
       // what the form handlers parse.
       fetch(form.action, {
@@ -145,12 +145,12 @@
         keepalive: true
       }).then(function (res) {
         inflight--;
-        if (!res.ok) { setStatus('error', 'Fehler beim Speichern'); return; }
+        if (!res.ok) { setStatus('error', '{{t "Fehler beim Speichern"}}'); return; }
         if (reload) { window.location.reload(); return; }
-        if (inflight === 0) setStatus('ok', 'Gespeichert \u2713');
+        if (inflight === 0) setStatus('ok', '{{t "Gespeichert ✓"}}');
       }).catch(function () {
         inflight--;
-        setStatus('error', 'Fehler beim Speichern');
+        setStatus('error', '{{t "Fehler beim Speichern"}}');
       }).finally(endActivity);
     });
   });
@@ -158,19 +158,19 @@
 </script>
 {{end}}
 
-{{define "utilstatus"}}<span class="util util-{{.Key}}" title="{{.Label}} · {{hours .Hours}} h"><span class="util-dot">{{if eq .Key "min"}}↓{{else if eq .Key "optimal"}}OK{{else if eq .Key "high"}}↑{{else}}✕{{end}}</span><span class="util-label">{{.Label}}</span></span>{{end}}
+{{define "utilstatus"}}<span class="util util-{{.Key}}" title="{{.Label}} · {{hours .Hours}} {{t "h"}}"><span class="util-dot">{{if eq .Key "min"}}↓{{else if eq .Key "optimal"}}{{t "OK"}}{{else if eq .Key "high"}}↑{{else}}✕{{end}}</span><span class="util-label">{{.Label}}</span></span>{{end}}
 
 {{define "weeklyutilization"}}
-<h2>Wochenauslastung</h2>
+<h2>{{t "Wochenauslastung"}}</h2>
 <table class="grid compact weekly">
-  <thead><tr><th>Woche</th><th class="num">Soll Stunden</th><th class="num">Gebuchte Stunden</th><th>Status</th><th class="weekutil">Auslastung</th></tr></thead>
+  <thead><tr><th>{{t "Woche"}}</th><th class="num">{{t "Soll Stunden"}}</th><th class="num">{{t "Gebuchte Stunden"}}</th><th>{{t "Status"}}</th><th class="weekutil">{{t "Auslastung"}}</th></tr></thead>
   <tbody>
   {{range .WeekTotals}}
     {{if le .Week $.LastPlannedWeek}}
     <tr>
       <td><a href="/month?month={{.Month}}#fyw-{{.Week}}">{{.Label}}</a> <span class="weekrange">{{.RangeLabel}}</span></td>
-      <td class="num">{{hours .TargetHours}} h</td>
-      <td class="num">{{hours .Hours}} h</td>
+      <td class="num">{{hours .TargetHours}} {{t "h"}}</td>
+      <td class="num">{{hours .Hours}} {{t "h"}}</td>
       <td>{{template "utilstatus" .Status}}</td>
       <td class="weekutil">
         <div class="barrow">

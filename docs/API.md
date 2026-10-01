@@ -7,9 +7,9 @@ maintain settings.
 The HTML UI intentionally stays unauthenticated (internal use only, behind a
 reverse proxy). **Only `/api/**` is protected** — by two bearer tokens.
 
-> **Language note:** the application's user interface is German, and so are the
-> `error` messages returned by this API. Everything else in this repository is
-> English.
+> **Language note:** the application's user interface supports German (default)
+> and English, selected through `settings.language`. API `error` messages
+> remain German. Documentation and code identifiers are English.
 
 ---
 
@@ -444,12 +444,22 @@ curl -X DELETE https://host/api/v1/projects/abc -H "Authorization: Bearer $WRITE
 
 ### `PUT /api/v1/settings` — global settings
 
-Partial update. Fields: `year` (active FY), `federalState` (state code, e.g.
+Partial update. Fields: `language` (`de` or `en`, default `de`),
+`year` (active FY), `federalState` (state code, e.g.
 `BY`), `weeklyTargetHours`, `fiscalYearStartMonth` (1–12), `dashboardRange`
 (`1w`, `2w`, `4w`, `2m`, `3m`, `6m`, `fy`; default `4w`), `monthPlanningPrompt`,
 `monthPlanningSystemPrompt`, `utilization`
 (traffic-light thresholds/labels) and `ai` (`endpoint`/`deployment`/`apiVersion`
 — **no** key). Invalid values → `400`.
+
+`language` is persisted globally and survives reloads and restarts. Omission
+preserves the current value; other values (including an empty string) are
+rejected. Changing the language does not translate user-authored project names,
+labels or prompts.
+
+Despite the `PUT` method, this endpoint performs a partial, PATCH-style update:
+`{"language":"en"}` changes only the language and leaves omitted settings
+unchanged. To return to German, send `{"language":"de"}`.
 
 `dashboardRange` controls the dashboard charts when no valid `sankey` query
 parameter is supplied. Explicit horizon links do not change the saved default.

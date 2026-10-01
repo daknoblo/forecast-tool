@@ -2,6 +2,7 @@ package forecast
 
 import (
 	"fmt"
+	"github.com/daknoblo/forecast-tool/internal/i18n"
 	"time"
 
 	"github.com/daknoblo/forecast-tool/internal/models"
@@ -65,14 +66,14 @@ func BuildForecastAccuracy(d models.Data, now time.Time) AccuracySummary {
 		return result
 	}
 	if err := ValidateForecastAccuracy(year, value, now); err != nil {
-		result.Error = err.Error()
+		result.Error = i18n.Text(d.Settings.Language, err.Error())
 		return result
 	}
 	result.HasData, result.Percentage, result.AsOf = true, value.Percentage, value.AsOf
 	asOf, _ := time.Parse("2006-01-02", value.AsOf)
-	result.AsOfLabel = asOf.Format("02.01.2006")
+	result.AsOfLabel = i18n.Date(d.Settings.Language, asOf)
 	if value.FiscalYearStartMonth != startMonth {
-		result.Error = "Der FY-Startmonat wurde geändert. Forecast Accuracy bitte erneut aus ESXP übertragen."
+		result.Error = i18n.Text(d.Settings.Language, "Der FY-Startmonat wurde geändert. Forecast Accuracy bitte erneut aus ESXP übertragen.")
 		return result
 	}
 	result.EvaluatedWeeks = completedAccuracyWeeks(year, startMonth, asOf)

@@ -2,6 +2,7 @@ package web
 
 import (
 	"fmt"
+	"github.com/daknoblo/forecast-tool/internal/i18n"
 	"html/template"
 	"math"
 	"sort"
@@ -29,7 +30,8 @@ func sanitizeColor(c string) string {
 // burndownSVG renders a simple, dependency-free burn-down chart as inline SVG.
 // The X axis is the calendar week (with month labels), the Y axis is the
 // remaining budget in hours.
-func burndownSVG(points []forecast.BurnPoint, budget float64, color string) template.HTML {
+func burndownSVG(points []forecast.BurnPoint, budget float64, color string, languages ...string) template.HTML {
+	tr := i18n.Translator(languages...)
 	const (
 		w    = 720.0
 		h    = 256.0
@@ -46,7 +48,7 @@ func burndownSVG(points []forecast.BurnPoint, budget float64, color string) temp
 	if n < 2 {
 		// Not enough data to draw a meaningful curve; numeric-only placeholder.
 		return template.HTML(fmt.Sprintf( // #nosec G203 -- constant SVG shell, numeric values only
-			`<svg viewBox="0 0 %g %g" class="burndown" role="img" aria-label="Burn-Down"></svg>`, w, h))
+			tr(`<svg viewBox="0 0 %g %g" class="burndown" role="img" aria-label="Burn-Down"></svg>`), w, h))
 	}
 	yMax := budget
 	if yMax <= 0 {
@@ -63,7 +65,7 @@ func burndownSVG(points []forecast.BurnPoint, budget float64, color string) temp
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, `<svg viewBox="0 0 %g %g" class="burndown" role="img" aria-label="Burn-Down">`, w, h)
+	fmt.Fprintf(&b, tr(`<svg viewBox="0 0 %g %g" class="burndown" role="img" aria-label="Burn-Down">`), w, h)
 
 	// axes
 	fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#cbd5e1"/>`, padL, padT, padL, padT+plotH)
@@ -74,7 +76,7 @@ func burndownSVG(points []forecast.BurnPoint, budget float64, color string) temp
 		val := budget * frac
 		yy := y(val)
 		fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#eef2f7"/>`, padL, yy, padL+plotW, yy)
-		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="10" fill="#64748b" text-anchor="end">%s</text>`, padL-6, yy+3, chartHours(round1(val)))
+		fmt.Fprintf(&b, tr(`<text x="%g" y="%g" font-size="10" fill="#64748b" text-anchor="end">%s</text>`), padL-6, yy+3, chartHours(round1(val)))
 	}
 
 	// ideal line (full budget at the start -> 0 at the end)
@@ -97,17 +99,17 @@ func burndownSVG(points []forecast.BurnPoint, budget float64, color string) temp
 	for i, p := range points {
 		xx := x(i)
 		if i%step == 0 || i == n-1 {
-			fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="10" fill="#64748b" text-anchor="middle">KW%02d</text>`,
+			fmt.Fprintf(&b, tr(`<text x="%g" y="%g" font-size="10" fill="#64748b" text-anchor="middle">KW%02d</text>`),
 				xx, padT+plotH+15, p.ISOWeek)
 		}
 		if p.Month != prevMonth {
 			prevMonth = p.Month
-			label := monthAbbrev(p.Month)
+			label := tr(monthAbbrev(p.Month))
 			if p.Month == 1 {
 				label = fmt.Sprintf("%s %d", label, p.Year)
 			}
 			fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#e2e8f0"/>`, xx, padT, xx, padT+plotH)
-			fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="10" font-weight="600" fill="#475569" text-anchor="middle">%s</text>`,
+			fmt.Fprintf(&b, tr(`<text x="%g" y="%g" font-size="10" font-weight="600" fill="#475569" text-anchor="middle">%s</text>`),
 				xx, padT+plotH+30, label)
 		}
 	}
@@ -135,7 +137,8 @@ func workloadColor(pct float64, over bool) string {
 // same separation the burn-up chart uses. The 8 h average and the 10 h
 // single-day limit of §3 ArbZG are drawn as reference lines. Inputs are numeric
 // plus controlled month labels, so the inline SVG carries no untrusted markup.
-func workloadTimelineSVG(t forecast.WorkloadTimeline) template.HTML {
+func workloadTimelineSVG(t forecast.WorkloadTimeline, languages ...string) template.HTML {
+	tr := i18n.Translator(languages...)
 	const (
 		w        = 1000.0
 		h        = 300.0
@@ -156,7 +159,7 @@ func workloadTimelineSVG(t forecast.WorkloadTimeline) template.HTML {
 	n := len(t.Months)
 	if n == 0 {
 		return template.HTML(fmt.Sprintf( // #nosec G203 -- constant SVG shell, numeric values only
-			`<svg viewBox="0 0 %g %g" class="workload" role="img" aria-label="Arbeitszeit je Werktag"><text x="%g" y="%g" font-size="13" fill="#94a3b8" text-anchor="middle">Noch keine Stunden erfasst.</text></svg>`,
+			tr(`<svg viewBox="0 0 %g %g" class="workload" role="img" aria-label="Arbeitszeit je Werktag"><text x="%g" y="%g" font-size="13" fill="#94a3b8" text-anchor="middle">Noch keine Stunden erfasst.</text></svg>`),
 			w, h, w/2, h/2))
 	}
 
@@ -181,24 +184,24 @@ func workloadTimelineSVG(t forecast.WorkloadTimeline) template.HTML {
 	baseY := padT + plotH
 
 	var b strings.Builder
-	fmt.Fprintf(&b, `<svg viewBox="0 0 %g %g" class="workload" role="img" aria-label="Arbeitszeit je Werktag">`, w, h)
+	fmt.Fprintf(&b, tr(`<svg viewBox="0 0 %g %g" class="workload" role="img" aria-label="Arbeitszeit je Werktag">`), w, h)
 
 	// legend: solid = already booked, translucent and dashed = planned
 	lx := padL
 	fmt.Fprintf(&b, `<rect x="%g" y="6" width="10" height="10" rx="2" fill="#334155"/>`, lx)
-	fmt.Fprintf(&b, `<text x="%g" y="15" font-size="11" fill="#475569">gebucht</text>`, lx+14)
-	lx += 28 + estTextWidth("gebucht", 11)
+	fmt.Fprintf(&b, tr(`<text x="%g" y="15" font-size="11" fill="#475569">gebucht</text>`), lx+14)
+	lx += 28 + estTextWidth(tr("gebucht"), 11)
 	fmt.Fprintf(&b, `<rect x="%g" y="6" width="10" height="10" rx="2" fill="#334155" fill-opacity="0.4" stroke="#334155" stroke-dasharray="3 2"/>`, lx)
-	fmt.Fprintf(&b, `<text x="%g" y="15" font-size="11" fill="#475569">Forecast</text>`, lx+14)
+	fmt.Fprintf(&b, tr(`<text x="%g" y="15" font-size="11" fill="#475569">Forecast</text>`), lx+14)
 	lx += 28 + estTextWidth("Forecast", 11)
 	fmt.Fprintf(&b, `<line x1="%g" y1="11" x2="%g" y2="11" stroke="%s" stroke-width="2.5"/>`, lx, lx+14, colRolling)
 	fmt.Fprintf(&b, `<circle cx="%g" cy="11" r="2.8" fill="%s"/>`, lx+7, colRolling)
-	fmt.Fprintf(&b, `<text x="%g" y="15" font-size="11" fill="#475569">Ø %d Monate (gleitend)</text>`, lx+18, t.Rolling)
+	fmt.Fprintf(&b, tr(`<text x="%g" y="15" font-size="11" fill="#475569">Ø %d Monate (gleitend)</text>`), lx+18, t.Rolling)
 
 	for v := 0.0; v <= yMax+step/2; v += step {
 		yy := y(v)
 		fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#e2e8f0"/>`, padL, yy, padL+plotW, yy)
-		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" fill="#475569" text-anchor="end">%s</text>`,
+		fmt.Fprintf(&b, tr(`<text x="%g" y="%g" font-size="11" fill="#475569" text-anchor="end">%s</text>`),
 			padL-7, yy+4, chartHours(round1(v)))
 	}
 	fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#94a3b8"/>`, padL, padT, padL, baseY)
@@ -208,18 +211,18 @@ func workloadTimelineSVG(t forecast.WorkloadTimeline) template.HTML {
 	// balancing period (solid) and the cap for a single Werktag (dashed).
 	fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s" stroke-dasharray="5 3"/>`,
 		padL, y(forecast.LongDayHours), padL+plotW, y(forecast.LongDayHours), colLong)
-	fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" fill="%s" text-anchor="start">%s h/Tag</text>`,
+	fmt.Fprintf(&b, tr(`<text x="%g" y="%g" font-size="11" fill="%s" text-anchor="start">%s h/Tag</text>`),
 		padL+plotW+7, y(forecast.LongDayHours)+4, colLong, chartHours(forecast.LongDayHours))
 	fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s" stroke-width="2"/>`,
 		padL, y(forecast.WorkdayLimitHours), padL+plotW, y(forecast.WorkdayLimitHours), colLimit)
-	fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" font-weight="600" fill="%s" text-anchor="start">%s h Ø</text>`,
+	fmt.Fprintf(&b, tr(`<text x="%g" y="%g" font-size="11" font-weight="600" fill="%s" text-anchor="start">%s h Ø</text>`),
 		padL+plotW+7, y(forecast.WorkdayLimitHours)+4, colLimit, chartHours(forecast.WorkdayLimitHours))
 
 	// today, on its exact position inside the current month's column
 	todayX := padL + colW*t.TodayPos
 	fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s" stroke-width="1.5" stroke-dasharray="4 3"/>`,
 		todayX, padT-8, todayX, baseY+6, colToday)
-	fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" font-weight="600" fill="%s" text-anchor="middle">heute</text>`,
+	fmt.Fprintf(&b, tr(`<text x="%g" y="%g" font-size="11" font-weight="600" fill="%s" text-anchor="middle">heute</text>`),
 		todayX, padT-12, colToday)
 
 	prevYear := 0
@@ -232,18 +235,18 @@ func workloadTimelineSVG(t forecast.WorkloadTimeline) template.HTML {
 			if m.Ahead {
 				style = fmt.Sprintf(` fill-opacity="0.4" stroke="%s" stroke-dasharray="3 2"`, col)
 			}
-			fmt.Fprintf(&b, `<rect x="%g" y="%g" width="%g" height="%g" rx="2" fill="%s"%s><title>%s</title></rect>`,
-				cx-barW/2, top, barW, baseY-top, col, style, workloadMonthTitle(m))
-			fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="10" font-weight="600" fill="#334155" text-anchor="middle">%s</text>`,
+			fmt.Fprintf(&b, tr(`<rect x="%g" y="%g" width="%g" height="%g" rx="2" fill="%s"%s><title>%s</title></rect>`),
+				cx-barW/2, top, barW, baseY-top, col, style, workloadMonthTitle(m, languages...))
+			fmt.Fprintf(&b, tr(`<text x="%g" y="%g" font-size="10" font-weight="600" fill="#334155" text-anchor="middle">%s</text>`),
 				cx, top-5, chartHours(m.PerDay))
 		} else {
 			fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" fill="#cbd5e1" text-anchor="middle">–</text>`,
 				cx, baseY-6)
 		}
-		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" fill="#475569" text-anchor="middle">%s</text>`,
+		fmt.Fprintf(&b, tr(`<text x="%g" y="%g" font-size="11" fill="#475569" text-anchor="middle">%s</text>`),
 			cx, baseY+17, template.HTMLEscapeString(m.Label))
 		if m.Year != prevYear {
-			fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="10" font-weight="600" fill="#94a3b8" text-anchor="middle">%d</text>`,
+			fmt.Fprintf(&b, tr(`<text x="%g" y="%g" font-size="10" font-weight="600" fill="#94a3b8" text-anchor="middle">%d</text>`),
 				cx, baseY+31, m.Year)
 			prevYear = m.Year
 		}
@@ -276,8 +279,8 @@ func workloadTimelineSVG(t forecast.WorkloadTimeline) template.HTML {
 		if !m.HasRolling {
 			continue
 		}
-		fmt.Fprintf(&b, `<circle cx="%g" cy="%g" r="3.2" fill="%s"><title>%s</title></circle>`,
-			centerX(i), y(m.Rolling), colRolling, workloadRollingTitle(m, t.Rolling))
+		fmt.Fprintf(&b, tr(`<circle cx="%g" cy="%g" r="3.2" fill="%s"><title>%s</title></circle>`),
+			centerX(i), y(m.Rolling), colRolling, workloadRollingTitle(m, t.Rolling, languages...))
 	}
 
 	b.WriteString(`</svg>`)
@@ -286,27 +289,29 @@ func workloadTimelineSVG(t forecast.WorkloadTimeline) template.HTML {
 
 // workloadRollingTitle builds the escaped tooltip of one point of the rolling
 // average - the balancing period the law measures.
-func workloadRollingTitle(m forecast.WorkloadMonth, months int) string {
-	out := fmt.Sprintf("Ø %d Monate bis %s %d&#10;%s h je Werktag (%s %% des Limits)&#10;Zeitraum ab %s",
+func workloadRollingTitle(m forecast.WorkloadMonth, months int, languages ...string) string {
+	tr := i18n.Translator(languages...)
+	out := fmt.Sprintf(tr("Ø %d Monate bis %s %d&#10;%s h je Werktag (%s %% des Limits)&#10;Zeitraum ab %s"),
 		months, template.HTMLEscapeString(m.Label), m.Year,
 		chartHours(m.Rolling), chartHours(round1(m.Rolling/forecast.WorkdayLimitHours*100)), m.RollingFrom)
 	if m.RollingOver {
-		out += "&#10;Der Ausgleichszeitraum liegt über dem Limit."
+		out += tr("&#10;Der Ausgleichszeitraum liegt über dem Limit.")
 	}
 	return out
 }
 
 // workloadMonthTitle builds the escaped, multi-line tooltip of one month. The
 // chart carries no table any more, so this is where the detail lives.
-func workloadMonthTitle(m forecast.WorkloadMonth) string {
-	kind := "gebucht"
+func workloadMonthTitle(m forecast.WorkloadMonth, languages ...string) string {
+	tr := i18n.Translator(languages...)
+	kind := tr("gebucht")
 	switch {
 	case m.Ahead:
-		kind = "geplant"
+		kind = tr("geplant")
 	case m.Current:
-		kind = "gebucht + geplant"
+		kind = tr("gebucht + geplant")
 	}
-	return fmt.Sprintf("%s %d · %s&#10;Ø %s h je Werktag (%s %% des Limits)&#10;%s h %s auf %d Werktage, davon %d mit Stunden",
+	return fmt.Sprintf(tr("%s %d · %s&#10;Ø %s h je Werktag (%s %% des Limits)&#10;%s h %s auf %d Werktage, davon %d mit Stunden"),
 		template.HTMLEscapeString(m.Label), m.Year, m.Range,
 		chartHours(m.PerDay), chartHours(round1(m.PerDay/forecast.WorkdayLimitHours*100)),
 		chartHours(m.Hours), kind, m.Days, m.Filled)
@@ -340,7 +345,8 @@ func niceStep(max float64, want int) float64 {
 // viewBox for the full-width fiscal-year chart, keeping the font sizes intact.
 // Inputs are numeric plus controlled month labels, so the inline SVG carries no
 // untrusted markup.
-func progressSVG(labels []string, booked, projected []float64, target, todayPos float64, wide bool, periodStart time.Time) template.HTML {
+func progressSVG(labels []string, booked, projected []float64, target, todayPos float64, wide bool, periodStart time.Time, languages ...string) template.HTML {
+	tr := i18n.Translator(languages...)
 	const (
 		padL = 48.0
 		padT = 30.0
@@ -363,7 +369,7 @@ func progressSVG(labels []string, booked, projected []float64, target, todayPos 
 	plotH := h - padT - padB
 	if n < 1 {
 		return template.HTML(fmt.Sprintf( // #nosec G203 -- constant SVG shell, numeric values only
-			`<svg viewBox="0 0 %g %g" class="%s" role="img" aria-label="Fortschritt"></svg>`, w, h, class))
+			tr(`<svg viewBox="0 0 %g %g" class="%s" role="img" aria-label="Fortschritt"></svg>`), w, h, class))
 	}
 	if todayPos < 0 {
 		todayPos = 0
@@ -429,7 +435,7 @@ func progressSVG(labels []string, booked, projected []float64, target, todayPos 
 	if pctAxis {
 		viewH += 24
 	}
-	fmt.Fprintf(&b, `<svg viewBox="0 0 %g %g" class="%s" role="img" aria-label="Fortschritt">`, w, viewH, class)
+	fmt.Fprintf(&b, tr(`<svg viewBox="0 0 %g %g" class="%s" role="img" aria-label="Fortschritt">`), w, viewH, class)
 
 	// Booked, forecast, projection and target as a centred row of pills above the
 	// plot, each in the colour of the thing it describes.
@@ -438,12 +444,12 @@ func progressSVG(labels []string, booked, projected []float64, target, todayPos 
 		forecastLeft = 0
 	}
 	pills := []struct{ color, text string }{
-		{colDone, "Gebucht " + chartHours(round1(valueAt(booked, n))) + " h"},
+		{colDone, tr("Gebucht ") + chartHours(round1(valueAt(booked, n))) + " h"},
 		{colForecast, "Forecast " + chartHours(round1(forecastLeft)) + " h"},
-		{colProjected, "Hochrechnung " + chartHours(round1(valueAt(projected, n))) + " h"},
+		{colProjected, tr("Hochrechnung ") + chartHours(round1(valueAt(projected, n))) + " h"},
 	}
 	if target > 0 {
-		pills = append(pills, struct{ color, text string }{colTarget, "Ziel " + chartHours(round1(target)) + " h"})
+		pills = append(pills, struct{ color, text string }{colTarget, tr("Ziel ") + chartHours(round1(target)) + " h"})
 	}
 	widths := make([]float64, len(pills))
 	total := float64(len(pills)-1) * 8
@@ -457,7 +463,7 @@ func progressSVG(labels []string, booked, projected []float64, target, todayPos 
 	}
 	for i, p := range pills {
 		fmt.Fprintf(&b, `<rect x="%g" y="2" width="%g" height="17" rx="8" fill="%s"/>`, px, widths[i], p.color)
-		fmt.Fprintf(&b, `<text x="%g" y="14" font-size="11" font-weight="600" fill="#ffffff" text-anchor="middle">%s</text>`,
+		fmt.Fprintf(&b, tr(`<text x="%g" y="14" font-size="11" font-weight="600" fill="#ffffff" text-anchor="middle">%s</text>`),
 			px+widths[i]/2, p.text)
 		px += widths[i] + 8
 	}
@@ -471,10 +477,10 @@ func progressSVG(labels []string, booked, projected []float64, target, todayPos 
 	for v := 0.0; v <= yMax+step/2; v += step {
 		yy := y(v)
 		fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s"/>`, padL, yy, padL+plotW, yy, colGrid)
-		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" fill="#475569" text-anchor="end">%s</text>`,
+		fmt.Fprintf(&b, tr(`<text x="%g" y="%g" font-size="11" fill="#475569" text-anchor="end">%s</text>`),
 			padL-7, yy+4, chartHours(round1(v)))
 		if pctAxis && (math.IsNaN(targetY) || math.Abs(yy-targetY) >= 13) {
-			fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" fill="#475569" text-anchor="start">%s</text>`,
+			fmt.Fprintf(&b, tr(`<text x="%g" y="%g" font-size="11" fill="#475569" text-anchor="start">%s</text>`),
 				padL+plotW+7, yy+4, chartPct(v/target*100))
 		}
 	}
@@ -485,7 +491,7 @@ func progressSVG(labels []string, booked, projected []float64, target, todayPos 
 			padL+plotW, padT, padL+plotW, padT+plotH, colAxis)
 	}
 	if !math.IsNaN(targetY) {
-		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" font-weight="600" fill="%s" text-anchor="start">%s</text>`,
+		fmt.Fprintf(&b, tr(`<text x="%g" y="%g" font-size="11" font-weight="600" fill="%s" text-anchor="start">%s</text>`),
 			padL+plotW+7, targetY+4, colTarget, chartPct(100))
 	}
 
@@ -553,7 +559,7 @@ func progressSVG(labels []string, booked, projected []float64, target, todayPos 
 			col = colDone
 			v = valueAt(booked, i)
 		}
-		fmt.Fprintf(&b, `<circle cx="%g" cy="%g" r="2.6" fill="%s"><title>%s: %s h Hochrechnung, davon %s h gebucht</title></circle>`,
+		fmt.Fprintf(&b, tr(`<circle cx="%g" cy="%g" r="2.6" fill="%s"><title>%s: %s h Hochrechnung, davon %s h gebucht</title></circle>`),
 			x(float64(i)), y(v), col, template.HTMLEscapeString(shortLabel(labelAt(labels, i-1))),
 			chartHours(round1(valueAt(projected, i))), chartHours(round1(valueAt(booked, i))))
 	}
@@ -574,26 +580,26 @@ func progressSVG(labels []string, booked, projected []float64, target, todayPos 
 		if i == lastDone && todayPos > float64(i) && todayPos < float64(i+1) {
 			fill, weight = colDone, "600" // the sub-period today falls into
 		}
-		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" font-weight="%s" fill="%s" text-anchor="middle">%s</text>`,
+		fmt.Fprintf(&b, tr(`<text x="%g" y="%g" font-size="11" font-weight="%s" fill="%s" text-anchor="middle">%s</text>`),
 			x(float64(i)+0.5), padT+plotH+18, weight, fill, template.HTMLEscapeString(shortLabel(labelAt(labels, i))))
 	}
 
 	if pctAxis {
-		label := "Zielerreichung kann aktuell nicht geschätzt werden"
+		label := tr("Zielerreichung kann aktuell nicht geschätzt werden")
 		color := "#475569"
 		if crossing >= 0 {
-			label, color = "Ziel voraussichtlich am ", colProjected
+			label, color = tr("Ziel voraussichtlich am "), colProjected
 			if crossing <= todayPos {
-				label, color = "Ziel wurde am ", colDone
+				label, color = tr("Ziel wurde am "), colDone
 			}
 			label += progressDate(periodStart, crossing, n).Format("02.01.2006") + " erreicht"
 			cx, cy := x(crossing), y(target)
 			fmt.Fprintf(&b, `<line class="target-crossing-guide" x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s" stroke-dasharray="3 3"/>`,
 				cx, cy, cx, padT+plotH, color)
-			fmt.Fprintf(&b, `<circle class="target-crossing" cx="%g" cy="%g" r="4" fill="%s" stroke="#ffffff" stroke-width="1.5"><title>%s (aus der Monatskurve interpoliert)</title></circle>`,
+			fmt.Fprintf(&b, tr(`<circle class="target-crossing" cx="%g" cy="%g" r="4" fill="%s" stroke="#ffffff" stroke-width="1.5"><title>%s (aus der Monatskurve interpoliert)</title></circle>`),
 				cx, cy, color, label)
 		}
-		fmt.Fprintf(&b, `<text class="target-crossing-label" x="%g" y="%g" font-size="12" font-weight="600" fill="%s" text-anchor="middle">%s</text>`,
+		fmt.Fprintf(&b, tr(`<text class="target-crossing-label" x="%g" y="%g" font-size="12" font-weight="600" fill="%s" text-anchor="middle">%s</text>`),
 			w/2, h+12, color, label)
 	}
 	b.WriteString(`</svg>`)
@@ -622,14 +628,15 @@ func labelAt(labels []string, i int) string {
 
 // goalFlowTitle builds the escaped, multi-line tooltip of a flow node: planned
 // vs. already booked hours and, for the periods, the evenly split goal.
-func goalFlowTitle(n forecast.GoalFlowNode) string {
+func goalFlowTitle(n forecast.GoalFlowNode, languages ...string) string {
+	tr := i18n.Translator(languages...)
 	head := template.HTMLEscapeString(n.Title)
 	if n.StateLabel != "" {
 		head += " · " + template.HTMLEscapeString(n.StateLabel)
 	}
-	body := fmt.Sprintf("%s h geplant · %s h gebucht", chartHours(n.Hours), chartHours(n.Booked))
+	body := fmt.Sprintf(tr("%s h geplant · %s h gebucht"), chartHours(n.Hours), chartHours(n.Booked))
 	if n.Target > 0 {
-		body += fmt.Sprintf("&#10;Soll %s h · %s %% erreicht", chartHours(n.Target), chartHours(n.PctOfTarget))
+		body += fmt.Sprintf(tr("&#10;Soll %s h · %s %% erreicht"), chartHours(n.Target), chartHours(n.PctOfTarget))
 	}
 	return head + "&#10;" + body
 }
@@ -643,7 +650,8 @@ func goalFlowTitle(n forecast.GoalFlowNode) string {
 // translucent planned hours. Project colours are sanitised and every label is
 // HTML-escaped, so the markup emitted as template.HTML carries no untrusted
 // content.
-func goalFlowSVG(flow forecast.GoalFlow) template.HTML {
+func goalFlowSVG(flow forecast.GoalFlow, languages ...string) template.HTML {
+	tr := i18n.Translator(languages...)
 	const (
 		w      = 1200.0
 		h      = 520.0
@@ -660,7 +668,7 @@ func goalFlowSVG(flow forecast.GoalFlow) template.HTML {
 
 	if !flow.HasData {
 		return template.HTML(fmt.Sprintf( // #nosec G203 -- constant SVG shell, numeric values only
-			`<svg viewBox="0 0 %g %g" class="goalflow" role="img" aria-label="Stundenfluss"><text x="%g" y="%g" font-size="13" fill="#94a3b8" text-anchor="middle">Noch keine Stunden im Fiskaljahr erfasst.</text></svg>`,
+			tr(`<svg viewBox="0 0 %g %g" class="goalflow" role="img" aria-label="Stundenfluss"><text x="%g" y="%g" font-size="13" fill="#94a3b8" text-anchor="middle">Noch keine Stunden im Fiskaljahr erfasst.</text></svg>`),
 			w, h, w/2, h/2))
 	}
 
@@ -699,15 +707,15 @@ func goalFlowSVG(flow forecast.GoalFlow) template.HTML {
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, `<svg viewBox="0 0 %g %g" class="goalflow" role="img" aria-label="Stundenfluss vom Projekt bis zum Fiskaljahr">`, w, h)
+	fmt.Fprintf(&b, tr(`<svg viewBox="0 0 %g %g" class="goalflow" role="img" aria-label="Stundenfluss vom Projekt bis zum Fiskaljahr">`), w, h)
 
 	for si, name := range forecast.GoalFlowStages {
 		if si >= len(flow.Stages) {
 			break
 		}
 		x := padL + (plotW-nodeW)*float64(si)/float64(len(flow.Stages)-1) + nodeW/2
-		fmt.Fprintf(&b, `<text x="%g" y="18" font-size="11" font-weight="600" fill="#475569" text-anchor="middle">%s</text>`,
-			x, template.HTMLEscapeString(name))
+		fmt.Fprintf(&b, tr(`<text x="%g" y="18" font-size="11" font-weight="600" fill="#475569" text-anchor="middle">%s</text>`),
+			x, template.HTMLEscapeString(tr(name)))
 	}
 
 	// Ribbons first (behind the nodes). Source-side offsets follow the target
@@ -751,7 +759,7 @@ func goalFlowSVG(flow forecast.GoalFlow) template.HTML {
 		x0, x1 := from.x+nodeW, to.x
 		xc := (x0 + x1) / 2
 		fmt.Fprintf(&b,
-			`<path class="ribbon" d="M%g %g C%g %g %g %g %g %g L%g %g C%g %g %g %g %g %g Z" fill="%s" fill-opacity="0.42"><title>%s → %s&#10;%s h</title></path>`,
+			tr(`<path class="ribbon" d="M%g %g C%g %g %g %g %g %g L%g %g C%g %g %g %g %g %g Z" fill="%s" fill-opacity="0.42"><title>%s → %s&#10;%s h</title></path>`),
 			x0, a0, xc, a0, xc, t.top, x1, t.top,
 			x1, t.bot, xc, t.bot, xc, a1, x0, a1, sanitizeColor(l.Color),
 			template.HTMLEscapeString(l.FromLabel), template.HTMLEscapeString(l.ToLabel),
@@ -765,19 +773,19 @@ func goalFlowSVG(flow forecast.GoalFlow) template.HTML {
 			if p == nil {
 				continue
 			}
-			title := goalFlowTitle(n)
+			title := goalFlowTitle(n, languages...)
 			// The base stripe carries the planned hours; the opaque overlay on top
 			// of it is the share that is already booked.
 			col := sanitizeColor(n.Color)
 			fmt.Fprintf(&b,
-				`<rect class="node" x="%g" y="%g" width="%g" height="%g" rx="2" fill="%s" fill-opacity="0.55"><title>%s</title></rect>`,
+				tr(`<rect class="node" x="%g" y="%g" width="%g" height="%g" rx="2" fill="%s" fill-opacity="0.55"><title>%s</title></rect>`),
 				p.x, p.top, nodeW, p.ht, col, title)
 			if bh := scale * n.Booked; bh > 0 {
 				if bh > p.ht {
 					bh = p.ht
 				}
 				fmt.Fprintf(&b,
-					`<rect class="node" x="%g" y="%g" width="%g" height="%g" rx="2" fill="%s"><title>%s</title></rect>`,
+					tr(`<rect class="node" x="%g" y="%g" width="%g" height="%g" rx="2" fill="%s"><title>%s</title></rect>`),
 					p.x, p.top+p.ht-bh, nodeW, bh, col, title)
 			}
 			if p.ht < minLbl {
@@ -787,15 +795,15 @@ func goalFlowSVG(flow forecast.GoalFlow) template.HTML {
 			label := template.HTMLEscapeString(fmt.Sprintf("%s · %s h", n.Label, chartHours(n.Hours)))
 			switch {
 			case p.stage == 0:
-				fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" fill="#334155" text-anchor="end">%s</text>`,
+				fmt.Fprintf(&b, tr(`<text x="%g" y="%g" font-size="11" fill="#334155" text-anchor="end">%s</text>`),
 					p.x-8, cy, label)
 			case p.stage == last:
-				fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" font-weight="600" fill="#334155">%s</text>`,
+				fmt.Fprintf(&b, tr(`<text x="%g" y="%g" font-size="11" font-weight="600" fill="#334155">%s</text>`),
 					p.x+nodeW+8, cy, label)
 			case p.ht >= 12:
 				// A white halo keeps the label readable on both the translucent and
 				// the opaque part of the stripe.
-				fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="9" font-weight="600" fill="#1e293b" stroke="#ffffff" stroke-width="2.5" paint-order="stroke" text-anchor="middle">%s</text>`,
+				fmt.Fprintf(&b, tr(`<text x="%g" y="%g" font-size="9" font-weight="600" fill="#1e293b" stroke="#ffffff" stroke-width="2.5" paint-order="stroke" text-anchor="middle">%s</text>`),
 					p.x+nodeW/2, cy-0.5, template.HTMLEscapeString(n.Label))
 			}
 		}
@@ -994,7 +1002,8 @@ func pausedProjects(data forecast.SankeyData, from, to map[string]sankeyBand, va
 // other projects' ribbons and releases them again afterwards. Project colours
 // are sanitised and project names are HTML-escaped, so the emitted markup
 // (returned as template.HTML) carries no untrusted content.
-func sankeySVG(data forecast.SankeyData) template.HTML {
+func sankeySVG(data forecast.SankeyData, languages ...string) template.HTML {
+	tr := i18n.Translator(languages...)
 	const (
 		h        = 376.0 // ~20 % shorter than the original 470
 		headroom = 30.0  // room above the tallest column for its value labels
@@ -1005,7 +1014,7 @@ func sankeySVG(data forecast.SankeyData) template.HTML {
 
 	if g.n == 0 || data.MaxBucket <= 0 {
 		return template.HTML(fmt.Sprintf( // #nosec G203 -- constant SVG shell, numeric values only
-			`<svg viewBox="0 0 %g %g" class="sankey" role="img" aria-label="Auslastung"><text x="%g" y="%g" font-size="13" fill="#94a3b8" text-anchor="middle">Keine geplanten Stunden im gewählten Zeitraum.</text></svg>`,
+			tr(`<svg viewBox="0 0 %g %g" class="sankey" role="img" aria-label="Auslastung"><text x="%g" y="%g" font-size="13" fill="#94a3b8" text-anchor="middle">Keine geplanten Stunden im gewählten Zeitraum.</text></svg>`),
 			g.w, h, g.w/2, h/2))
 	}
 
@@ -1051,7 +1060,7 @@ func sankeySVG(data forecast.SankeyData) template.HTML {
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, `<svg viewBox="0 0 %g %g" class="sankey" role="img" aria-label="Auslastung">`, g.w, h)
+	fmt.Fprintf(&b, tr(`<svg viewBox="0 0 %g %g" class="sankey" role="img" aria-label="Auslastung">`), g.w, h)
 
 	// in-chart legend
 	for _, e := range legend {
@@ -1059,7 +1068,7 @@ func sankeySVG(data forecast.SankeyData) template.HTML {
 		if e.color != "" {
 			fmt.Fprintf(&b, `<rect x="%g" y="%g" width="9" height="9" rx="2" fill="%s"/>`, e.x, ly+2, e.color)
 		}
-		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" fill="#475569">%s</text>`,
+		fmt.Fprintf(&b, tr(`<text x="%g" y="%g" font-size="11" fill="#475569">%s</text>`),
 			e.x+13, ly+11, template.HTMLEscapeString(e.text))
 	}
 
@@ -1068,7 +1077,7 @@ func sankeySVG(data forecast.SankeyData) template.HTML {
 		val := yMax * frac
 		yy := baseY - scaleY(val)
 		fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#eef2f7"/>`, g.padL, yy, g.padL+g.plotW, yy)
-		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="10" fill="#94a3b8" text-anchor="end">%g</text>`, g.padL-6, yy+3, round1(val))
+		fmt.Fprintf(&b, tr(`<text x="%g" y="%g" font-size="10" fill="#94a3b8" text-anchor="end">%g</text>`), g.padL-6, yy+3, round1(val))
 	}
 	// left axis + baseline
 	fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#cbd5e1"/>`, g.padL, plotTop, g.padL, baseY)
@@ -1087,7 +1096,7 @@ func sankeySVG(data forecast.SankeyData) template.HTML {
 		xc := (x0 + x1) / 2
 		ribbon := func(a, c sankeyBand, color, title string) {
 			fmt.Fprintf(&b,
-				`<path class="ribbon" d="M%g %g C%g %g %g %g %g %g L%g %g C%g %g %g %g %g %g Z" fill="%s" fill-opacity="0.3"><title>%s</title></path>`,
+				tr(`<path class="ribbon" d="M%g %g C%g %g %g %g %g %g L%g %g C%g %g %g %g %g %g Z" fill="%s" fill-opacity="0.3"><title>%s</title></path>`),
 				x0, a.top, xc, a.top, xc, c.top, x1, c.top,
 				x1, c.bot, xc, c.bot, xc, a.bot, x0, a.bot, color, title)
 		}
@@ -1145,7 +1154,7 @@ func sankeySVG(data forecast.SankeyData) template.HTML {
 				continue
 			}
 			fmt.Fprintf(&b,
-				`<rect class="node" x="%g" y="%g" width="%g" height="%g" fill="%s" rx="1"><title>%s&#10;%s: %s h von %s h gesamt</title></rect>`,
+				tr(`<rect class="node" x="%g" y="%g" width="%g" height="%g" fill="%s" rx="1"><title>%s&#10;%s: %s h von %s h gesamt</title></rect>`),
 				x, bd.top, g.nodeW, bd.bot-bd.top, sanitizeColor(p.Color),
 				template.HTMLEscapeString(p.Name),
 				template.HTMLEscapeString(bk.Label), chartHours(bk.Hours[p.ID]), chartHours(bk.Total))
@@ -1160,7 +1169,7 @@ func sankeySVG(data forecast.SankeyData) template.HTML {
 			fill = "#cbd5e1"
 			top = baseY
 		}
-		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="11" font-weight="600" fill="%s" text-anchor="middle">%s</text>`,
+		fmt.Fprintf(&b, tr(`<text x="%g" y="%g" font-size="11" font-weight="600" fill="%s" text-anchor="middle">%s</text>`),
 			cx, top-6, fill, chartHours(bk.Total))
 	}
 
@@ -1175,7 +1184,8 @@ func sankeySVG(data forecast.SankeyData) template.HTML {
 // public holidays) minus the planned hours, vacation included.
 // Free time is green, columns below the zero line mark an overbooked bucket and
 // are red.
-func freeTimeSVG(data forecast.SankeyData) template.HTML {
+func freeTimeSVG(data forecast.SankeyData, languages ...string) template.HTML {
+	tr := i18n.Translator(languages...)
 	const (
 		h       = 190.0
 		padT    = 26.0
@@ -1189,7 +1199,7 @@ func freeTimeSVG(data forecast.SankeyData) template.HTML {
 
 	if g.n == 0 {
 		return template.HTML(fmt.Sprintf( // #nosec G203 -- constant SVG shell, numeric values only
-			`<svg viewBox="0 0 %g %g" class="freetime" role="img" aria-label="Freie Kapazität"><text x="%g" y="%g" font-size="13" fill="#94a3b8" text-anchor="middle">Kein Zeitraum gewählt.</text></svg>`,
+			tr(`<svg viewBox="0 0 %g %g" class="freetime" role="img" aria-label="Freie Kapazität"><text x="%g" y="%g" font-size="13" fill="#94a3b8" text-anchor="middle">Kein Zeitraum gewählt.</text></svg>`),
 			g.w, h, g.w/2, h/2))
 	}
 
@@ -1218,14 +1228,14 @@ func freeTimeSVG(data forecast.SankeyData) template.HTML {
 	barW := g.nodeW
 
 	var b strings.Builder
-	fmt.Fprintf(&b, `<svg viewBox="0 0 %g %g" class="freetime" role="img" aria-label="Freie Kapazität">`, g.w, h)
+	fmt.Fprintf(&b, tr(`<svg viewBox="0 0 %g %g" class="freetime" role="img" aria-label="Freie Kapazität">`), g.w, h)
 
 	// legend (top left) + zero line; laid out by estimated text width so a longer
 	// label can never run into the next swatch
 	lx := g.padL
-	for _, l := range []struct{ color, text string }{{colFree, "Freie Kapazität"}, {colOver, "Überbucht"}} {
+	for _, l := range []struct{ color, text string }{{colFree, tr("Freie Kapazität")}, {colOver, tr("Überbucht")}} {
 		fmt.Fprintf(&b, `<rect x="%g" y="4" width="9" height="9" rx="2" fill="%s"/>`, lx, l.color)
-		fmt.Fprintf(&b, `<text x="%g" y="13" font-size="11" fill="#475569">%s</text>`, lx+13, l.text)
+		fmt.Fprintf(&b, tr(`<text x="%g" y="13" font-size="11" fill="#475569">%s</text>`), lx+13, l.text)
 		lx += 26 + estTextWidth(l.text, 11)
 	}
 	fmt.Fprintf(&b, `<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="#cbd5e1"/>`, g.padL, zeroY, g.padL+g.plotW, zeroY)
@@ -1248,7 +1258,7 @@ func freeTimeSVG(data forecast.SankeyData) template.HTML {
 		case v == 0:
 			bh, y, col, labelY = 2, zeroY-1, "#e2e8f0", zeroY-6
 		}
-		fmt.Fprintf(&b, `<rect x="%g" y="%g" width="%g" height="%g" rx="2" fill="%s"><title>%s · %s h frei (Kapazität %s h, geplant %s h)</title></rect>`,
+		fmt.Fprintf(&b, tr(`<rect x="%g" y="%g" width="%g" height="%g" rx="2" fill="%s"><title>%s · %s h frei (Kapazität %s h, geplant %s h)</title></rect>`),
 			cx-barW/2, y, barW, bh, col,
 			template.HTMLEscapeString(bk.Label), formatHours(v), formatHours(bk.CapacityHours), formatHours(bk.Total))
 		if i%labelStep != 0 {
@@ -1258,7 +1268,7 @@ func freeTimeSVG(data forecast.SankeyData) template.HTML {
 		if v < 0 {
 			textFill = "#b91c1c"
 		}
-		fmt.Fprintf(&b, `<text x="%g" y="%g" font-size="10" font-weight="600" fill="%s" text-anchor="middle">%s</text>`,
+		fmt.Fprintf(&b, tr(`<text x="%g" y="%g" font-size="10" font-weight="600" fill="%s" text-anchor="middle">%s</text>`),
 			cx, labelY, textFill, formatHours(v))
 	}
 

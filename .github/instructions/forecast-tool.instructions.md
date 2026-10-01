@@ -10,9 +10,12 @@ collects every requirement stated so far as the binding reference.
 
 ## Language policy
 
-- **The user interface is German**: all template text, form labels and
-  user-facing error/validation messages (web handlers, `models.Validate`,
-  `storage`, `api`, `ai`) stay German.
+- **The user interface supports German and English**: `settings.language`
+  stores `de` (the default for new and legacy data) or `en`. Use the
+  `internal/i18n` catalog and template helpers for new UI text, accessible
+  labels, charts and messages. German source messages are translated at the
+  presentation boundary; external API errors retain their existing contract.
+  Never translate user-entered project names, custom labels or custom prompts.
 - **Everything else is English**: code, identifiers, comments, doc comments,
   README, `docs/**`, workflow files, Dockerfile/compose comments and this
   instructions file.
@@ -55,7 +58,7 @@ collects every requirement stated so far as the binding reference.
   former `kind` field is a migration-only legacy field (collapsed on load in
   `storage.normalize` via `mergeEntries`: one value per (date, projectId),
   actual wins) and is never written again.
-- `Settings` (global): year (= active fiscal year), federalState,
+- `Settings` (global): language (`de` or `en`), year (= active fiscal year), federalState,
   weeklyTargetHours, fiscalYearStartMonth, dashboardRange, monthPlanningPrompt, monthPlanningSystemPrompt,
   `ai` (AISettings), `utilization`
   (UtilizationSettings).
@@ -1062,13 +1065,15 @@ collects every requirement stated so far as the binding reference.
 
 ## Documentation site, demo & screenshots
 
-- The public site (GitHub Pages) is **generated, never hand-written**:
-  `go run ./cmd/docsite -out site` starts the real application in-process on a
-  loopback port against a generated demo document and derives everything from
-  that instance. `.github/workflows/pages.yml` runs the same command on every
-  push to `main`, so docs, demo and screenshots can never drift from the code.
+- The public site (GitHub Pages) is **generated from maintained English
+  Markdown**, with fresh demo snapshots and screenshots of the application:
+  `go run ./cmd/docsite -out site -language en -require-screenshots` starts the
+  real application on a loopback port against generated data. The Pages
+  workflow builds both `en` and `de` on pull requests and pushes to `main`;
+  pull requests upload preview artifacts, while only `main` publishes.
+  Feature explanations still need to be maintained when behavior changes.
 - `internal/docsite` holds the four steps: `demo.go` (deterministic demo data),
-  `snapshot.go` (static, clickable copy of every GET page), `shots.go` (the shot
+  `snapshot.go` (static, clickable copy of discovered navigation pages), `shots.go` (the shot
   list handed to `tools/screenshots/capture.mjs`) and `site.go` (Markdown →
   HTML with goldmark, plus the screenshot gallery).
 - **The demo data must stay deterministic**: it is anchored on today and derives
@@ -1080,20 +1085,20 @@ collects every requirement stated so far as the binding reference.
   the doc site needs a small, screenshot-friendly year, the private mode a full
   one that exercises every indicator. Both are deterministic; do not merge them
   or the screenshots change with every tweak to the private-mode demo.
-- **The snapshot must stay inert.** `rewrite` points every internal link at its
-  local file, copies the stylesheet and injects a script that swallows form
-  submits and `fetch` – there is no server behind the published copy, and
-  without the stub the auto-save would show a red "save failed" pill. Links to
+- **The snapshot must stay inert.** `rewrite` points internal links at local
+  files, removes scripts and disables input controls. There is no server
+  behind the published copy. Links to
   pages that were not captured fall back to the closest captured page
   (`fallbackURL`), so nothing dead-ends.
-- **A new route belongs in `docsite.DemoPages`, a new screenshot in
-  `docsite.DemoShots`, a new document in `markdownPages` + `nav`.** The shot
-  title and description are German (they are the gallery caption); the rendered
-  documents stay English, like the rest of the repository.
+- Markdown pages under `docs` and routes linked from the application
+  navigation are discovered automatically. Special views outside navigation
+  still need explicit snapshot and screenshot definitions. The rendered
+  documents stay English; demo snapshots and screenshots use the selected
+  language. Broken local links and anchors must fail the build.
 - Screenshots need `npm ci` + `npx playwright install chromium` in
   `tools/screenshots`. Without them the build only warns and skips the gallery;
   CI passes `-require-screenshots` so a broken capture fails the workflow.
-- The README embeds the screenshots through their **Pages URLs**; the PNGs are
+- Documentation embeds screenshots through their **Pages URLs**; the PNGs are
   build artifacts and are deliberately **not committed** (`/site/` is ignored).
 - Enabling the site is a one-time manual step: *Settings → Pages → Source:
   GitHub Actions*. See `docs/DOCSITE.md`.

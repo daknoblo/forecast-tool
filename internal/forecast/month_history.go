@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/daknoblo/forecast-tool/internal/holidays"
+	"github.com/daknoblo/forecast-tool/internal/i18n"
 	"github.com/daknoblo/forecast-tool/internal/models"
 )
 
@@ -20,7 +21,8 @@ type monthHistory struct {
 
 type monthHistoryWeeksData [monthHistoryWeeks][5]float64
 
-func buildMonthHistories(projects []models.Project, index map[string]float64, end time.Time, state string) map[string]monthHistory {
+func buildMonthHistories(projects []models.Project, index map[string]float64, end time.Time, state string, languages ...string) map[string]monthHistory {
+	tr := i18n.Translator(languages...)
 	start := end.AddDate(0, 0, -7*monthHistoryWeeks)
 	cal := holidays.Get(end.Year(), state)
 	var available, all monthHistoryWeeksData
@@ -63,16 +65,16 @@ func buildMonthHistories(projects []models.Project, index map[string]float64, en
 		if _, exists := result[key]; exists || p.IsVacation() {
 			continue
 		}
-		h := monthHistory{weights: general, basis: "Gleichmäßig: keine verwertbare Buchungshistorie"}
+		h := monthHistory{weights: general, basis: tr("Gleichmäßig: keine verwertbare Buchungshistorie")}
 		if generalWeeks > 0 {
-			h.basis = fmt.Sprintf("Persönliches Wochenmuster aus %d Wochen; neuere Buchungen stärker gewichtet", generalWeeks)
+			h.basis = fmt.Sprintf(tr("Persönliches Wochenmuster aus %d Wochen; neuere Buchungen stärker gewichtet"), generalWeeks)
 		}
 		if data := byAssignment[key]; data != nil {
 			var weeks int
 			h.weights, weeks = monthHistoryPattern(*data, available, general)
-			h.basis = fmt.Sprintf("Projektmuster aus %d Wochen; neuere Buchungen stärker gewichtet", weeks)
+			h.basis = fmt.Sprintf(tr("Projektmuster aus %d Wochen; neuere Buchungen stärker gewichtet"), weeks)
 			if weeks < 4 {
-				h.basis += "; mit persönlichem Wochenmuster abgesichert"
+				h.basis += tr("; mit persönlichem Wochenmuster abgesichert")
 			}
 		}
 		result[key] = h

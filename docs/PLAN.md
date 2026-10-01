@@ -20,7 +20,8 @@ file under `appdata/`. Built by GitHub Actions and pushed to GHCR, operated with
 - Deployment: `docker-compose.yml`, data in the `appdata` volume
 
 ## Data model (`data.json`)
-- `Settings` (global): `year` (active fiscal year), `federalState` (default `SN`),
+- `Settings` (global): `year` (active fiscal year), `language` (`de` by default,
+  or `en`), `federalState` (default `SN`),
   `weeklyTargetHours` (default 40), `fiscalYearStartMonth`,
   `ai { endpoint, deployment, apiVersion }` (the API key is **not** in the file —
   it comes from `FORECAST_AI_API_KEY`), `utilization` (traffic-light thresholds
@@ -28,8 +29,8 @@ file under `appdata/`. Built by GitHub Actions and pushed to GHCR, operated with
 - `FiscalYears` (per FY): `weekdayHours` (override of the gross
   FY hours), `vacationDays`, `holidayDays` (override of the calendar),
   `standardTaskLabel`, `standardTaskHours`. Defaults for new/unconfigured fiscal
-  years (`models.DefaultFYSettings`): target 1440 h, vacation 15 days per half,
-  standard tasks 250 h.
+  years: gross hours from weekdays × 8, vacation 30 days, calculated holidays,
+  standard tasks 250 h. The net breakdown determines the target.
 - `Project`: `id`, `assignmentId` (external assignment identifier, required for
   regular projects), `name`, `budgetHours`, `color`, `active`, `fiscalYear`,
   `startDate`, `endDate` (optional, ISO, inclusive = booking window; empty = the
@@ -64,7 +65,7 @@ internal/sample/sample.go           # the sample document the private mode rende
 internal/web/svg.go                 # burn-down, progress, sankey and free-capacity SVG generators
 internal/web/util.go                # formatting/validation helpers
 internal/web/web_test.go            # handler/middleware tests
-internal/web/templates/*.html       # layout, dashboard, week, projects, goal, settings, JSON editor
+internal/web/templates/*.html       # layout, dashboard, month, projects, goal, settings
 internal/web/static/style.css       # styles
 appdata/.gitkeep                    # data.json at runtime (git-ignored)
 docs/PLAN.md                        # this plan
@@ -134,8 +135,11 @@ go.mod
 - **Security**: see the "Security model" section in the README.
 - **Documentation**: the public site (docs, screenshot gallery and a clickable
   static snapshot of the running application) is generated from this repository
-  by `cmd/docsite` and published to GitHub Pages on every push to `main`, so it
-  cannot drift away from the code. See [DOCSITE.md](DOCSITE.md).
+  by `cmd/docsite` and published to GitHub Pages on every push to `main`.
+  Pull requests produce reviewable English/German UI artifacts without
+  publishing. Markdown and navigation pages are discovered dynamically; all
+  captured views are regenerated. Prose still requires manual maintenance.
+  See [DOCSITE.md](DOCSITE.md).
 
 ## Verification
 - `gofmt`, `go vet ./...`, `go build ./...` and `go test ./...` must be clean

@@ -287,21 +287,21 @@ func TestWorkloadReachesDashboardAndGoal(t *testing.T) {
 		t.Fatalf("storage.New: %v", err)
 	}
 	// Twelve hours on every day of the last four weeks: well over the 8 h the
-	// law averages out to, so the page has to say so. The next two weeks are
-	// planned at a sane pace, which is what the second half of the chart shows.
+	// law averages out to, so the page has to say so. Plan through the next
+	// calendar month to always exercise a purely forward-looking chart month.
 	now := time.Now().UTC().Truncate(24 * time.Hour)
+	planEnd := time.Date(now.Year(), now.Month()+2, 1, 0, 0, 0, 0, time.UTC)
 	if err := store.Mutate(func(d *models.Data) error {
 		d.Projects = append(d.Projects, models.Project{
 			ID: "p1", AssignmentID: "1", Name: "Alpha", BudgetHours: 1000,
 			Color: "#2563eb", Active: true, FiscalYear: d.Settings.Year,
 		})
-		for i := -28; i < 14; i++ {
-			day := now.AddDate(0, 0, i)
+		for day := now.AddDate(0, 0, -28); day.Before(planEnd); day = day.AddDate(0, 0, 1) {
 			if wd := day.Weekday(); wd == time.Saturday || wd == time.Sunday {
 				continue
 			}
 			hours := 12.0
-			if i >= 0 {
+			if !day.Before(now) {
 				hours = 6
 			}
 			d.Entries = append(d.Entries, models.Entry{

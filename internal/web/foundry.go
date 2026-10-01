@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"fmt"
+	"github.com/daknoblo/forecast-tool/internal/i18n"
 	"net/http"
 	"os"
 	"strings"
@@ -106,7 +107,7 @@ func (s *Server) foundrySettings(r *http.Request, selected string) foundryView {
 		return view
 	}
 	view.Endpoint = catalog.Endpoint
-	view.RefreshedAt = catalog.RefreshedAt.Format("02.01.2006 15:04 UTC")
+	view.RefreshedAt = i18n.Date(s.requestLanguage(r), catalog.RefreshedAt) + catalog.RefreshedAt.Format(" 15:04 UTC")
 	for _, deployment := range catalog.Deployments {
 		if deployment.SupportsChat() {
 			view.Deployments = append(view.Deployments, deployment)
@@ -149,16 +150,16 @@ func (s *Server) aiConfig(ctx context.Context, settings models.AISettings) (ai.C
 
 func (s *Server) handleFoundryRefresh(w http.ResponseWriter, r *http.Request) {
 	if isPrivate(r) {
-		http.Error(w, "Im privaten Modus ist das Laden der Foundry-Deployments gesperrt.", http.StatusForbidden)
+		http.Error(w, s.translate(r, "Im privaten Modus ist das Laden der Foundry-Deployments gesperrt."), http.StatusForbidden)
 		return
 	}
 	if s.foundry == nil || !s.foundry.enabled {
-		http.Error(w, "Foundry ist nicht konfiguriert.", http.StatusBadRequest)
+		http.Error(w, s.translate(r, "Foundry ist nicht konfiguriert."), http.StatusBadRequest)
 		return
 	}
 	if _, err := s.foundry.catalog(r.Context(), true); err != nil {
 		s.logger.Warn("foundry refresh failed", "error", err)
-		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		http.Error(w, s.translate(r, err.Error()), http.StatusServiceUnavailable)
 		return
 	}
 	http.Redirect(w, r, "/settings#ai", http.StatusSeeOther)
@@ -166,12 +167,12 @@ func (s *Server) handleFoundryRefresh(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleAISettingsSave(w http.ResponseWriter, r *http.Request) {
 	if isPrivate(r) {
-		http.Error(w, "Im privaten Modus sind Änderungen an der KI-Anbindung gesperrt.", http.StatusForbidden)
+		http.Error(w, s.translate(r, "Im privaten Modus sind Änderungen an der KI-Anbindung gesperrt."), http.StatusForbidden)
 		return
 	}
 	deployment := trim(r.FormValue("aiDeployment"))
 	if len(deployment) > 100 || strings.ContainsAny(deployment, "/\\?#%") || deployment == "." || deployment == ".." {
-		http.Error(w, "Ungültiger KI-Deployment-Name.", http.StatusBadRequest)
+		http.Error(w, s.translate(r, "Ungültiger KI-Deployment-Name."), http.StatusBadRequest)
 		return
 	}
 	identity := s.foundry != nil && s.foundry.enabled
@@ -180,18 +181,18 @@ func (s *Server) handleAISettingsSave(w http.ResponseWriter, r *http.Request) {
 		if deployment != "" {
 			catalog, err := s.foundry.catalog(r.Context(), false)
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusServiceUnavailable)
+				http.Error(w, s.translate(r, err.Error()), http.StatusServiceUnavailable)
 				return
 			}
 			selected, ok := catalog.Find(deployment)
 			if !ok || !selected.SupportsChat() {
-				http.Error(w, "Das ausgewählte Foundry-Deployment ist nicht für Chat verfügbar.", http.StatusBadRequest)
+				http.Error(w, s.translate(r, "Das ausgewählte Foundry-Deployment ist nicht für Chat verfügbar."), http.StatusBadRequest)
 				return
 			}
 		}
 	} else {
 		if len(endpoint) > 4096 || len(version) > 100 {
-			http.Error(w, "KI-Endpoint oder API-Version ist zu lang.", http.StatusBadRequest)
+			http.Error(w, s.translate(r, "KI-Endpoint oder API-Version ist zu lang."), http.StatusBadRequest)
 			return
 		}
 		if endpoint != "" {
@@ -200,7 +201,7 @@ func (s *Server) handleAISettingsSave(w http.ResponseWriter, r *http.Request) {
 				probe = "deployment"
 			}
 			if _, _, err := ai.ChatURL(endpoint, probe, version); err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
+				http.Error(w, s.translate(r, err.Error()), http.StatusBadRequest)
 				return
 			}
 		}
@@ -214,7 +215,7 @@ func (s *Server) handleAISettingsSave(w http.ResponseWriter, r *http.Request) {
 		return nil
 	}); err != nil {
 		s.logger.Error("ai settings save failed", "error", err)
-		http.Error(w, "KI-Einstellungen konnten nicht gespeichert werden.", http.StatusInternalServerError)
+		http.Error(w, s.translate(r, "KI-Einstellungen konnten nicht gespeichert werden."), http.StatusInternalServerError)
 		return
 	}
 	s.settingsSaved(w, r)

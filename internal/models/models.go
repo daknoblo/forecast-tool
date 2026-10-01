@@ -5,6 +5,8 @@ import (
 	"math/rand"
 	"strings"
 	"time"
+
+	"github.com/daknoblo/forecast-tool/internal/i18n"
 )
 
 // Entry kinds are a legacy concept retained only to migrate old documents:
@@ -30,6 +32,7 @@ func ValidYear(y int) bool {
 // Per-fiscal-year values (target hours, vacation, standard tasks) live in
 // Data.FiscalYears instead, keyed by the FY anchor year.
 type Settings struct {
+	Language                  string  `json:"language"`
 	Year                      int     `json:"year"`         // currently active FY anchor year
 	FederalState              string  `json:"federalState"` // e.g. "BY", "BW", "BE" ...
 	WeeklyTargetHours         float64 `json:"weeklyTargetHours"`
@@ -117,15 +120,22 @@ func (s Settings) ClassifyUtilization(hours float64) UtilStatus {
 	if u.MinHours == 0 && u.OptimalHours == 0 && u.OverHours == 0 {
 		u = DefaultUtilization()
 	}
+	display := func(value, fallback string) string {
+		label := labelOr(value, fallback)
+		if label == fallback {
+			return i18n.Text(s.Language, label)
+		}
+		return label
+	}
 	switch {
 	case hours <= u.MinHours:
-		return UtilStatus{Key: "min", Label: labelOr(u.MinLabel, DefaultMinLabel), Hours: hours}
+		return UtilStatus{Key: "min", Label: display(u.MinLabel, DefaultMinLabel), Hours: hours}
 	case hours <= u.OptimalHours:
-		return UtilStatus{Key: "optimal", Label: labelOr(u.OptimalLabel, "Optimal"), Hours: hours}
+		return UtilStatus{Key: "optimal", Label: display(u.OptimalLabel, "Optimal"), Hours: hours}
 	case hours < u.OverHours:
-		return UtilStatus{Key: "high", Label: labelOr(u.HighLabel, "Zu hoch"), Hours: hours}
+		return UtilStatus{Key: "high", Label: display(u.HighLabel, "Zu hoch"), Hours: hours}
 	default:
-		return UtilStatus{Key: "over", Label: labelOr(u.OverLabel, "Überbucht"), Hours: hours}
+		return UtilStatus{Key: "over", Label: display(u.OverLabel, "Überbucht"), Hours: hours}
 	}
 }
 
@@ -339,6 +349,7 @@ const DefaultFiscalYearStartMonth = 7
 func DefaultData(year int) Data {
 	return Data{
 		Settings: Settings{
+			Language:             i18n.German,
 			Year:                 year,
 			FederalState:         "SN",
 			WeeklyTargetHours:    40,
@@ -384,6 +395,9 @@ func (d Data) CurrentFY() FiscalYearSettings {
 // used before persisting data that was edited directly as JSON, so bad input
 // is rejected instead of corrupting the store.
 func Validate(d Data) error {
+	if d.Settings.Language != "" && !i18n.Valid(d.Settings.Language) {
+		return fmt.Errorf("Ungültige Sprache; erlaubt sind de und en")
+	}
 	for year, accuracy := range d.ForecastAccuracy {
 		if !ValidYear(year) {
 			return fmt.Errorf("Ungültiges Fiskaljahr der Forecast Accuracy: %d", year)

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/daknoblo/forecast-tool/internal/i18n"
 	"github.com/daknoblo/forecast-tool/internal/models"
 	"github.com/daknoblo/forecast-tool/internal/sample"
 )
@@ -52,10 +53,15 @@ func (s *Server) handlePrivateToggle(w http.ResponseWriter, r *http.Request) {
 // sample project can never be persisted.
 func (s *Server) viewData(r *http.Request) models.Data {
 	d := s.store.Snapshot()
-	if !isPrivate(r) {
-		return d
+	if isPrivate(r) {
+		d = sample.Data(time.Now(), d)
 	}
-	return sample.Data(time.Now(), d)
+	for index, project := range d.Projects {
+		if project.IsVacation() && project.Name == "Urlaub" {
+			d.Projects[index].Name = i18n.Text(d.Settings.Language, project.Name)
+		}
+	}
+	return d
 }
 
 // barWidth clamps a percentage into [0, 100] for use as a CSS width.

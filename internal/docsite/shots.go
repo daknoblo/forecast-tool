@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 // Shot describes one screenshot of the demo instance. Selector limits the
@@ -28,58 +29,49 @@ type shotJob struct {
 	Height            int    `json:"height"`
 	DeviceScaleFactor int    `json:"deviceScaleFactor"`
 	Shots             []Shot `json:"shots"`
+	Locale            string `json:"locale"`
 }
 
-// DemoShots lists the screenshots shown in the gallery. Every section of the
-// application appears at least once, so the gallery documents the whole tool.
-func DemoShots() []Shot {
-	return []Shot{
-		{
-			File: "dashboard.png", Path: "/", FullPage: true,
-			Title:       "Dashboard",
-			Description: "KPI-Kacheln, Auslastungs-Sankey, freie Kapazität, Budget- und Wochentabelle auf einen Blick.",
-		},
+// DemoShots captures every discovered navigation page and dashboard view.
+// Only optional close-ups and the private-mode example need explicit entries.
+func DemoShots(pages []Page) []Shot {
+	shots := make([]Shot, 0, len(pages)+3)
+	for _, p := range pages {
+		file := strings.TrimSuffix(p.File, ".html") + ".png"
+		if p.URL == "/" {
+			file = "dashboard.png"
+		}
+		shots = append(shots, Shot{File: file, Path: p.URL, FullPage: true, Title: p.Title})
+	}
+	return append(shots, []Shot{
 		{
 			File: "dashboard-sankey.png", Path: "/?sankey=fy", Selector: ".sankey-card",
-			Title:       "Auslastung über das Fiskaljahr",
-			Description: "Jede Spalte ist eine ISO-Woche. Bänder zeigen, wie sich die geplanten Stunden über die Projekte verteilen; Urlaubswochen nehmen die Projekte auf und geben sie wieder frei.",
-		},
-		{
-			File: "month.png", Path: "/month", FullPage: true,
-			Title:       "Monatsplanung",
-			Description: "Monatskalender mit Feiertagen, Urlaub, Wochenkapazität, lokaler Schätzung und optionaler KI-Planung mit Vorschau und explizitem Speichern.",
-		},
-		{
-			File: "projects.png", Path: "/projects", FullPage: true,
-			Title:       "Projekte",
-			Description: "Budget, Übertrag aus früheren Fiskaljahren, verfügbares Restbudget, Burnrate und Burn-Down-Diagramm je Assignment.",
-		},
-		{
-			File: "goal.png", Path: "/goal", FullPage: true,
-			Title:       "Ziele & Kapazität",
-			Description: "Fiskaljahresziel, Kapazitätsrechnung, Stundenfluss sowie Fortschrittsdiagramme je Halbjahr und Quartal.",
+			Title:       "Fiscal-year utilization",
+			Description: "Project hours across the fiscal year, including vacation weeks.",
 		},
 		{
 			File: "goal-flow.png", Path: "/goal", Selector: ".flow-wrap",
-			Title:       "Stundenfluss",
-			Description: "Projekte → Monate → Quartale → Halbjahre → Fiskaljahr. Die Farbe zeigt den Kalenderfortschritt, der kräftige Anteil die bereits gebuchten Stunden.",
-		},
-		{
-			File: "settings.png", Path: "/settings", FullPage: true,
-			Title:       "Einstellungen",
-			Description: "Globale Werte und die Stundenrechnung des Fiskaljahres: Bruttostunden − Urlaub − Feiertage − Standard Tasks = Fiskaljahresziel.",
+			Title:       "Hours flow",
+			Description: "Projects, months, quarters and fiscal-year progress.",
 		},
 		{
 			File: "private.png", Path: "/", FullPage: true, Private: true,
-			Title:       "Privater Modus",
-			Description: "Ein Klick ersetzt die echten Daten durch ein vollständiges Beispiel-Fiskaljahr – alle Diagramme und Indikatoren bleiben lebendig, nur die Zahlen sind erfunden.",
+			Title:       "Private mode",
+			Description: "Presentation mode replaces the displayed figures with fictional sample data.",
 		},
-	}
+	}...)
 }
 
 // CaptureScreenshots renders the shot list against the running demo server by
 // invoking the Playwright helper in tools/screenshots.
-func CaptureScreenshots(script, baseURL, outDir string, shots []Shot) error {
+func CaptureScreenshots(script, baseURL, outDir string, shots []Shot, language string) error {
+	seen := map[string]bool{}
+	for _, shot := range shots {
+		if filepath.Base(shot.File) != shot.File || !strings.HasSuffix(shot.File, ".png") || seen[shot.File] {
+			return fmt.Errorf("invalid or duplicate screenshot filename: %q", shot.File)
+		}
+		seen[shot.File] = true
+	}
 	if err := os.MkdirAll(outDir, 0o750); err != nil {
 		return err
 	}
@@ -94,6 +86,10 @@ func CaptureScreenshots(script, baseURL, outDir string, shots []Shot) error {
 		Height:            1000,
 		DeviceScaleFactor: 2,
 		Shots:             shots,
+		Locale:            "de-DE",
+	}
+	if language == "en" {
+		job.Locale = "en-GB"
 	}
 	payload, err := json.Marshal(job)
 	if err != nil {

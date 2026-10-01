@@ -17,6 +17,7 @@ import (
 
 	"github.com/daknoblo/forecast-tool/internal/ai"
 	"github.com/daknoblo/forecast-tool/internal/forecast"
+	"github.com/daknoblo/forecast-tool/internal/i18n"
 	"github.com/daknoblo/forecast-tool/internal/models"
 )
 
@@ -45,19 +46,20 @@ func monthPrompt(d models.Data) string {
 	if value := strings.TrimSpace(d.Settings.MonthPlanningPrompt); value != "" {
 		return value
 	}
-	return forecast.DefaultMonthPlanningPrompt
+	return i18n.Text(d.Settings.Language, forecast.DefaultMonthPlanningPrompt)
 }
 
 func monthSystemPrompt(d models.Data) string {
 	if value := strings.TrimSpace(d.Settings.MonthPlanningSystemPrompt); value != "" {
 		return value
 	}
-	return forecast.MonthPlanningSystemPrompt
+	return i18n.Text(d.Settings.Language, forecast.MonthPlanningSystemPrompt)
 }
 
-func validateMonthPrompt(value, label string) error {
+func validateMonthPrompt(value, label string, languages ...string) error {
 	if len([]rune(value)) > models.MaxMonthPlanningPrompt {
-		return fmt.Errorf("Der %s darf höchstens %d Zeichen enthalten.", label, models.MaxMonthPlanningPrompt)
+		tr := i18n.Translator(languages...)
+		return fmt.Errorf(tr("Der %s darf höchstens %d Zeichen enthalten."), tr(label), models.MaxMonthPlanningPrompt)
 	}
 	return nil
 }
@@ -74,9 +76,10 @@ func (s *Server) monthSource(d models.Data, month, now time.Time) (forecast.Mont
 		}
 	}
 	body, err := json.Marshal(struct {
-		Context forecast.MonthAIContext
-		Entries []models.Entry
-	}{context, source})
+		Context  forecast.MonthAIContext
+		Entries  []models.Entry
+		Language string
+	}{context, source, i18n.Language(d.Settings.Language)})
 	if err != nil {
 		return context, [32]byte{}, fmt.Errorf("Die Planungsdaten konnten nicht aufbereitet werden.")
 	}
@@ -85,22 +88,22 @@ func (s *Server) monthSource(d models.Data, month, now time.Time) (forecast.Mont
 
 func (s *Server) handleMonthPrompt(w http.ResponseWriter, r *http.Request) {
 	if isPrivate(r) {
-		http.Error(w, "Im privaten Modus kann der Planungsprompt nicht geändert werden.", http.StatusForbidden)
+		http.Error(w, s.translate(r, "Im privaten Modus kann der Planungsprompt nicht geändert werden."), http.StatusForbidden)
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 256<<10)
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Ungültiger Planungsprompt.", http.StatusBadRequest)
+		http.Error(w, s.translate(r, "Ungültiger Planungsprompt."), http.StatusBadRequest)
 		return
 	}
 	prompt := strings.TrimSpace(r.PostForm.Get("prompt"))
-	if err := validateMonthPrompt(prompt, "Planungsprompt"); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if err := validateMonthPrompt(prompt, "Planungsprompt", s.requestLanguage(r)); err != nil {
+		http.Error(w, s.translate(r, err.Error()), http.StatusBadRequest)
 		return
 	}
 	systemPrompt := strings.TrimSpace(r.PostForm.Get("systemPrompt"))
-	if err := validateMonthPrompt(systemPrompt, "Systemprompt"); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if err := validateMonthPrompt(systemPrompt, "Systemprompt", s.requestLanguage(r)); err != nil {
+		http.Error(w, s.translate(r, err.Error()), http.StatusBadRequest)
 		return
 	}
 	if err := s.store.Mutate(func(d *models.Data) error {
@@ -111,7 +114,7 @@ func (s *Server) handleMonthPrompt(w http.ResponseWriter, r *http.Request) {
 		return nil
 	}); err != nil {
 		s.logger.Error("month prompt save failed", "error", err)
-		http.Error(w, "Die Planungsprompts konnten nicht gespeichert werden.", http.StatusInternalServerError)
+		http.Error(w, s.translate(r, "Die Planungsprompts konnten nicht gespeichert werden."), http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -119,7 +122,7 @@ func (s *Server) handleMonthPrompt(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleMonthGenerate(w http.ResponseWriter, r *http.Request) {
 	if isPrivate(r) {
-		writeJSONError(w, http.StatusForbidden, "Im privaten Modus ist die KI-Planung gesperrt.")
+		s.localizedJSONError(w, r, http.StatusForbidden, "Im privaten Modus ist die KI-Planung gesperrt.")
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 256<<10)
@@ -131,32 +134,32 @@ func (s *Server) handleMonthGenerate(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&in); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "Ungültige Planungsanfrage.")
+		s.localizedJSONError(w, r, http.StatusBadRequest, "Ungültige Planungsanfrage.")
 		return
 	}
 	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		writeJSONError(w, http.StatusBadRequest, "Die Anfrage muss genau ein JSON-Objekt enthalten.")
+		s.localizedJSONError(w, r, http.StatusBadRequest, "Die Anfrage muss genau ein JSON-Objekt enthalten.")
 		return
 	}
 	month, err := time.Parse("2006-01", in.Month)
 	if err != nil {
-		writeJSONError(w, http.StatusBadRequest, "Ungültiger Monat (JJJJ-MM erwartet).")
+		s.localizedJSONError(w, r, http.StatusBadRequest, "Ungültiger Monat (JJJJ-MM erwartet).")
 		return
 	}
 	in.Prompt = strings.TrimSpace(in.Prompt)
-	if err := validateMonthPrompt(in.Prompt, "Planungsprompt"); err != nil {
-		writeJSONError(w, http.StatusBadRequest, err.Error())
+	if err := validateMonthPrompt(in.Prompt, "Planungsprompt", s.requestLanguage(r)); err != nil {
+		s.localizedJSONError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 	if in.SystemPrompt != nil {
 		*in.SystemPrompt = strings.TrimSpace(*in.SystemPrompt)
-		if err := validateMonthPrompt(*in.SystemPrompt, "Systemprompt"); err != nil {
-			writeJSONError(w, http.StatusBadRequest, err.Error())
+		if err := validateMonthPrompt(*in.SystemPrompt, "Systemprompt", s.requestLanguage(r)); err != nil {
+			s.localizedJSONError(w, r, http.StatusBadRequest, err.Error())
 			return
 		}
 	}
 	if !s.monthAI.generating.CompareAndSwap(false, true) {
-		writeJSONError(w, http.StatusConflict, "Eine KI-Planung läuft bereits. Bitte warte auf das Ergebnis.")
+		s.localizedJSONError(w, r, http.StatusConflict, "Eine KI-Planung läuft bereits. Bitte warte auf das Ergebnis.")
 		return
 	}
 	defer s.monthAI.generating.Store(false)
@@ -165,13 +168,13 @@ func (s *Server) handleMonthGenerate(w http.ResponseWriter, r *http.Request) {
 	d := s.store.Snapshot()
 	context, revision, err := s.monthSource(d, month, now)
 	if err != nil {
-		writeJSONError(w, http.StatusBadRequest, err.Error())
+		s.localizedJSONError(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 	cfg, err := s.aiConfig(r.Context(), d.Settings.AI)
 	if err != nil {
 		s.logger.Warn("month ai configuration unavailable", "error", err)
-		writeJSONError(w, http.StatusServiceUnavailable, err.Error())
+		s.localizedJSONError(w, r, http.StatusServiceUnavailable, err.Error())
 		return
 	}
 	var prompt, systemPrompt string
@@ -184,7 +187,7 @@ func (s *Server) handleMonthGenerate(w http.ResponseWriter, r *http.Request) {
 		return nil
 	}); err != nil {
 		s.logger.Error("month prompt save failed", "error", err)
-		writeJSONError(w, http.StatusInternalServerError, "Die Planungsprompts konnten nicht gespeichert werden.")
+		s.localizedJSONError(w, r, http.StatusInternalServerError, "Die Planungsprompts konnten nicht gespeichert werden.")
 		return
 	}
 	message, err := json.Marshal(struct {
@@ -193,30 +196,34 @@ func (s *Server) handleMonthGenerate(w http.ResponseWriter, r *http.Request) {
 	}{prompt, context})
 	if err != nil {
 		s.logger.Error("month context encoding failed", "error", err)
-		writeJSONError(w, http.StatusInternalServerError, "Die Planungsdaten konnten nicht aufbereitet werden.")
+		s.localizedJSONError(w, r, http.StatusInternalServerError, "Die Planungsdaten konnten nicht aufbereitet werden.")
 		return
 	}
-	answer, err := ai.Ask(r.Context(), cfg, systemPrompt+"\n\n"+forecast.MonthPlanningExplanationFormat, string(message), s.logger)
+	presentation := i18n.Text(d.Settings.Language, forecast.MonthPlanningExplanationFormat)
+	if d.Settings.Language == i18n.English {
+		presentation += "\nUse English for explanation and all unallocated reasons, regardless of the language of user-provided prompts. Never translate project names or identifiers."
+	}
+	answer, err := ai.Ask(r.Context(), cfg, systemPrompt+"\n\n"+presentation, string(message), s.logger)
 	if err != nil {
 		s.logger.Error("month ai request failed", "error", err)
-		writeJSONError(w, http.StatusBadGateway, err.Error())
+		s.localizedJSONError(w, r, http.StatusBadGateway, err.Error())
 		return
 	}
 	proposal, err := forecast.DecodeMonthAIPlan(context, answer)
 	if err != nil {
 		s.logger.Warn("month ai response rejected", "error", err)
-		s.writeMonthResponseError(w, http.StatusBadGateway, "Die KI-Planung wurde verworfen: "+err.Error(), answer)
+		s.writeMonthResponseError(w, http.StatusBadGateway, s.translate(r, "Die KI-Planung wurde verworfen: ")+s.translate(r, err.Error()), answer)
 		return
 	}
 	var formatted bytes.Buffer
 	if err := json.Indent(&formatted, []byte(answer), "", "  "); err != nil {
 		s.logger.Error("month ai response formatting failed", "error", err)
-		s.writeMonthResponseError(w, http.StatusBadGateway, "Die KI-Antwort konnte nicht aufbereitet werden.", answer)
+		s.writeMonthResponseError(w, http.StatusBadGateway, s.translate(r, "Die KI-Antwort konnte nicht aufbereitet werden."), answer)
 		return
 	}
 	_, current, err := s.monthSource(s.store.Snapshot(), month, time.Now().UTC())
 	if err != nil || current != revision {
-		s.writeMonthResponseError(w, http.StatusConflict, errMonthPreviewStale.Error(), formatted.String())
+		s.writeMonthResponseError(w, http.StatusConflict, s.translate(r, errMonthPreviewStale.Error()), formatted.String())
 		return
 	}
 	token := rand.Text()
@@ -276,12 +283,12 @@ func (s *Server) monthPreview(token string, d models.Data, month, now time.Time)
 
 func (s *Server) handleMonthSave(w http.ResponseWriter, r *http.Request) {
 	if isPrivate(r) {
-		writeJSONError(w, http.StatusForbidden, "Im privaten Modus kann kein Forecast gespeichert werden.")
+		s.localizedJSONError(w, r, http.StatusForbidden, "Im privaten Modus kann kein Forecast gespeichert werden.")
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 4096)
 	if err := r.ParseForm(); err != nil {
-		writeJSONError(w, http.StatusBadRequest, "Ungültige Speicheranfrage.")
+		s.localizedJSONError(w, r, http.StatusBadRequest, "Ungültige Speicheranfrage.")
 		return
 	}
 	token := r.PostForm.Get("preview")
@@ -290,16 +297,16 @@ func (s *Server) handleMonthSave(w http.ResponseWriter, r *http.Request) {
 	preview, ok := s.monthAI.previews[token]
 	now := time.Now().UTC()
 	if !ok || now.Sub(preview.Created) > monthPreviewTTL {
-		writeJSONError(w, http.StatusConflict, errMonthPreviewStale.Error())
+		s.localizedJSONError(w, r, http.StatusConflict, errMonthPreviewStale.Error())
 		return
 	}
 	if len(preview.Plan.Unallocated) > 0 {
-		writeJSONError(w, http.StatusConflict, "Nicht verteilbare Stunden verhindern das Speichern. Passe zuerst den Wochen-Forecast oder die Projektzeiträume an.")
+		s.localizedJSONError(w, r, http.StatusConflict, "Nicht verteilbare Stunden verhindern das Speichern. Passe zuerst den Wochen-Forecast oder die Projektzeiträume an.")
 		return
 	}
 	month, err := time.Parse("2006-01", preview.Context.Month)
 	if err != nil {
-		writeJSONError(w, http.StatusConflict, errMonthPreviewStale.Error())
+		s.localizedJSONError(w, r, http.StatusConflict, errMonthPreviewStale.Error())
 		return
 	}
 	err = s.store.Mutate(func(d *models.Data) error {
@@ -319,9 +326,9 @@ func (s *Server) handleMonthSave(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.logger.Warn("month plan save failed", "error", err)
 		if errors.Is(err, errMonthPreviewStale) {
-			writeJSONError(w, http.StatusConflict, err.Error())
+			s.localizedJSONError(w, r, http.StatusConflict, err.Error())
 		} else {
-			writeJSONError(w, http.StatusInternalServerError, "Der Forecast konnte nicht gespeichert werden. Die bisherigen Buchungen bleiben unverändert.")
+			s.localizedJSONError(w, r, http.StatusInternalServerError, "Der Forecast konnte nicht gespeichert werden. Die bisherigen Buchungen bleiben unverändert.")
 		}
 		return
 	}

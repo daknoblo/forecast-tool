@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/daknoblo/forecast-tool/internal/forecast"
+	"github.com/daknoblo/forecast-tool/internal/i18n"
 	"github.com/daknoblo/forecast-tool/internal/models"
 )
 
@@ -57,6 +58,9 @@ func (s *Store) load() error {
 // document is always self-consistent, whether loaded from disk or replaced via
 // the JSON editor.
 func normalize(d *models.Data) {
+	if d.Settings.Language == "" {
+		d.Settings.Language = i18n.German
+	}
 	if d.Projects == nil {
 		d.Projects = []models.Project{}
 	}

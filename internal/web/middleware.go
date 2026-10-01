@@ -3,6 +3,7 @@ package web
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"github.com/daknoblo/forecast-tool/internal/i18n"
 	"io/fs"
 	"net/http"
 	"net/url"
@@ -53,7 +54,8 @@ func requireSameOrigin(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		http.Error(w, "cross-site request rejected", http.StatusForbidden)
+		language, _ := r.Context().Value(languageContextKey{}).(string)
+		http.Error(w, i18n.Text(language, "Anfrage von einer anderen Website abgelehnt."), http.StatusForbidden)
 	})
 }
 

@@ -26,9 +26,22 @@ try {
       deviceScaleFactor: job.deviceScaleFactor ?? 2,
       colorScheme: 'light',
       // A fixed locale and time zone keep the rendered dates reproducible.
-      locale: 'de-DE',
+      locale: job.locale,
       timezoneId: 'UTC',
       reducedMotion: 'reduce',
+      serviceWorkers: 'block',
+    });
+    const blocked = [];
+    await context.route('**/*', async route => {
+      const request = route.request();
+      const url = new URL(request.url());
+      if (url.origin !== origin.origin || request.method() !== 'GET' ||
+          url.pathname.startsWith('/api/') || url.pathname === '/export') {
+        blocked.push(`${request.method()} ${url.origin}${url.pathname}`);
+        await route.abort('blockedbyclient');
+        return;
+      }
+      await route.continue();
     });
     if (shot.private) {
       await context.addCookies([
@@ -52,6 +65,9 @@ try {
       scale: 'device',
     });
     console.log(`captured ${shot.file}`);
+    if (blocked.length) {
+      throw new Error(`Demo attempted prohibited network requests: ${blocked.join(', ')}`);
+    }
     await context.close();
   }
 } finally {
