@@ -98,6 +98,45 @@ whether the variables are set.
 
 ---
 
+## Scout automation example
+
+[scout-automation.example.json](scout-automation.example.json) is a sanitized
+Scout automation template for ESXP synchronization. Its operational prompt
+remains in German, matching the requested reports. The template is disabled
+(`enabled: false`) and contains no real project history or credentials.
+
+The automation reads ESXP assignments, booked hours, vacation entries, forecast
+hours, and YTD Forecast Accuracy. It updates existing projects by AssignmentID
+and synchronizes entries through the API; it does not automatically create or
+delete projects. Vacation is sourced exclusively from ESXP's
+`Vacation` / `Overhead/Non Project Hours` entries. MSVacation is not synchronized,
+either through portal access or through manually supplied chat text or
+screenshots. No external leave-data comparison is required.
+
+Before enabling a private copy:
+
+- Replace `https://forecast.example.com` in the URL permission with your host
+  and provide `FORECAST_API_URL` including `/api/v1` in Scout's runtime context.
+- Replace `/Users/your-user/.scout/forecast-accuracy.json` consistently in
+  `permissions.allow`, `permissions.allowedSensitivePaths`, and the prompt.
+- Provide a write-capable bearer token externally. Supply
+  `CF-Access-Client-Id` and `CF-Access-Client-Secret` only if your deployment uses
+  Cloudflare Access. Never put credentials in the published JSON.
+- Configure authenticated ESXP browser access for Labor Week View and
+  Availability Forecast.
+- Review the inherited permissions before use: `autoApproveAllWrites` and
+  several server/tool grants are broad, not a least-privilege recommendation.
+  Restrict them to your needs and approve the intended API routes.
+- Check the model, context-window limit, available tools, Teams notification
+  destination, timezone, and schedule in your Scout version. The exported
+  `schedule.kind: "single"` accompanies a daily scheduling description; confirm
+  or recreate the daily 18:00 schedule in Scout rather than assuming recurrence.
+
+JSON syntax and the forecast-tool API contract can be checked locally; Scout
+import compatibility and live execution require validation in Scout itself.
+Keep personalized copies, generated reports, and the local accuracy history
+private; they can contain project and leave data.
+
 ## ESXP Forecast Accuracy
 
 ### `PUT /api/v1/forecast-accuracy/{year}`

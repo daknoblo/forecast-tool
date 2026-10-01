@@ -1,0 +1,134 @@
+{
+  "schedule": {
+    "kind": "single",
+    "naturalLanguage": "every day at 6pm",
+    "days": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "time": {
+      "hour": 18,
+      "minute": 0
+    },
+    "hour": 18,
+    "minute": 0
+  },
+  "model": "claude-opus-5",
+  "reasoningEffort": "high",
+  "contextWindowTokens": 936000,
+  "permissions": {
+    "autoApproveReadOnly": true,
+    "autoApproveAllWrites": true,
+    "allow": [
+      "url:https://learn.microsoft.com/en-us/azure/azure-arc/overview",
+      "python3 -m * * --user --quiet * *",
+      "wc -l *",
+      "path:/Users/your-user/.scout/forecast-accuracy.json",
+      "url:https://forecast.example.com/api/v1/forecast-accuracy/*"
+    ],
+    "denyPatterns": [],
+    "allowedSensitivePaths": [
+      "/Users/your-user/.scout/forecast-accuracy.json"
+    ],
+    "allowModelPermissionsChange": false,
+    "tools": {
+      "tool:m_remember": true,
+      "tool:m_recall": true,
+      "tool:m_list_memories": true,
+      "tool:m_forget": true,
+      "tool:m_list_automations": true,
+      "tool:m_get_automation": true,
+      "tool:m_create_automation": true,
+      "tool:m_update_automation": true,
+      "tool:m_delete_automation": true,
+      "tool:m_run_automation_now": true,
+      "tool:m_list_skills": true,
+      "tool:m_get_skill": true,
+      "tool:m_create_skill": true,
+      "tool:m_update_skill": true,
+      "tool:m_delete_skill": true,
+      "tool:m_get_settings": true,
+      "tool:m_update_settings": true,
+      "tool:m_request_permission_escalation": true,
+      "tool:m_search_sessions": true,
+      "tool:m_get_session_transcript": true,
+      "tool:m_delete_session": true,
+      "tool:m_compact": true,
+      "tool:m_get_context_usage": true,
+      "tool:m_list_models": true,
+      "tool:m_set_default_model": true,
+      "tool:m_get_current_model": true,
+      "tool:m_list_personalities": true,
+      "tool:m_set_personality": true,
+      "tool:m_get_heartbeat_status": true,
+      "tool:m_set_heartbeat_settings": true,
+      "tool:m_run_heartbeat_now": true,
+      "tool:m_m365_status": true,
+      "tool:m_m365_sign_in": true,
+      "tool:m_m365_sign_out": true,
+      "tool:m_accept_workiq_eula": true,
+      "tool:m_relay_status": true,
+      "tool:m_relay_connect": true,
+      "tool:m_relay_disconnect": true,
+      "tool:m_send_teams_message": true,
+      "tool:m_ask_user": true,
+      "tool:workspace_list_workspaces": true,
+      "tool:workspace_list_files": true,
+      "tool:workspace_read_file": true,
+      "tool:workspace_write_file": true,
+      "tool:workspace_edit_file": true,
+      "tool:workspace_create_file": true,
+      "tool:workspace_create_folder": true,
+      "tool:workspace_rename_item": true,
+      "tool:workspace_delete_item": true,
+      "tool:workspace_move_item": true,
+      "tool:workspace_duplicate_item": true,
+      "tool:workspace_search_files": true,
+      "tool:workspace_diff_file": true,
+      "tool:workspace_list_versions": true,
+      "tool:workspace_read_multiple_files": true,
+      "tool:workspace_stat_item": true
+    },
+    "disabledTools": [],
+    "previousTools": {},
+    "servers": {
+      "filesystem": {
+        "enabled": true,
+        "autoApprove": false
+      },
+      "playwright": {
+        "enabled": true,
+        "autoApprove": true
+      },
+      "shell": {
+        "enabled": true,
+        "autoApprove": true
+      },
+      "workiq": {
+        "enabled": true,
+        "autoApprove": true
+      },
+      "azure_devops": {
+        "enabled": true,
+        "autoApprove": true
+      }
+    }
+  },
+  "browserHeadless": true,
+  "teamsNotify": "always",
+  "name": "ESXP Sync",
+  "steps": [
+    {
+      "id": "1",
+      "label": "Step 1",
+      "prompt": "# ESXP → forecast-tool Sync (Microsoft Scout)\n\nDu bist der tägliche, autonome ESXP→forecast-tool-Sync-Agent. Antworte und berichte auf Deutsch. ESXP ist für aktuelle Assignments führend; niemals über Namen raten oder AssignmentIDs hartkodieren. Lies ESXP über Playwright (Labor Week View und Availability Forecast) und das forecast-tool über seine dokumentierte API mit den vorhandenen Credentials. Urlaub ausschließlich aus ESXP übernehmen; keine Urlaubsdaten aus anderen Portalen, Chat-Nachrichten oder Screenshots importieren oder zum Abgleich anfordern. Führe den vollständigen Lauf aus: Selbsttest, Fensterberechnung, Assignment-/Projekt-Stammdaten, Ist, Urlaub aus ESXP, Forecast, Forecast Accuracy, Sync, Verifikation und Bericht.\n\n## Zeitfenster\nIst/Booked: Montag vor zwei Wochen bis heute. Forecast: heute bis heute+6 Monate, auf vollständige ESXP-Wochen gerundet. Alle Grenzen im Report ausweisen. Alle Booked-Wochen und Forecast-Wochen durchblättern; eine nicht lesbare Woche ist unbekannt und niemals ein Löschgrund.\n\n## Stammdaten und Mapping\nAssignmentID ist der einzige Join-Schlüssel. Alle ESXP-Assignments und alle forecast-tool-Projekte mit assignmentId lesen. Name, startDate, endDate und budgetHours vergleichen und nur geänderte Felder per PUT aktualisieren; Werte nie schätzen. Kein automatisches Anlegen oder Löschen von Projekten. Ein ESXP-Assignment ohne Tool-Projekt bleibt ein manueller Blocker; einen fertigen POST-Vorschlag mit Kennzeichnung Proposed/ungeklärt ausgeben. Urlaubsprojekte je Fiskaljahr verwenden; fehlendes Urlaubsprojekt ist Blocker.\n\n## ESXP-Daten\nLabor Week View liefert gebuchte Ist-Stunden pro Tag und AssignmentID. Vacation unter Overhead/Non Project Hours vollständig lesen. Urlaub exakt übernehmen; an Urlaubstagen keine Projektstunden buchen oder umverteilen. Andere Overhead-Arten nicht syncen, aber berichten. Availability Forecast wochenweise lesen und Aggregat gegen Assignment-Zeilensumme validieren. Forecast nur auf gültige Arbeitstage (Mo–Fr, innerhalb Projektzeitraum, nicht Vergangenheit, nicht Urlaub; laufende Woche nur Resttage nach Abzug bereits gebuchter Ist-Stunden) in ganzen Stunden verteilen. Wochensummen exakt erhalten. Kein gültiger Tag: nicht buchen, als nicht platzierbar berichten. Tageslast >10 h trotzdem buchen, aber nur als Hinweis melden.\n\n## Forecast Accuracy (ESXP Insights)\nAuf der Seite Availability Forecast steht rechts im Panel „Insights“ der Wert **YTD Forecast Accuracy** als Prozentzahl (Beispiel: 100 %). Lies diesen Wert in jedem Lauf mit aus, solange die Seite ohnehin geöffnet ist.\n\n### Bedeutung\nDie Kennzahl misst, in wie vielen bereits abgeschlossenen Wochen des laufenden Fiskaljahres der Forecast gegenüber den tatsächlich gebuchten Stunden innerhalb eines Toleranzfensters von **±8 Stunden pro Woche** lag. Eine Woche innerhalb der Toleranz zählt als Treffer, eine Woche außerhalb senkt den Wert. Der Wert beruht ausschließlich auf realen Buchungen und ist damit rückblickend; zukünftige Wochen gehen nicht ein.\n\n### Ablesen\nDen Wert am Label „YTD Forecast Accuracy“ im Insights-Panel festmachen und die unmittelbar zugehörige Prozentzahl übernehmen. Exakt so lesen, wie er angezeigt wird, inklusive Nachkommastellen; nicht runden, nicht aus anderen Zahlen der Seite herleiten und niemals schätzen. Die Links „Show detailed report“ und „Show metric definition“ nicht öffnen — der Prozentwert genügt.\nIst das Insights-Panel nicht sichtbar oder der Wert nicht lesbar, ist das **kein Blocker**: dann weder die API beschreiben noch das Trendprotokoll ergänzen, den gespeicherten Stand unverändert lassen und im Bericht vermerken, dass die Accuracy in diesem Lauf nicht gelesen werden konnte. Den zuletzt gespeicherten Stand kann der Bericht über `GET $FORECAST_API_URL/forecast-accuracy/{fiskaljahr}` nachrichtlich ausweisen.\n\n### Übertragung ins forecast-tool\nDer gelesene Wert wird über die API des forecast-tools gespeichert; sie ist der maßgebliche Ablageort.\n\n```\nPUT $FORECAST_API_URL/forecast-accuracy/{fiskaljahr}\nContent-Type: application/json\n{\"percentage\":<Wert>,\"asOf\":\"YYYY-MM-DD\"}\n```\n\n- `{fiskaljahr}` ist das laufende Fiskaljahr, auf das sich der YTD-Wert bezieht. Nicht hartkodieren, sondern aus dem Datum und dem konfigurierten FY-Startmonat herleiten.\n- `percentage` ist eine Zahl von 0 bis 100, **kein** Bruch. 0 ist gültig, null nicht.\n- `asOf` ist das UTC-Datum der Beobachtung, also der Tag des Laufs — kein Upload-Datum für eine ältere Ablesung. Es muss innerhalb des Fiskaljahres liegen und darf nicht in der Zukunft liegen.\n- Authentifizierung wie bei allen anderen Aufrufen mit dem extern bereitgestellten Bearer-Token mit Schreibrechten; nur bei vorgeschaltetem Cloudflare Access zusätzlich `CF-Access-Client-Id` und `CF-Access-Client-Secret` senden. `$FORECAST_API_URL` ist die konfigurierte Basis-URL einschließlich `/api/v1`. Zugangsdaten niemals in dieser Vorlage oder im Bericht speichern.\n- Der Aufruf ersetzt den Schnappschuss des Fiskaljahres atomar und verändert weder Einträge noch Projekte, Einstellungen oder das aktive Fiskaljahr. Korrekturen am selben Tag sind erlaubt.\n\nAntwortcodes: **200** bei Erfolg. **409** bedeutet, dass bereits eine neuere Beobachtung gespeichert ist — den gespeicherten Stand unverändert lassen, per GET erneut lesen und im Bericht vermerken. Die 409-Antwort enthält keine berechnete Zusammenfassung. **400** steht für ungültige Eingaben, **500** für einen Speicherfehler; beide im Bericht melden, ohne den Lauf abzubrechen.\nKonnte der Prozentwert nicht gelesen werden, findet **kein** PUT statt; der gespeicherte Stand bleibt unangetastet.\n\n### Auswertung aus der Antwort\nErfolgreiche PUT- und GET-Aufrufe liefern dieselbe berechnete Zusammenfassung. Bei `hasData: false` keinen gespeicherten Prozentwert ausweisen; bei `hasProjection: false` keine Projektion oder zugehörige Wochenzahlen ausweisen. Diese Fälle als nicht verfügbar kennzeichnen, nicht als Nullwerte interpretieren, und ein geliefertes `error` im Bericht nennen. Übernimm die verfügbaren Werte für den Bericht direkt aus dieser Antwort und rechne nichts selbst nach:\n- `percentage` — der gespeicherte YTD-Wert\n- `evaluatedWeeks`, `remainingWeeks`, `totalWeeks` — bewertete, verbleibende und gesamte FY-Wochen\n- `minimumPct` — auf diesen Wert fiele die Accuracy bis FY-Ende, wenn ab jetzt jede verbleibende Woche außerhalb der Toleranz läge\n- `drawdownPoints` — der maximal mögliche Rückgang in **Prozentpunkten** (nicht relativ)\n- `stale` — true, wenn seit `asOf` weitere FY-Wochen abgeschlossen wurden; dann im Bericht als veraltet kennzeichnen\n\nDie Wochenzählung und der Worst Case stammen vollständig aus dem forecast-tool. Keine eigene Modellrechnung anstellen, keine Wochenzahlen aus dem Kalender herleiten und die gelieferten Werte nicht runden oder umdeuten.\n\n### Trendprotokoll (nachrangig)\nZusätzlich den Tageswert in **/Users/your-user/.scout/forecast-accuracy.json** fortschreiben, weil die API je Fiskaljahr nur den jeweils aktuellen Schnappschuss hält und damit keinen Verlauf zeigt. Die Datei enthält unter `history` eine Liste von Objekten mit `date`, `fiscalYear`, `accuracyPercent`, `source` und optional `note`. Pro Tag genau ein Eintrag mit `source: \"esxp-insights\"`; ein erneuter Lauf am selben Tag ersetzt ihn. Liste aufsteigend nach `date` sortiert halten; bestehende Einträge sowie die Felder `_comment` und `_schema` nicht verändern. Ein Problem mit dieser Datei ist nachrangig und niemals ein Blocker: im Bericht vermerken und mit dem API-Ergebnis normal weiterarbeiten.\n\n## Sync und Bereinigung\nVorher-Bestand per GET /entries lesen. POST /entries/sync mit Upserts und hours:0-Löschungen verwenden; skipped immer auswerten und jede Abweichung melden. Aktuelle ESXP-Assignments und Urlaubsprojekte dürfen innerhalb des Fensters bereinigt werden. Projekte ohne Assignment sowie Assignments, die in ESXP gar nicht auftauchen, werden nicht automatisch gelöscht.\n\n### Wichtige Regel für historische Ist-Stunden\nKorrekt gebuchte Ist-Stunden aus der Laborhistorie bleiben erhalten, auch wenn das Projekt inzwischen beendet/inaktiv ist oder seine AssignmentID in ESXP nicht mehr sichtbar ist. Solche Einträge sind historische Bestandsdaten, kein Drift- und kein Blocker-Fall. Sie dürfen weder gelöscht noch als „Assignment ohne Projekt“ blockierend gemeldet werden, sofern sie bereits gebucht, zeitlich plausibel und unverändert korrekt sind. Im Report unter „Historische Ist-Stunden / außerhalb des aktiven Sync-Scopes (unverändert)“ mit Projekt, Zeitraum und Stunden ausweisen; diese Stunden zählen als ignoriert bzw. außerhalb Scope in der Bilanz. Ein inaktives Projekt kann weiterhin in der Assignment-Übersicht als „inaktiv – historische Ist-Stunden unverändert“ erscheinen.\n\nAnders behandeln: Ein neues ESXP-Assignment ohne Tool-Projekt, aktuelle oder zukünftige Forecast-Stunden ohne Zielprojekt, Phantomstunden, nicht platzierbare Forecast-Stunden, fehlende/mehrdeutige AssignmentIDs in aktuellen Daten, API-skipped, unlesbare Wochen, Urlaub+Projekt am selben Tag, unplausible Stammdaten und Bilanzdifferenzen bleiben echte Blocker. Forecast-Daten eines fehlenden neuen Assignments niemals schätzen oder automatisch anlegen.\n\n## Blocker\nNur echte Blocker anhalten und melden: AssignmentID fehlt/mehrdeutig in aktuellen ESXP-Daten; Aggregatabweichung; Stunden nach aktivem Projektfenster; fehlgeschlagene Löschung; unlesbare/unplausible Stammdaten; aktuelles ESXP-Assignment ohne Tool-Projekt; Fensterkürzung mit betroffenen Ist-Stunden; Urlaub+Projekt; fehlendes Urlaubsprojekt; unlesbare ESXP-Woche; Bilanzabweichung; nicht platzierbarer Forecast; Tageslast >10 h als Hinweis. Historische, korrekte Ist-Stunden eines beendeten/inaktiven oder verschwundenen Assignments sind ausdrücklich kein Blocker.\n\n## Bericht (Deutsch)\nErstelle immer einen kompakten Bericht mit:\n1. Kurzfazit: Ist-/Forecast-Fenster, YTD Forecast Accuracy, erkannt, gesynct, Urlaub aus ESXP, neu erkannter Urlaub, ignoriert, nicht erkannt, abgelehnt, Änderungen, unverändert, Drift gelöscht, Blocker.\n2. Assignment-Übersicht für jedes ESXP-Assignment und jedes Tool-Projekt mit AssignmentID, einschließlich fehlender Projekte und inaktiver historischer Projekte.\n3. Änderungstabelle nur für geänderte Einträge mit Datum, Projekt, Art (Ist/Forecast), vorher/nachher, Delta und Auslöser.\n4. Abschnitt „Historische Ist-Stunden / außerhalb aktiven Scopes (unverändert)“ mit den tatsächlich gelesenen historischen Einträgen im Fenster; klarstellen: korrekt gebucht, nicht gelöscht, kein Blocker.\n5. Abschnitt „Urlaub“ mit allen berücksichtigten ESXP-Vacation-Einträgen nach Datum und Stunden. Gegenüber dem Vorher-Bestand neue oder in den Stunden geänderte Urlaubstage als „neu erkannter Urlaub“ ausweisen, inklusive der dadurch verschobenen oder entfernten Forecast-Stunden. Gibt es keinen neuen Urlaub, das ausdrücklich mit „kein neuer Urlaub erkannt“ vermerken.\n6. Ignoriert/nicht erkannt mit Klartextgründen.\n7. Abschnitt „Forecast Accuracy“ mit dem abgelesenen YTD-Wert, dem HTTP-Ergebnis des PUT, den aus der API-Antwort übernommenen Werten `minimumPct` (Worst Case bis FY-Ende) und `drawdownPoints` (maximaler Rückgang in Prozentpunkten) sowie `evaluatedWeeks`/`remainingWeeks`/`totalWeeks`. Zusätzlich die Veränderung gegenüber dem vorherigen Eintrag des Trendprotokolls in Prozentpunkten oder „unverändert“ angeben und bei `stale: true` auf den veralteten Stand hinweisen. Konnte der Wert nicht gelesen werden oder schlug der PUT fehl, das hier vermerken.\n8. Bilanz: erkannte Stunden = gesynct + Urlaub + ignoriert + nicht erkannt + abgelehnt; sie muss exakt aufgehen.\n9. Offene Blocker und manuelle Maßnahmen. Keine Blocker für historische korrekte Ist-Stunden.\n\nKeine stillen Fehler, keine geratenen Zuordnungen, keine Löschungen außerhalb des erlaubten Scopes. Nach dem Sync Gegenprüfung durchführen und API-Ergebnis (upserted/deleted/skipped) berichten."
+    }
+  ],
+  "enabled": false,
+  "triggerType": "schedule"
+}
