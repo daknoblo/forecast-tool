@@ -54,6 +54,9 @@ async function checkKPIAlignment(page) {
 async function dashboard(page) {
   await page.goto('/');
   await expect(page.locator('nav a')).toHaveText(['Dashboard', 'Projekte', 'Monatsplanung', 'Ziele', 'Einstellungen']);
+  await expect(page.locator('#target-progress .kpi-split')).toHaveCount(1);
+  await expect(page.locator('#target-progress .kpi-part')).toHaveCount(2);
+  await expect(page.locator('#target-progress small')).toHaveText(['Week-to-date', 'FY-Ziel']);
   await expect(page.locator('#forecast-accuracy')).toHaveAttribute('title', /Noch kein ESXP-Wert/);
   await checkKPIAlignment(page);
   const year = await page.locator('#fySelect').inputValue();
@@ -82,6 +85,13 @@ async function dashboard(page) {
   await expect(page.locator('.privnote')).toBeVisible();
   await expect(page.locator('#forecast-accuracy')).not.toContainText('84.5 %');
   await expect(page.locator('#forecast-accuracy')).toContainText('90 %');
+  await page.locator('.privbtn').click();
+  await page.goto('/settings');
+  await page.locator('select[name="language"]').selectOption('en');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  await page.goto('/');
+  await expect(page.locator('#target-progress small')).toHaveText(['Week-to-date', 'FY target']);
+  await checkKPIAlignment(page);
 }
 
 async function monthly(page) {

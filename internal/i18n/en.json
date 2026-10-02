@@ -1,4 +1,7 @@
 {
+  "FY-Ziel": "FY target",
+  "Bisherige FY-Zielerreichung: gebuchte Projektstunden vor heute geteilt durch das gesamte FY-Stundenziel. Forecast und Urlaub zählen nicht mit.": "FY target achieved so far: project hours booked before today divided by the full FY hours target. Forecast and vacation are excluded.",
+  "Für dieses Fiskaljahr ist kein Ziel hinterlegt.": "No target is configured for this fiscal year.",
   "(Gesamtstunden abzüglich Urlaub, Feiertagen und Standard Tasks).": "(Total hours minus vacation, public holidays, and Standard Tasks).",
   "(Tage à 8 h). Löschen ist nicht möglich.": "(Days at 8 h each). Deletion is not possible.",
   "(aktuell überschrieben)": "(currently overridden)",

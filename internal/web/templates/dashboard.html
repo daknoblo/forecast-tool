@@ -3,17 +3,18 @@
 <p class="hint">{{t "Zeitraum"}} {{.FYStart}} – {{.FYEnd}}</p>
 
 <section class="cards kpi-row">
-  {{if .WeekToDate.HasData}}
-  <div class="card kpi" title="{{t "Auslastung seit FY-Start ("}}{{.WeekToDate.StartLabel}}{{t ") bis"}} {{.WeekToDate.ToLabel}} {{t "– heute zählt noch nicht. Ø"}} {{hours .WeekToDate.PerWeek}} {{t "h/Woche tatsächlich gegenüber"}} {{hours .WeekToDate.TargetPerWeek}} {{t "h/Woche geplant ("}}{{hours .WeekToDate.DeltaPerWeek}} {{t "h Differenz)."}}{{hours .WeekToDate.Hours}} {{t "von"}} {{hours .WeekToDate.ExpectedHours}} {{t "h in"}} {{hours .WeekToDate.ElapsedWeeks}} {{t "Wochen. Das FY-Ziel ist gleichmäßig auf"}} {{.WeekToDate.FYWeeks}} {{t "Wochen verteilt; Urlaub zählt nicht aufs Ziel."}}">
-    <div class="kpi-value">{{pct .WeekToDate.RatePct}}</div>
-    <div class="kpi-label">{{t "Week-to-date"}}</div>
+  <div class="card kpi" id="target-progress">
+    <div class="kpi-value kpi-split">
+      <div title="{{if .WeekToDate.HasData}}{{t "Auslastung seit FY-Start ("}}{{.WeekToDate.StartLabel}}{{t ") bis"}} {{.WeekToDate.ToLabel}} {{t "– heute zählt noch nicht. Ø"}} {{hours .WeekToDate.PerWeek}} {{t "h/Woche tatsächlich gegenüber"}} {{hours .WeekToDate.TargetPerWeek}} {{t "h/Woche geplant ("}}{{hours .WeekToDate.DeltaPerWeek}} {{t "h Differenz)."}}{{hours .WeekToDate.Hours}} {{t "von"}} {{hours .WeekToDate.ExpectedHours}} {{t "h in"}} {{hours .WeekToDate.ElapsedWeeks}} {{t "Wochen. Das FY-Ziel ist gleichmäßig auf"}} {{.WeekToDate.FYWeeks}} {{t "Wochen verteilt; Urlaub zählt nicht aufs Ziel."}}{{else}}{{t "Es gibt noch keine abgeschlossenen Tage im Fiskaljahr, oder für dieses Fiskaljahr ist kein Ziel hinterlegt."}}{{end}}">
+        <span class="kpi-part">{{if .WeekToDate.HasData}}{{pct .WeekToDate.RatePct}}{{else}}–{{end}}</span>
+        <small>{{t "Week-to-date"}}</small>
+      </div>
+      <div title="{{t "Bisherige FY-Zielerreichung: gebuchte Projektstunden vor heute geteilt durch das gesamte FY-Stundenziel. Forecast und Urlaub zählen nicht mit."}}{{if .Goal.HasTarget}} {{hours .Goal.ActualTotal}} / {{hours .Goal.TargetHours}} {{t "h"}} = {{pct .Goal.PctActual}}{{else}} {{t "Für dieses Fiskaljahr ist kein Ziel hinterlegt."}}{{end}}">
+        <span class="kpi-part">{{if .Goal.HasTarget}}{{pct .Goal.PctActual}}{{else}}–{{end}}</span>
+        <small>{{t "FY-Ziel"}}</small>
+      </div>
+    </div>
   </div>
-  {{else}}
-  <div class="card kpi" title="{{t "Es gibt noch keine abgeschlossenen Tage im Fiskaljahr, oder für dieses Fiskaljahr ist kein Ziel hinterlegt."}}">
-    <div class="kpi-value muted">–</div>
-    <div class="kpi-label">{{t "Week-to-date"}}</div>
-  </div>
-  {{end}}
   {{if or .Workload.HasData .WorkloadPlan.HasData}}
   <div class="card kpi" title="{{t "Durchschnittliche Arbeitszeit je Werktag über 6 Monate – links das bereits Gebuchte, rechts das Geplante."}}{{if .Workload.HasData}}{{t "Rückblick"}} {{.Workload.StartLabel}} – {{.Workload.EndLabel}}: {{hours .Workload.Hours}} {{t "h auf"}} {{.Workload.Days}} {{t "Werktage,"}} {{if .Workload.Over}}{{hours .Workload.Headroom}} {{t "h über"}}{{else}}{{hours .Workload.Headroom}} {{t "h unter"}}{{end}} {{t "dem zulässigen Rahmen von"}} {{hours .Workload.MaxHours}} {{t "h."}}{{else}}{{t "Rückblick: noch keine gebuchten Stunden."}}{{end}}&#10;{{if .WorkloadPlan.HasData}}{{t "Forecast"}} {{.WorkloadPlan.StartLabel}} – {{.WorkloadPlan.EndLabel}}: {{hours .WorkloadPlan.Hours}} {{t "h auf"}} {{.WorkloadPlan.Days}} {{t "Werktage. Monate ohne Planung bleiben außen vor."}}{{else}}{{t "Forecast: noch nichts geplant."}}{{end}}{{t "Werktage sind Mo–Sa ohne Feiertage; Urlaubsstunden und reine Urlaubstage bleiben außen vor. §3 ArbZG erlaubt im Schnitt"}} {{hours .WorkloadLimit}} {{t "h je Werktag. Details auf der Ziele-Seite."}}">
     <div class="kpi-heading">{{t "Ø 6 Monate"}}</div>

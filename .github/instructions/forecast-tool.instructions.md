@@ -441,7 +441,13 @@ collects every requirement stated so far as the binding reference.
   `HasData` is false when the reviewed fiscal year does not contain today, has
   no goal, or has not had a single weekday yet; the tile then shows a
   placeholder.
-  The tile itself shows **only the percentage and the label** – the whole
+  The first tile uses `.kpi-split`: Week-to-date on the left, actual FY target
+  achievement (`Goal.PctActual`, caption "FY-Ziel"/"FY target") on the right.
+  FY achievement is booked hours before today divided by the full FY goal;
+  forecast and vacation are excluded. Gate each half independently:
+  `WeekToDate.HasData` and `Goal.HasTarget`. A valid target without bookings
+  shows 0%; no target shows a dash. Do not cap achievement at 100%.
+  Each half has its own tooltip. The Week-to-date
   calculation (achieved vs. planned h/week, hours since the FY start, elapsed
   weeks) lives in a multi-line `title` tooltip on the card (`&#10;` for the line
   breaks).

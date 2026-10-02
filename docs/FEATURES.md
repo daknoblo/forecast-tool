@@ -26,6 +26,21 @@ labels depend on the application language.
 - **JSON storage and API:** export data from Settings or synchronize daily
   hours through the bearer-token-protected [HTTP API](API.md).
 
+## Dashboard target progress
+
+The first dashboard tile has two values separated like the six-month average:
+
+- **Week-to-date:** booked hours since the fiscal-year start compared with the
+  FY target spread evenly over elapsed weeks. This measures pace, not the
+  percentage of the full annual target already achieved.
+- **FY target:** project hours booked before today divided by the full FY
+  hours target. Forecast and vacation are excluded. This is the same actual
+  target achievement shown on the Goals page and can exceed 100%.
+
+Each half has its own explanatory tooltip. With a target but no booked hours,
+FY target shows 0%; without a target it shows a dash. Its value remains
+available when reviewing another fiscal year, even if Week-to-date is not.
+
 ## Application language
 
 Under **Settings → Language**, choose **Deutsch** or **English**. The selection
