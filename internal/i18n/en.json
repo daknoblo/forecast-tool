@@ -1,4 +1,6 @@
 {
+  "FY-Abdeckung": "FY coverage",
+  "Budgetabdeckung: verfügbares Assignment-Budget im Fiskaljahr geteilt durch das FY-Stundenziel. Übertrag und freigegebenes Budget sind abgezogen; Urlaub zählt nicht mit.": "Budget coverage: available assignment budget for the fiscal year divided by the FY hours target. Carryover and released budget are deducted; vacation is excluded.",
   "FY-Ziel": "FY target",
   "Bisherige FY-Zielerreichung: gebuchte Projektstunden vor heute geteilt durch das gesamte FY-Stundenziel. Forecast und Urlaub zählen nicht mit.": "FY target achieved so far: project hours booked before today divided by the full FY hours target. Forecast and vacation are excluded.",
   "Für dieses Fiskaljahr ist kein Ziel hinterlegt.": "No target is configured for this fiscal year.",

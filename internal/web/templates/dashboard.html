@@ -46,8 +46,16 @@
     {{end}}
   </div>
   <div class="card kpi" title="{{t "Summe der Assignment-Budgets für das Fiskaljahr"}} {{.Settings.Year}} {{t "– ohne Urlaubsprojekt. Budget der Assignments insgesamt:"}} {{hours .Summary.TotalBudget}} {{t "h"}}{{if .Summary.HasCarryOver}}{{t "Davon in früheren Fiskaljahren verbraucht: −"}}{{hours .Summary.TotalCarryOver}} {{t "h"}}{{end}}{{if .Summary.HasReleased}}{{t "Durch inaktive Projekte freigegeben: −"}}{{hours .Summary.TotalReleased}} {{t "h"}}{{end}}{{t "In diesem Fiskaljahr verfügbar:"}} {{hours .Summary.TotalAvailable}} {{t "h Bereits verplant (gebucht + Forecast):"}} {{hours .Summary.TotalHours}} {{t "h Budget noch nicht verplant:"}} {{hours .Summary.TotalRemaining}} {{t "h"}}">
-    <div class="kpi-value">{{hours .Summary.TotalAvailable}} {{t "h"}}</div>
-    <div class="kpi-label">{{t "Budget gesamt"}}</div>
+    <div class="kpi-value kpi-split" id="budget-coverage">
+      <div>
+        <span class="kpi-part">{{hours .Summary.TotalAvailable}} {{t "h"}}</span>
+        <small>{{t "Budget gesamt"}}</small>
+      </div>
+      <div title="{{t "Budgetabdeckung: verfügbares Assignment-Budget im Fiskaljahr geteilt durch das FY-Stundenziel. Übertrag und freigegebenes Budget sind abgezogen; Urlaub zählt nicht mit."}}{{if .Goal.HasTarget}} {{hours .Summary.TotalAvailable}} / {{hours .Goal.TargetHours}} {{t "h"}} = {{pct .BudgetTargetPct}}{{else}} {{t "Für dieses Fiskaljahr ist kein Ziel hinterlegt."}}{{end}}">
+        <span class="kpi-part">{{if .Goal.HasTarget}}{{pct .BudgetTargetPct}}{{else}}–{{end}}</span>
+        <small>{{t "FY-Abdeckung"}}</small>
+      </div>
+    </div>
   </div>
   <div class="card kpi" title="{{t "Stunden, die ab heute im Fiskaljahr"}} {{.Settings.Year}} {{t "geplant sind ("}}{{.FYStart}} – {{.FYEnd}}{{t ") – ohne Urlaub. Bereits gebucht (vergangene Tage):"}} {{hours .Summary.TotalActual}} {{t "h Gebucht + Forecast zusammen:"}} {{hours .Summary.TotalHours}} {{t "h"}}{{if .Goal.HasTarget}}{{t "Noch offen bis FY-Ziel:"}} {{hours .Goal.Remaining}} {{t "h"}}{{end}}">
     <div class="kpi-value">{{hours .Summary.TotalForecast}} {{t "h"}}</div>

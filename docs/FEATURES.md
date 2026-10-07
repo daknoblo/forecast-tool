@@ -41,6 +41,14 @@ Each half has its own explanatory tooltip. With a target but no booked hours,
 FY target shows 0%; without a target it shows a dash. Its value remains
 available when reviewing another fiscal year, even if Week-to-date is not.
 
+The **Total budget** tile also uses a split layout: available assignment hours
+on the left and **FY coverage** on the right. Coverage is the available budget
+divided by the full FY hours target, multiplied by 100. It uses the same budget
+as the hours figure, after carry-over and released budget are deducted and
+excluding vacation. It measures budget coverage, not booked or planned usage.
+Values above 100% are retained; no budget gives 0% when a target exists, and
+no FY target gives a dash while the hours remain visible.
+
 ## Application language
 
 Under **Settings → Language**, choose **Deutsch** or **English**. The selection

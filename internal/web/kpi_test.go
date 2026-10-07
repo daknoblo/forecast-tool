@@ -118,6 +118,88 @@ func TestDashboardTargetProgress(t *testing.T) {
 	}
 }
 
+func TestDashboardBudgetCoverage(t *testing.T) {
+	for _, language := range []string{"de", "en"} {
+		for _, tc := range []struct {
+			name                 string
+			budget, carry, gross float64
+			closed               bool
+			wantHours, wantPct   string
+		}{
+			{"below-target", 50, 0, 108, false, "50 h", "50 %"},
+			{"at-target", 100, 0, 108, false, "100 h", "100 %"},
+			{"above-target", 1776, 0, 108, false, "1776 h", "1776 %"},
+			{"rounding", 50, 0, 308, false, "50 h", "16.7 %"},
+			{"carry-over", 100, 20, 108, false, "80 h", "80 %"},
+			{"released", 100, 20, 108, true, "8 h", "8 %"},
+			{"no-budget", 0, 0, 108, false, "0 h", "0 %"},
+			{"no-target", 100, 0, 8, false, "100 h", "–"},
+			{"negative-target", 100, 0, 4, false, "100 h", "–"},
+		} {
+			t.Run(language+"/"+tc.name, func(t *testing.T) {
+				st, err := storage.New(filepath.Join(t.TempDir(), "data.json"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := st.Mutate(func(d *models.Data) error {
+					*d = models.DefaultData(2027)
+					d.Settings.Language = language
+					d.Settings.FiscalYearStartMonth = 7
+					zero := 0
+					d.FiscalYears[2027] = models.FiscalYearSettings{
+						WeekdayHours: tc.gross, VacationDays: 1, HolidayDays: &zero,
+					}
+					d.Projects = []models.Project{
+						{ID: "p", AssignmentID: "1", Name: "Project", FiscalYear: 2027, BudgetHours: tc.budget, Active: !tc.closed, Color: "#2563eb"},
+						{ID: "old", AssignmentID: "1", Name: "Previous", FiscalYear: 2026, BudgetHours: tc.budget, Active: true, Color: "#2563eb"},
+					}
+					models.EnsureVacationProject(d, 2027)
+					if tc.carry > 0 {
+						d.Entries = append(d.Entries, models.Entry{Date: "2025-11-03", ProjectID: "old", Hours: tc.carry})
+					}
+					if tc.budget > 0 {
+						d.Entries = append(d.Entries, models.Entry{Date: "2026-11-03", ProjectID: "p", Hours: 8})
+					}
+					return nil
+				}); err != nil {
+					t.Fatal(err)
+				}
+				srv, err := NewServer(st, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				rec := httptest.NewRecorder()
+				srv.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+				if rec.Code != http.StatusOK {
+					t.Fatal(rec.Body.String())
+				}
+				_, tile, found := strings.Cut(rec.Body.String(), `class="kpi-value kpi-split" id="budget-coverage">`)
+				if !found {
+					t.Fatal("missing split budget tile")
+				}
+				tile, _, _ = strings.Cut(tile, `<div class="card kpi"`)
+				parts := strings.Split(tile, `<span class="kpi-part">`)
+				if len(parts) != 3 {
+					t.Fatal("budget tile must retain two figures")
+				}
+				for i, want := range []string{tc.wantHours, tc.wantPct} {
+					got, _, _ := strings.Cut(parts[i+1], "</span>")
+					if got != want {
+						t.Errorf("figure %d = %q, want %q", i, got, want)
+					}
+				}
+				caption := "FY-Abdeckung"
+				if language == "en" {
+					caption = "FY coverage"
+				}
+				if !strings.Contains(tile, "<small>"+caption+"</small>") {
+					t.Fatalf("missing caption %q", caption)
+				}
+			})
+		}
+	}
+}
+
 func TestDashboardKPIHeadingsAndCaptions(t *testing.T) {
 	for _, populated := range []bool{false, true} {
 		name := "empty"

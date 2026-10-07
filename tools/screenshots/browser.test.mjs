@@ -57,6 +57,8 @@ async function dashboard(page) {
   await expect(page.locator('#target-progress .kpi-split')).toHaveCount(1);
   await expect(page.locator('#target-progress .kpi-part')).toHaveCount(2);
   await expect(page.locator('#target-progress small')).toHaveText(['Week-to-date', 'FY-Ziel']);
+  await expect(page.locator('#budget-coverage .kpi-part')).toHaveCount(2);
+  await expect(page.locator('#budget-coverage small')).toHaveText(['Budget gesamt', 'FY-Abdeckung']);
   await expect(page.locator('#forecast-accuracy')).toHaveAttribute('title', /Noch kein ESXP-Wert/);
   await checkKPIAlignment(page);
   const year = await page.locator('#fySelect').inputValue();
@@ -91,6 +93,7 @@ async function dashboard(page) {
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   await page.goto('/');
   await expect(page.locator('#target-progress small')).toHaveText(['Week-to-date', 'FY target']);
+  await expect(page.locator('#budget-coverage small')).toHaveText(['Total budget', 'FY coverage']);
   await checkKPIAlignment(page);
 }
 

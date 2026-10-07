@@ -175,6 +175,10 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	// The "open until goal" tile measures against the fiscal year's hour goal,
 	// not against the summed project budgets.
 	goal := forecast.BuildGoalSummary(d, cal)
+	budgetTargetPct := 0.0
+	if goal.HasTarget {
+		budgetTargetPct = round1(ys.TotalAvailable / goal.TargetHours * 100)
+	}
 	// Built before the projects are narrowed to the active FY: the rolling window
 	// is anchored on today and may reach into another fiscal year.
 	workload := forecast.BuildWorkload(d, forecast.WorkloadTileMonths)
@@ -197,29 +201,30 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		curMonth = ys.WeekTotals[curWeek-1].Month
 	}
 	s.render(w, r, "dashboard.html", map[string]any{
-		"Active":         "dashboard",
-		"Wide":           true,
-		"Settings":       d.Settings,
-		"FYYears":        fyYears(d),
-		"Summary":        ys,
-		"Goal":           goal,
-		"Workload":       workload,
-		"WorkloadPlan":   workloadPlan,
-		"WorkloadLimit":  forecast.WorkdayLimitHours,
-		"WeekToDate":     forecast.BuildWeekToDate(d, cal),
-		"Accuracy":       forecast.BuildForecastAccuracy(d, time.Now().UTC()),
-		"Projects":       projects,
-		"ActiveProjects": len(activeProjects(projects)),
-		"CurrentWeek":    curWeek,
-		"CurrentRange":   curWeekRange,
-		"CurrentMonth":   curMonth,
-		"FYWeekCount":    len(ys.WeekTotals),
-		"FYStart":        i18n.Date(d.Settings.Language, fyStart),
-		"FYEnd":          i18n.Date(d.Settings.Language, fyEnd),
-		"Sankey":         sankey,
-		"SankeyRanges":   forecast.SankeyRanges,
-		"SankeySVG":      sankeySVG(sankey, d.Settings.Language),
-		"FreeTimeSVG":    freeTimeSVG(sankey, d.Settings.Language),
+		"Active":          "dashboard",
+		"Wide":            true,
+		"Settings":        d.Settings,
+		"FYYears":         fyYears(d),
+		"Summary":         ys,
+		"BudgetTargetPct": budgetTargetPct,
+		"Goal":            goal,
+		"Workload":        workload,
+		"WorkloadPlan":    workloadPlan,
+		"WorkloadLimit":   forecast.WorkdayLimitHours,
+		"WeekToDate":      forecast.BuildWeekToDate(d, cal),
+		"Accuracy":        forecast.BuildForecastAccuracy(d, time.Now().UTC()),
+		"Projects":        projects,
+		"ActiveProjects":  len(activeProjects(projects)),
+		"CurrentWeek":     curWeek,
+		"CurrentRange":    curWeekRange,
+		"CurrentMonth":    curMonth,
+		"FYWeekCount":     len(ys.WeekTotals),
+		"FYStart":         i18n.Date(d.Settings.Language, fyStart),
+		"FYEnd":           i18n.Date(d.Settings.Language, fyEnd),
+		"Sankey":          sankey,
+		"SankeyRanges":    forecast.SankeyRanges,
+		"SankeySVG":       sankeySVG(sankey, d.Settings.Language),
+		"FreeTimeSVG":     freeTimeSVG(sankey, d.Settings.Language),
 	})
 }
 
