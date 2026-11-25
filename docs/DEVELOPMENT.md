@@ -86,6 +86,9 @@ public pulls, make the GHCR package public. Private packages require a
 Dependabot checks Go modules, GitHub Actions, Docker images and the Playwright
 package under `tools/screenshots` weekly. Minor and patch Go module updates
 are grouped so coupled SDK packages can be validated together.
+Browser tooling uses the public npm registry through its project `.npmrc`;
+keep lockfile URLs public so Dependabot does not require credentials for a
+developer-specific package mirror.
 
 Keep the Go patch version in `go.mod` and the Docker build image aligned, and
 update the pinned vulnerability scanner and linter in the workflows when needed.
