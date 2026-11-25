@@ -365,6 +365,128 @@ func TestBuildWeekToDate(t *testing.T) {
 	}
 }
 
+func TestWeekToDateEightHourReference(t *testing.T) {
+	now := time.Date(2026, 11, 20, 15, 0, 0, 0, time.UTC)
+	d := models.Data{
+		Settings: models.Settings{Year: 2027, FederalState: "SN", FiscalYearStartMonth: 11},
+		FiscalYears: map[int]models.FiscalYearSettings{
+			2027: {WeekdayHours: float64(FYWeeks(2027, 11)) * 20, HolidayDays: intPtr(0)},
+		},
+		Projects: []models.Project{
+			{ID: "p", Name: "Work", Active: true, FiscalYear: 2027},
+			{ID: "vac", Name: "Vacation", System: models.VacationSystem, FiscalYear: 2027},
+			{ID: "vac2", Name: "Vacation 2", System: models.VacationSystem, FiscalYear: 2027},
+		},
+	}
+	cal := holidays.New(2027, "SN")
+	base := buildWeekToDate(d, cal, now)
+	if !base.HasData || base.ReferenceHours != 104 || base.ReferenceRatePct != 185.5 || base.RatePct != 0 {
+		t.Fatalf("reference with no bookings: %+v", base)
+	}
+	if otherState := buildWeekToDate(d, holidays.New(2027, "BY"), now); otherState.ReferenceHours != 112 || otherState.ReferenceRatePct != 200 {
+		t.Fatalf("reference must follow the selected state's holidays: %+v", otherState)
+	}
+	d.Entries = []models.Entry{
+		{Date: "2026-11-03", ProjectID: "vac", Hours: 8},
+		{Date: "2026-11-04", ProjectID: "vac", Hours: 3},
+		{Date: "2026-11-04", ProjectID: "vac2", Hours: 1},
+		{Date: "2026-11-05", ProjectID: "vac", Hours: 12},
+		{Date: "2026-11-18", ProjectID: "vac", Hours: 8}, // Saxony holiday: no double deduction
+		{Date: "2026-11-07", ProjectID: "vac", Hours: 8}, // weekend
+		{Date: "2026-10-30", ProjectID: "vac", Hours: 8}, // outside FY
+		{Date: "2026-11-20", ProjectID: "vac", Hours: 8}, // today
+		{Date: "2026-11-23", ProjectID: "vac", Hours: 8}, // future
+		{Date: "2026-11-06", ProjectID: "missing", Hours: 8},
+	}
+	got := buildWeekToDate(d, cal, now)
+	if got.ReferenceHours != 84 || got.ReferencePerWeek != 30 || got.ReferenceRatePct != 150 {
+		t.Fatalf("holiday and vacation corrected reference: %+v", got)
+	}
+	if got.ElapsedWeeks != 2.8 || got.ExpectedHours != 56 || got.TargetPerWeek != 20 {
+		t.Fatalf("reference must retain the existing WTD denominator: %+v", got)
+	}
+	// Book exactly the hypothetical schedule, without altering recorded vacation.
+	for day := 2; day < 20; day++ {
+		date := time.Date(2026, 11, day, 0, 0, 0, 0, time.UTC)
+		if date.Weekday() == time.Saturday || date.Weekday() == time.Sunday || day == 3 || day == 5 || day == 18 {
+			continue
+		}
+		hours := 8.0
+		if day == 4 {
+			hours = 4
+		}
+		d.Entries = append(d.Entries, models.Entry{Date: date.Format("2006-01-02"), ProjectID: "p", Hours: hours})
+	}
+	equal := buildWeekToDate(d, cal, now)
+	if equal.RatePct != 150 || equal.RatePct != equal.ReferenceRatePct {
+		t.Fatalf("8h schedule must produce exactly the reference WTD: %+v", equal)
+	}
+	d.Entries = append(d.Entries, models.Entry{Date: "2026-11-07", ProjectID: "p", Hours: 8})
+	extra := buildWeekToDate(d, cal, now)
+	if extra.ReferenceRatePct != 150 || extra.RatePct <= extra.ReferenceRatePct {
+		t.Fatalf("extra bookings must change actual WTD only: %+v", extra)
+	}
+	for _, date := range []time.Time{
+		time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2026, 11, 2, 0, 0, 0, 0, time.UTC),
+		time.Date(2026, 10, 31, 0, 0, 0, 0, time.UTC),
+		time.Date(2027, 11, 1, 0, 0, 0, 0, time.UTC),
+	} {
+		if result := buildWeekToDate(d, cal, date); result.HasData {
+			t.Errorf("%s: reference must be unavailable: %+v", date, result)
+		}
+	}
+	d.FiscalYears[2027] = models.FiscalYearSettings{StandardTaskHours: 99999}
+	if result := buildWeekToDate(d, cal, now); result.HasData {
+		t.Fatalf("reference must be unavailable without a goal: %+v", result)
+	}
+}
+
+func TestWeekToDateReferenceWithoutAvailableHours(t *testing.T) {
+	d := models.Data{
+		Settings: models.Settings{Year: 2026, FiscalYearStartMonth: 1},
+		FiscalYears: map[int]models.FiscalYearSettings{
+			2026: {WeekdayHours: 1000, HolidayDays: intPtr(0)},
+		},
+	}
+	// January 1 is an elapsed weekday but a holiday, so the valid reference is zero.
+	got := buildWeekToDate(d, holidays.New(2026, "SN"), time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC))
+	if !got.HasData || got.ReferenceHours != 0 || got.ReferenceRatePct != 0 {
+		t.Fatalf("holiday-only period: %+v", got)
+	}
+	d.Projects = []models.Project{{ID: "vac", System: models.VacationSystem, FiscalYear: 2026}}
+	d.Entries = []models.Entry{{Date: "2026-01-02", ProjectID: "vac", Hours: 8}}
+	got = buildWeekToDate(d, holidays.New(2026, "SN"), time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC))
+	if !got.HasData || got.ReferenceHours != 0 || got.ReferenceRatePct != 0 {
+		t.Fatalf("holiday, vacation and weekend-only period: %+v", got)
+	}
+}
+
+func TestWeekToDateReferenceCalendarBoundaries(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		year, start int
+		now         time.Time
+		hours, rate float64
+	}{
+		{"leap-day", 2025, 2, time.Date(2024, 3, 1, 0, 0, 0, 0, time.UTC), 168, 200},
+		{"year-change", 2027, 12, time.Date(2027, 1, 5, 0, 0, 0, 0, time.UTC), 184, 184},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d := models.Data{
+				Settings: models.Settings{Year: tc.year, FiscalYearStartMonth: tc.start},
+				FiscalYears: map[int]models.FiscalYearSettings{
+					tc.year: {WeekdayHours: float64(FYWeeks(tc.year, tc.start)) * 20, HolidayDays: intPtr(0)},
+				},
+			}
+			got := buildWeekToDate(d, holidays.New(tc.year, "SN"), tc.now)
+			if !got.HasData || got.ReferenceHours != tc.hours || got.ReferenceRatePct != tc.rate {
+				t.Fatalf("got %+v, want %v hours and %v%% reference", got, tc.hours, tc.rate)
+			}
+		})
+	}
+}
+
 // Without a fiscal-year goal there is no plan to compare against. The goal is
 // derived, so "no goal" means the deductions eat the whole year.
 func TestBuildWeekToDateWithoutGoal(t *testing.T) {

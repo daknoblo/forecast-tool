@@ -24,6 +24,13 @@ async function checkKPIAlignment(page) {
           headingBottom: headings.map(el => el.getBoundingClientRect().bottom),
           valueTop: values.map(el => el.getBoundingClientRect().top),
           captionTop: captions.map(el => el.getBoundingClientRect().top),
+          figuresFit: values.every(el => {
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            const text = range.getBoundingClientRect();
+            const area = el.getBoundingClientRect();
+            return text.left >= area.left - 1 && text.right <= area.right + 1;
+          }),
           textOffsets: [...headings, ...values, ...captions].map(el => {
             const range = document.createRange();
             range.selectNodeContents(el);
@@ -44,6 +51,7 @@ async function checkKPIAlignment(page) {
         if (positions.length) assert.ok(Math.max(...positions) - Math.min(...positions) <= 1, `${key} misaligned at ${width}px`);
       }
       assert.ok(card.textOffsets.every(offset => offset <= 1), `KPI text not centered at ${width}px`);
+      assert.ok(card.figuresFit, `KPI figure overlaps its column at ${width}px`);
       assert.ok(card.headingBottom.every(bottom => bottom <= Math.min(...card.valueTop) + 1), `heading below figure at ${width}px`);
     }
     assert.ok(await page.locator('.kpi-row').evaluate(el => el.scrollWidth <= el.clientWidth + 1), `KPI overflow at ${width}px`);
@@ -55,8 +63,8 @@ async function dashboard(page) {
   await page.goto('/');
   await expect(page.locator('nav a')).toHaveText(['Dashboard', 'Projekte', 'Monatsplanung', 'Ziele', 'Einstellungen']);
   await expect(page.locator('#target-progress .kpi-split')).toHaveCount(1);
-  await expect(page.locator('#target-progress .kpi-part')).toHaveCount(2);
-  await expect(page.locator('#target-progress small')).toHaveText(['Week-to-date', 'FY-Ziel']);
+  await expect(page.locator('#target-progress .kpi-part')).toHaveCount(3);
+  await expect(page.locator('#target-progress small')).toHaveText(['Week-to-date', 'WTD · 8 h', 'FY-Ziel']);
   await expect(page.locator('#budget-coverage .kpi-part')).toHaveCount(2);
   await expect(page.locator('#budget-coverage small')).toHaveText(['Budget gesamt', 'FY-Abdeckung']);
   await expect(page.locator('#forecast-accuracy')).toHaveAttribute('title', /Noch kein ESXP-Wert/);
@@ -92,8 +100,13 @@ async function dashboard(page) {
   await page.locator('select[name="language"]').selectOption('en');
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   await page.goto('/');
-  await expect(page.locator('#target-progress small')).toHaveText(['Week-to-date', 'FY target']);
+  await expect(page.locator('#target-progress small')).toHaveText(['Week-to-date', 'WTD · 8 h', 'FY target']);
   await expect(page.locator('#budget-coverage small')).toHaveText(['Total budget', 'FY coverage']);
+  await checkKPIAlignment(page);
+  // Exercise realistic three-digit WTD values even in the empty-data scenario.
+  await page.locator('#target-progress .kpi-part').evaluateAll(elements => {
+    ['199.3 %', '148.1 %', '52.5 %'].forEach((value, i) => { elements[i].textContent = value; });
+  });
   await checkKPIAlignment(page);
 }
 

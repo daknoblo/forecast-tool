@@ -28,16 +28,34 @@ labels depend on the application language.
 
 ## Dashboard target progress
 
-The first dashboard tile has two values separated like the six-month average:
+The first dashboard tile has three values separated by vertical dividers:
 
 - **Week-to-date:** booked hours since the fiscal-year start compared with the
   FY target spread evenly over elapsed weeks. This measures pace, not the
   percentage of the full annual target already achieved.
+- **WTD · 8 h:** the hypothetical Week-to-date value if you had booked 8 hours
+  on every available Monday-Friday since FY start through yesterday.
+  Public holidays for the selected state contribute zero hours. Recorded
+  vacation reduces each remaining day's hours, including partial days, with
+  a floor of zero; vacation on a holiday or weekend is not deducted twice.
+  This reference is independent of actual work bookings and uses the same
+  elapsed weeks, weekly FY target and rounding as actual WTD. It can therefore
+  exceed 100%: it is not utilization normalized to a 100% eight-hour baseline.
+  Comparing actual WTD with this reference shows the effect of booking more
+  or fewer hours than that schedule. The tooltip shows reference hours and pace.
 - **FY target:** project hours booked before today divided by the full FY
   hours target. Forecast and vacation are excluded. This is the same actual
   target achievement shown on the Goals page and can exceed 100%.
 
-Each half has its own explanatory tooltip. With a target but no booked hours,
+Each value has its own explanatory tooltip. Both WTD values exclude today
+and future days and show a dash outside the current FY, without a positive
+FY target or before the first weekday is complete. A valid reference with no
+available hours shows 0%, and a valid reference does not require work bookings.
+Only dated vacation entries reduce the reference; the annual vacation allowance
+and standard-task deduction are not subtracted again from hypothetical hours.
+They remain part of the existing FY target calculation.
+
+With a target but no booked hours,
 FY target shows 0%; without a target it shows a dash. Its value remains
 available when reviewing another fiscal year, even if Week-to-date is not.
 

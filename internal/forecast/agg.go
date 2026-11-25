@@ -3,6 +3,7 @@ package forecast
 import (
 	"fmt"
 	"github.com/daknoblo/forecast-tool/internal/i18n"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -622,14 +623,17 @@ type WeekToDate struct {
 	StartLabel string // fiscal-year start, DD.MM.YYYY
 	ToLabel    string // last counted day (yesterday), DD.MM.YYYY
 
-	ElapsedWeeks  float64 // elapsed weekdays since the FY start / 5
-	FYWeeks       int     // weeks in the whole fiscal year
-	Hours         float64 // hours booked since the FY start (vacation excluded)
-	ExpectedHours float64 // TargetPerWeek * ElapsedWeeks
-	TargetPerWeek float64 // FY goal / FYWeeks (the evenly spread plan)
-	PerWeek       float64 // Hours / ElapsedWeeks (the rate actually achieved)
-	DeltaPerWeek  float64 // PerWeek - TargetPerWeek (hours per week above/below plan)
-	RatePct       float64 // PerWeek / TargetPerWeek * 100 (100 = exactly on plan)
+	ElapsedWeeks     float64 // elapsed weekdays since the FY start / 5
+	FYWeeks          int     // weeks in the whole fiscal year
+	Hours            float64 // hours booked since the FY start (vacation excluded)
+	ExpectedHours    float64 // TargetPerWeek * ElapsedWeeks
+	TargetPerWeek    float64 // FY goal / FYWeeks (the evenly spread plan)
+	PerWeek          float64 // Hours / ElapsedWeeks (the rate actually achieved)
+	DeltaPerWeek     float64 // PerWeek - TargetPerWeek (hours per week above/below plan)
+	RatePct          float64 // PerWeek / TargetPerWeek * 100 (100 = exactly on plan)
+	ReferenceHours   float64 // hypothetical 8h weekdays, net of holidays and recorded vacation
+	ReferencePerWeek float64 // ReferenceHours / ElapsedWeeks
+	ReferenceRatePct float64 // hypothetical WTD against the same evenly spread FY target
 }
 
 // BuildWeekToDate computes the utilization achieved since the fiscal year
@@ -637,9 +641,13 @@ type WeekToDate struct {
 // contain today, when it has no goal, or before the first weekday is over; the
 // caller then shows a placeholder.
 func BuildWeekToDate(d models.Data, cal *holidays.Calendar) WeekToDate {
+	return buildWeekToDate(d, cal, time.Now().UTC())
+}
+
+func buildWeekToDate(d models.Data, cal *holidays.Calendar, now time.Time) WeekToDate {
 	year := d.Settings.Year
 	startMonth := d.Settings.FiscalYearStartMonth
-	now := time.Now().UTC().Truncate(24 * time.Hour)
+	now = now.UTC().Truncate(24 * time.Hour)
 	fyStart, fyEnd := FiscalYear(year, startMonth)
 	if now.Before(fyStart) || now.After(fyEnd) {
 		return WeekToDate{} // another fiscal year is under review: nothing to date
@@ -649,7 +657,7 @@ func BuildWeekToDate(d models.Data, cal *holidays.Calendar) WeekToDate {
 	if weeks < 1 {
 		weeks = 1
 	}
-	week := CurrentFYWeek(year, startMonth)
+	week := FYWeekIndexOf(year, startMonth, now)
 	_, isoWeek := FYWeekMonday(year, startMonth, week).ISOWeek()
 	target := BuildFYCapacity(d, cal, year).RemainingHours
 
@@ -662,6 +670,14 @@ func BuildWeekToDate(d models.Data, cal *holidays.Calendar) WeekToDate {
 		TargetPerWeek: round1(target / float64(weeks)),
 	}
 
+	vac := vacationSet(d.Projects)
+	vacationHours := map[string]float64{}
+	for _, e := range d.Entries {
+		if vac[e.ProjectID] && e.Hours > 0 {
+			vacationHours[e.Date] += e.Hours
+		}
+	}
+
 	// Count the weekdays that are already over. Holidays are deliberately
 	// included: the annual goal stays the same, so a holiday really does put you
 	// behind the evenly spread plan.
@@ -669,6 +685,10 @@ func BuildWeekToDate(d models.Data, cal *holidays.Calendar) WeekToDate {
 	for day := fyStart; day.Before(now); day = day.AddDate(0, 0, 1) {
 		if wd := day.Weekday(); wd != time.Saturday && wd != time.Sunday {
 			weekdays++
+			iso := day.Format("2006-01-02")
+			if !cal.IsHoliday(iso) {
+				wtd.ReferenceHours += math.Max(0, HolidayDayHours-vacationHours[iso])
+			}
 		}
 	}
 	if weekdays == 0 || target <= 0 {
@@ -678,7 +698,6 @@ func BuildWeekToDate(d models.Data, cal *holidays.Calendar) WeekToDate {
 	// Hours booked between the fiscal-year start and yesterday.
 	fromISO := fyStart.Format("2006-01-02")
 	todayISO := now.Format("2006-01-02")
-	vac := vacationSet(d.Projects)
 	known := knownProjects(d.Projects)
 	for _, e := range d.Entries {
 		if e.Date < fromISO || e.Date >= todayISO || vac[e.ProjectID] || !known[e.ProjectID] {
@@ -694,8 +713,11 @@ func BuildWeekToDate(d models.Data, cal *holidays.Calendar) WeekToDate {
 	wtd.ExpectedHours = round1(wtd.TargetPerWeek * elapsedWeeks)
 	wtd.PerWeek = round1(wtd.Hours / elapsedWeeks)
 	wtd.DeltaPerWeek = round1(wtd.PerWeek - wtd.TargetPerWeek)
+	wtd.ReferenceHours = round1(wtd.ReferenceHours)
+	wtd.ReferencePerWeek = round1(wtd.ReferenceHours / elapsedWeeks)
 	if wtd.TargetPerWeek > 0 {
 		wtd.RatePct = round1(wtd.PerWeek / wtd.TargetPerWeek * 100)
+		wtd.ReferenceRatePct = round1(wtd.ReferencePerWeek / wtd.TargetPerWeek * 100)
 	}
 	return wtd
 }

@@ -1,4 +1,6 @@
 {
+  "WTD · 8 h": "WTD · 8 h",
+  "Hypothetische WTD bei 8 Stunden pro Arbeitstag seit FY-Start bis gestern. Wochenenden und Feiertage zählen nicht; erfasster Urlaub wird stundenweise bis maximal 8 Stunden pro Tag abgezogen. Dieselbe anteilige FY-Zielbasis wie bei der aktuellen WTD, kein auf 100 % normierter Wert.": "Hypothetical WTD at 8 hours per working day from FY start through yesterday. Weekends and public holidays are excluded; recorded vacation is deducted by the hour, up to 8 hours per day. Uses the same prorated FY target as actual WTD, not a value normalized to 100%.",
   "FY-Abdeckung": "FY coverage",
   "Budgetabdeckung: verfügbares Assignment-Budget im Fiskaljahr geteilt durch das FY-Stundenziel. Übertrag und freigegebenes Budget sind abgezogen; Urlaub zählt nicht mit.": "Budget coverage: available assignment budget for the fiscal year divided by the FY hours target. Carryover and released budget are deducted; vacation is excluded.",
   "FY-Ziel": "FY target",

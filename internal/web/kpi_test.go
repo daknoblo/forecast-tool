@@ -87,11 +87,11 @@ func TestDashboardTargetProgress(t *testing.T) {
 					t.Fatal("missing target progress tile")
 				}
 				tile, _, _ = strings.Cut(tile, `<div class="card kpi"`)
-				if !strings.Contains(tile, `class="kpi-value kpi-split"`) || strings.Count(tile, `class="kpi-part"`) != 2 {
-					t.Fatal("target progress must have two split figures")
+				if !strings.Contains(tile, `class="kpi-value kpi-split kpi-triple"`) || strings.Count(tile, `class="kpi-part"`) != 3 {
+					t.Fatal("target progress must have three split figures")
 				}
 				parts := strings.Split(tile, `<span class="kpi-part">`)
-				actual, _, _ := strings.Cut(parts[2], "</span>")
+				actual, _, _ := strings.Cut(parts[3], "</span>")
 				if actual != tc.want {
 					t.Fatalf("FY target = %q, want %q", actual, tc.want)
 				}
@@ -104,11 +104,19 @@ func TestDashboardTargetProgress(t *testing.T) {
 				if actualWTD != wantWTD {
 					t.Fatalf("Week-to-date changed: got %q, want %q", actualWTD, wantWTD)
 				}
+				wantReference := "–"
+				if wtd.HasData {
+					wantReference = formatHours(wtd.ReferenceRatePct) + " %"
+				}
+				actualReference, _, _ := strings.Cut(parts[2], "</span>")
+				if actualReference != wantReference {
+					t.Fatalf("reference WTD = %q, want %q", actualReference, wantReference)
+				}
 				caption := "FY-Ziel"
 				if language == "en" {
 					caption = "FY target"
 				}
-				for _, label := range []string{"Week-to-date", caption} {
+				for _, label := range []string{"Week-to-date", "WTD · 8 h", caption} {
 					if !strings.Contains(tile, "<small>"+label+"</small>") {
 						t.Fatalf("missing caption %q", label)
 					}
