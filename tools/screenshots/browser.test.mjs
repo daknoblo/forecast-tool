@@ -21,6 +21,13 @@ async function checkKPIAlignment(page) {
         return {
           top: box.top,
           content: card.innerText,
+          figureBounds: values.map(el => {
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            const text = range.getBoundingClientRect();
+            const cell = (split ? el.parentElement : el).getBoundingClientRect();
+            return { text: el.textContent, font: getComputedStyle(el).fontSize, left: text.left - cell.left, right: cell.right - text.right, width: cell.width };
+          }),
           headingTop: headings.map(el => el.getBoundingClientRect().top),
           headingBottom: headings.map(el => el.getBoundingClientRect().bottom),
           valueTop: values.map(el => el.getBoundingClientRect().top),
@@ -55,7 +62,7 @@ async function checkKPIAlignment(page) {
         if (positions.length) assert.ok(Math.max(...positions) - Math.min(...positions) <= 1, `${key} misaligned at ${width}px`);
       }
       assert.ok(card.textOffsets.every(offset => offset <= 1), `KPI text not centered at ${width}px`);
-      assert.ok(card.figuresFit, `KPI figure overlaps its column at ${width}px: ${card.content}`);
+      assert.ok(card.figuresFit, `KPI figure overlaps its column at ${width}px: ${card.content}\n${JSON.stringify(card.figureBounds)}`);
       assert.ok(card.headingBottom.every(bottom => bottom <= Math.min(...card.valueTop) + 1), `heading below figure at ${width}px`);
     }
     assert.ok(await page.locator('.kpi-row').evaluate(el => el.scrollWidth <= el.clientWidth + 1), `KPI overflow at ${width}px`);
