@@ -30,7 +30,7 @@ labels depend on the application language.
 
 The first dashboard tile has three values separated by vertical dividers:
 
-- **Week-to-date:** booked hours since the fiscal-year start compared with the
+- **WTD (Week-to-date):** booked hours since the fiscal-year start compared with the
   FY target spread evenly over elapsed weeks. This measures pace, not the
   percentage of the full annual target already achieved.
 - **WTD · 8 h:** the hypothetical Week-to-date value if you had booked 8 hours

@@ -116,7 +116,7 @@ func TestDashboardTargetProgress(t *testing.T) {
 				if language == "en" {
 					caption = "FY target"
 				}
-				for _, label := range []string{"Week-to-date", "WTD · 8 h", caption} {
+				for _, label := range []string{"WTD", "WTD · 8 h", caption} {
 					if !strings.Contains(tile, "<small>"+label+"</small>") {
 						t.Fatalf("missing caption %q", label)
 					}

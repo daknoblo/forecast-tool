@@ -7,7 +7,7 @@
     <div class="kpi-value kpi-split kpi-triple">
       <div title="{{if .WeekToDate.HasData}}{{t "Auslastung seit FY-Start ("}}{{.WeekToDate.StartLabel}}{{t ") bis"}} {{.WeekToDate.ToLabel}} {{t "– heute zählt noch nicht. Ø"}} {{hours .WeekToDate.PerWeek}} {{t "h/Woche tatsächlich gegenüber"}} {{hours .WeekToDate.TargetPerWeek}} {{t "h/Woche geplant ("}}{{hours .WeekToDate.DeltaPerWeek}} {{t "h Differenz)."}}{{hours .WeekToDate.Hours}} {{t "von"}} {{hours .WeekToDate.ExpectedHours}} {{t "h in"}} {{hours .WeekToDate.ElapsedWeeks}} {{t "Wochen. Das FY-Ziel ist gleichmäßig auf"}} {{.WeekToDate.FYWeeks}} {{t "Wochen verteilt; Urlaub zählt nicht aufs Ziel."}}{{else}}{{t "Es gibt noch keine abgeschlossenen Tage im Fiskaljahr, oder für dieses Fiskaljahr ist kein Ziel hinterlegt."}}{{end}}">
         <span class="kpi-part">{{if .WeekToDate.HasData}}{{pct .WeekToDate.RatePct}}{{else}}–{{end}}</span>
-        <small>{{t "Week-to-date"}}</small>
+        <small>{{t "WTD"}}</small>
       </div>
       <div title="{{t "Hypothetische WTD bei 8 Stunden pro Arbeitstag seit FY-Start bis gestern. Wochenenden und Feiertage zählen nicht; erfasster Urlaub wird stundenweise bis maximal 8 Stunden pro Tag abgezogen. Dieselbe anteilige FY-Zielbasis wie bei der aktuellen WTD, kein auf 100 % normierter Wert."}}{{if .WeekToDate.HasData}} {{hours .WeekToDate.ReferenceHours}} {{t "h"}} · {{hours .WeekToDate.ReferencePerWeek}} {{t "h/Woche"}} / {{hours .WeekToDate.TargetPerWeek}} {{t "h/Woche"}} = {{pct .WeekToDate.ReferenceRatePct}}{{else}} {{t "Es gibt noch keine abgeschlossenen Tage im Fiskaljahr, oder für dieses Fiskaljahr ist kein Ziel hinterlegt."}}{{end}}">
         <span class="kpi-part">{{if .WeekToDate.HasData}}{{pct .WeekToDate.ReferenceRatePct}}{{else}}–{{end}}</span>

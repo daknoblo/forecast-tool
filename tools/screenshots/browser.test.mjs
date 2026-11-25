@@ -20,6 +20,7 @@ async function checkKPIAlignment(page) {
         const headings = [...card.querySelectorAll('.kpi-heading')];
         return {
           top: box.top,
+          width: box.width,
           content: card.innerText,
           figureBounds: values.map(el => {
             const range = document.createRange();
@@ -53,6 +54,9 @@ async function checkKPIAlignment(page) {
       }),
     );
     assert.equal(geometry.length, 8);
+    if (width > 760) {
+      assert.ok(geometry[0].width / geometry[1].width <= 1.4, `WTD tile is too wide at ${width}px`);
+    }
     for (const card of geometry) {
       const sameRow = geometry.filter(other => Math.abs(other.top - card.top) < 1);
       const columns = width <= 760 ? 1 : width <= 1280 ? 2 : width <= 2400 ? 4 : 8;
@@ -75,7 +79,7 @@ async function dashboard(page) {
   await expect(page.locator('nav a')).toHaveText(['Dashboard', 'Projekte', 'Monatsplanung', 'Ziele', 'Einstellungen']);
   await expect(page.locator('#target-progress .kpi-split')).toHaveCount(1);
   await expect(page.locator('#target-progress .kpi-part')).toHaveCount(3);
-  await expect(page.locator('#target-progress small')).toHaveText(['Week-to-date', 'WTD · 8 h', 'FY-Ziel']);
+  await expect(page.locator('#target-progress small')).toHaveText(['WTD', 'WTD · 8 h', 'FY-Ziel']);
   await expect(page.locator('#budget-coverage .kpi-part')).toHaveCount(2);
   await expect(page.locator('#budget-coverage small')).toHaveText(['Budget gesamt', 'FY-Abdeckung']);
   await expect(page.locator('#forecast-accuracy')).toHaveAttribute('title', /Noch kein ESXP-Wert/);
@@ -111,7 +115,7 @@ async function dashboard(page) {
   await page.locator('select[name="language"]').selectOption('en');
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   await page.goto('/');
-  await expect(page.locator('#target-progress small')).toHaveText(['Week-to-date', 'WTD · 8 h', 'FY target']);
+  await expect(page.locator('#target-progress small')).toHaveText(['WTD', 'WTD · 8 h', 'FY target']);
   await expect(page.locator('#budget-coverage small')).toHaveText(['Total budget', 'FY coverage']);
   await checkKPIAlignment(page);
   // Exercise realistic three-digit WTD values even in the empty-data scenario.
