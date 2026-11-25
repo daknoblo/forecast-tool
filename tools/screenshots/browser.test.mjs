@@ -9,7 +9,7 @@ const month = process.env.FORECAST_BROWSER_MONTH;
 assert.ok(baseURL && scenario, 'Run through TestBrowserRegression to use isolated Go fixtures.');
 
 async function checkKPIAlignment(page) {
-  for (const width of [360, 760, 761, 1280, 1281, 1920, 2400, 2401, 2560]) {
+  for (const width of [320, 360, 480, 760, 761, 1280, 1281, 1920, 2400, 2401, 2560]) {
     await page.setViewportSize({ width, height: 1000 });
     const geometry = await page.locator('.kpi-row > .kpi').evaluateAll(cards =>
       cards.map(card => {
@@ -20,6 +20,7 @@ async function checkKPIAlignment(page) {
         const headings = [...card.querySelectorAll('.kpi-heading')];
         return {
           top: box.top,
+          content: card.innerText,
           headingTop: headings.map(el => el.getBoundingClientRect().top),
           headingBottom: headings.map(el => el.getBoundingClientRect().bottom),
           valueTop: values.map(el => el.getBoundingClientRect().top),
@@ -28,8 +29,11 @@ async function checkKPIAlignment(page) {
             const range = document.createRange();
             range.selectNodeContents(el);
             const text = range.getBoundingClientRect();
-            const area = el.getBoundingClientRect();
-            return text.left >= area.left - 1 && text.right <= area.right + 1;
+            const cell = split ? el.parentElement : el;
+            const area = cell.getBoundingClientRect();
+            const style = getComputedStyle(cell);
+            return text.left >= area.left + parseFloat(style.paddingLeft) - 1 &&
+              text.right <= area.right - parseFloat(style.paddingRight) + 1;
           }),
           textOffsets: [...headings, ...values, ...captions].map(el => {
             const range = document.createRange();
@@ -51,7 +55,7 @@ async function checkKPIAlignment(page) {
         if (positions.length) assert.ok(Math.max(...positions) - Math.min(...positions) <= 1, `${key} misaligned at ${width}px`);
       }
       assert.ok(card.textOffsets.every(offset => offset <= 1), `KPI text not centered at ${width}px`);
-      assert.ok(card.figuresFit, `KPI figure overlaps its column at ${width}px`);
+      assert.ok(card.figuresFit, `KPI figure overlaps its column at ${width}px: ${card.content}`);
       assert.ok(card.headingBottom.every(bottom => bottom <= Math.min(...card.valueTop) + 1), `heading below figure at ${width}px`);
     }
     assert.ok(await page.locator('.kpi-row').evaluate(el => el.scrollWidth <= el.clientWidth + 1), `KPI overflow at ${width}px`);
