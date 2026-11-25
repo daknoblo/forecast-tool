@@ -2,7 +2,7 @@
 
 ## Local development
 
-Use the Go version specified in [go.mod](../go.mod). The application uses
+Use Go 1.27.4 or newer, as specified in [go.mod](../go.mod). The application uses
 server-rendered Go templates and SVG; there is no frontend bundler.
 
 ```bash
@@ -16,7 +16,7 @@ The server defaults to port 8080 and `appdata/`. Use `FORECAST_DATA_DIR` to
 select a separate development data directory; never point tests or demos at
 your private planning data. See [configuration](DEPLOYMENT.md#configuration).
 
-Browser regression tests use the pinned Playwright dependency under
+Browser regression tests use Node 24 and the pinned Playwright dependency under
 `tools/screenshots` and mock AI locally:
 
 ```bash
@@ -59,7 +59,8 @@ documentation screenshot in both German and English.
 
 - [CI](../.github/workflows/ci.yml): formatting, vet, lint, vulnerability checks,
   race-enabled Go tests, browser regressions and a static build.
-- [Release](../.github/workflows/release.yml): gated by vet, race tests and browser
+- [Release](../.github/workflows/release.yml): gated by vet, Go vulnerability
+  checks, race tests, browser dependency audits and browser
   regressions; publishes multi-architecture GHCR images with SBOM, provenance
   and keyless signatures. Trivy scans report findings after publication.
 - [CodeQL](../.github/workflows/codeql.yml): runs on pushes, pull requests and a
@@ -79,3 +80,16 @@ git push origin v1.2.3
 Workflows use the built-in `GITHUB_TOKEN`; no publishing PAT is needed. For
 public pulls, make the GHCR package public. Private packages require a
 `docker login ghcr.io` with a token that has `read:packages` access.
+
+## Dependency maintenance
+
+Dependabot checks Go modules, GitHub Actions, Docker images and the Playwright
+package under `tools/screenshots` weekly. Minor and patch Go module updates
+are grouped so coupled SDK packages can be validated together.
+
+Keep the Go patch version in `go.mod` and the Docker build image aligned, and
+update the pinned vulnerability scanner and linter in the workflows when needed.
+Browser and documentation jobs use Ubuntu 24.04 rather than the moving
+`ubuntu-latest` alias so runner upgrades cannot silently break browser support.
+After a Playwright update, reinstall its matching Chromium build and regenerate
+both language previews; do not reuse screenshots from the previous browser.

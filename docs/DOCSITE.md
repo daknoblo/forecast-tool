@@ -12,7 +12,7 @@ are discovered without extending a route list.
 
 ## Local build
 
-Install the screenshot prerequisites once using Node 22 (as in CI):
+Install the screenshot prerequisites once using Node 24 (as in CI):
 
 ```bash
 cd tools/screenshots

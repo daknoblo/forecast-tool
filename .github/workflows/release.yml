@@ -40,6 +40,13 @@ jobs:
       - name: go vet
         run: go vet ./...
 
+      - name: govulncheck
+        env:
+          GOVULNCHECK_VERSION: v1.10.0
+        run: |
+          go install "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}"
+          "$(go env GOPATH)/bin/govulncheck" ./...
+
       - name: Test (race detector)
         run: go test -race ./...
 
@@ -230,7 +237,7 @@ jobs:
           fi
           {
             git tag -l --format='%(contents:body)' "$TAG"
-            printf '\n## Container image\n\n```\ndocker pull %s:%s\n```\n' "${IMAGE,,}" "${TAG#v}"
+            printf '\n## Container image\n\n~~~sh\ndocker pull %s:%s\n~~~\n' "${IMAGE,,}" "${TAG#v}"
           } > notes.md
           gh release create "$TAG" --verify-tag --title "$TAG" \
             --notes-file notes.md --generate-notes

@@ -7,6 +7,16 @@ updates:
     open-pull-requests-limit: 10
     commit-message:
       prefix: "gomod"
+    groups:
+      go-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+  - package-ecosystem: "npm"
+    directory: "/tools/screenshots"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "npm"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

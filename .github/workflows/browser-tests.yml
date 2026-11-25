@@ -9,7 +9,7 @@ permissions:
 jobs:
   browser:
     name: Chromium regressions
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -26,13 +26,17 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
           cache-dependency-path: tools/screenshots/package-lock.json
 
       - name: Install browser tooling
         working-directory: tools/screenshots
         run: npm ci
+
+      - name: Audit browser dependencies
+        working-directory: tools/screenshots
+        run: npm audit --audit-level=high
 
       - name: Install Chromium
         working-directory: tools/screenshots
